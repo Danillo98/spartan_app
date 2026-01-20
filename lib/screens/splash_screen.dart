@@ -121,17 +121,22 @@ class _SplashScreenState extends State<SplashScreen>
                     scale: _scaleAnimation.value,
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 40),
-                      child: Image.asset(
-                        'assets/images/splash_logo.png',
-                        width: size.width * 0.8, // 80% da largura da tela
-                        fit: BoxFit.contain,
+                      // Limitando a largura máxima para que não fique gigante no PC
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 400),
+                        child: Image.asset(
+                          'assets/images/splash_logo.png',
+                          // Não forçamos width aqui, deixamos o ConstrainedBox limitar
+                          // e o fit contain garantir a proporção
+                          fit: BoxFit.contain,
+                        ),
                       ),
                     ),
                   ),
                 );
               },
             ),
-            const SizedBox(height: 60), // Espaço fixo abaixo da logo
+            const SizedBox(height: 60),
             SizedBox(
               width: 45,
               height: 45,
