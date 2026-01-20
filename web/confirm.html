@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirmação de Email - Spartan App</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 550px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            text-align: center;
+        }
+
+        .logo {
+            width: 100px;
+            height: 100px;
+            margin: 0 auto 20px;
+        }
+
+        .logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        h1 {
+            color: #1a1a1a;
+            font-size: 28px;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        p {
+            color: #666;
+            font-size: 16px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #1a1a1a;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .btn {
+            display: inline-block;
+            background: linear-gradient(135deg, #1a1a1a 0%, #3d3d3d 100%);
+            color: white;
+            padding: 15px 40px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 16px;
+            transition: all 0.3s;
+            margin: 10px 5px;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+        }
+
+        .info {
+            background: #f8f9fa;
+            border-left: 4px solid #1a1a1a;
+            padding: 20px;
+            margin-top: 30px;
+            text-align: left;
+            border-radius: 5px;
+        }
+
+        .info h3 {
+            color: #1a1a1a;
+            font-size: 18px;
+            margin-bottom: 15px;
+        }
+
+        .info ol {
+            margin-left: 20px;
+            color: #666;
+            line-height: 1.8;
+        }
+
+        .info li {
+            margin-bottom: 8px;
+        }
+
+        .success-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+            animation: bounce 1s ease-in-out;
+        }
+
+        @keyframes bounce {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+
+        .device-specific {
+            display: none;
+        }
+
+        .note {
+            margin-top: 20px;
+            padding: 15px;
+            background: #fff9e6;
+            border-left: 4px solid #ffc107;
+            border-radius: 5px;
+            color: #856404;
+            font-size: 14px;
+            text-align: left;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 30px 20px;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+
+            .btn {
+                display: block;
+                margin: 10px 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="logo">
+            <img src="icons/Icon-192.png" alt="Spartan App Logo">
+        </div>
+
+        <h1>Spartan App</h1>
+        <p id="message">Redirecionando para o aplicativo...</p>
+        <div class="spinner" id="spinner"></div>
+
+        <!-- Seção quando o deep link falha -->
+        <div id="manual-section" style="display: none;">
+            <div class="success-icon">✅</div>
+            <h1>Email Confirmado!</h1>
+            <p>Seu email foi confirmado com sucesso. Agora você precisa acessar o aplicativo.</p>
+
+            <!-- Botões de ação -->
+            <button id="open-app-btn" class="btn">📱 Abrir Aplicativo</button>
+            <button id="install-app-btn" class="btn btn-secondary" style="display: none;">⬇️ Instalar
+                Aplicativo</button>
+
+            <!-- Instruções específicas por dispositivo -->
+            <div class="info">
+                <h3>📱 Como Acessar o Aplicativo:</h3>
+
+                <!-- Android -->
+                <div id="android-instructions" class="device-specific">
+                    <p><strong>O aplicativo não está instalado?</strong></p>
+                    <ol>
+                        <li>Toque em <strong>"Instalar Aplicativo"</strong> acima</li>
+                        <li>No navegador Chrome, toque no menu <strong>(⋮)</strong></li>
+                        <li>Selecione <strong>"Adicionar à tela inicial"</strong></li>
+                        <li>Confirme tocando em <strong>"Adicionar"</strong></li>
+                        <li>Abra o app pela tela inicial e faça login!</li>
+                    </ol>
+                </div>
+
+                <!-- iOS -->
+                <div id="ios-instructions" class="device-specific">
+                    <p><strong>O aplicativo não está instalado?</strong></p>
+                    <ol>
+                        <li>Toque em <strong>"Instalar Aplicativo"</strong> acima</li>
+                        <li>No Safari, toque no botão de <strong>compartilhar (□↑)</strong></li>
+                        <li>Role para baixo e toque em <strong>"Adicionar à Tela de Início"</strong></li>
+                        <li>Toque em <strong>"Adicionar"</strong></li>
+                        <li>Abra o app pela tela inicial e faça login!</li>
+                    </ol>
+                </div>
+
+                <!-- Desktop -->
+                <div id="desktop-instructions" class="device-specific">
+                    <p><strong>O aplicativo não está instalado?</strong></p>
+                    <ol>
+                        <li>Clique em <strong>"Instalar Aplicativo"</strong> acima</li>
+                        <li>No navegador, procure pelo ícone de instalação na barra de endereço</li>
+                        <li>Clique em <strong>"Instalar"</strong></li>
+                        <li>Abra o Spartan App e faça login!</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="note">
+                💡 <strong>Importante:</strong> Após instalar o aplicativo, abra-o pela tela inicial do seu dispositivo
+                e faça login com suas credenciais.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Detecta o tipo de dispositivo
+        function detectDevice() {
+            const userAgent = navigator.userAgent.toLowerCase();
+            const isAndroid = /android/.test(userAgent);
+            const isIOS = /iphone|ipad|ipod/.test(userAgent);
+
+            if (isAndroid) {
+                document.getElementById('android-instructions').style.display = 'block';
+            } else if (isIOS) {
+                document.getElementById('ios-instructions').style.display = 'block';
+            } else {
+                document.getElementById('desktop-instructions').style.display = 'block';
+            }
+        }
+
+        // Extrair token e code da URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+
+        const token = urlParams.get('token') || hashParams.get('access_token');
+        const code = urlParams.get('code');
+
+        console.log('Token:', token);
+        console.log('Code:', code);
+
+        // URL base do app (será configurada após deploy)
+        const APP_URL = window.location.origin;
+
+        if (token || code) {
+            // Criar deep link para tentar abrir o app instalado
+            const deepLink = `io.supabase.spartanapp://confirm?token=${token || code}`;
+
+            console.log('Tentando abrir deep link:', deepLink);
+
+            // Tentar abrir o app automaticamente
+            window.location.href = deepLink;
+
+            // Após 3 segundos, assumir que o app não está instalado
+            setTimeout(() => {
+                document.getElementById('spinner').style.display = 'none';
+                document.getElementById('manual-section').style.display = 'block';
+
+                // Detectar dispositivo e mostrar instruções
+                detectDevice();
+
+                // Configurar botão para tentar abrir o app novamente
+                document.getElementById('open-app-btn').addEventListener('click', () => {
+                    window.location.href = deepLink;
+                });
+
+                // Configurar botão para instalar o app (redireciona para o PWA)
+                const installBtn = document.getElementById('install-app-btn');
+                installBtn.style.display = 'inline-block';
+                installBtn.addEventListener('click', () => {
+                    // Redireciona para a página principal do PWA
+                    window.location.href = APP_URL + '/';
+                });
+            }, 3000);
+        } else {
+            // Token não encontrado
+            document.getElementById('spinner').style.display = 'none';
+            document.getElementById('message').textContent = 'Link inválido. Token não encontrado.';
+            document.getElementById('message').style.color = '#d32f2f';
+
+            // Mostrar botão para ir ao app
+            setTimeout(() => {
+                const container = document.querySelector('.container');
+                const btn = document.createElement('a');
+                btn.href = APP_URL + '/';
+                btn.className = 'btn';
+                btn.textContent = 'Ir para o Aplicativo';
+                container.appendChild(btn);
+            }, 1000);
+        }
+
+        // Suporte para instalação PWA
+        let deferredPrompt;
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            console.log('PWA pode ser instalado');
+            e.preventDefault();
+            deferredPrompt = e;
+        });
+
+        // Se houver prompt de instalação disponível, usar ele
+        document.getElementById('install-app-btn').addEventListener('click', async (e) => {
+            if (deferredPrompt) {
+                e.preventDefault();
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                console.log(`Usuário ${outcome === 'accepted' ? 'aceitou' : 'recusou'} a instalação`);
+                deferredPrompt = null;
+
+                if (outcome === 'accepted') {
+                    setTimeout(() => {
+                        window.location.href = APP_URL + '/';
+                    }, 1000);
+                }
+            }
+        });
+    </script>
+</body>
+
+</html>

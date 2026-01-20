@@ -1,0 +1,178 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'supabase_service.dart';
+import 'user_service.dart';
+import '../models/user_role.dart';
+
+class AppointmentService {
+  static final SupabaseClient _client = SupabaseService.client;
+
+  // Obter CNPJ da academia atual
+  static Future<String> _getAcademyCnpj() async {
+    final user = _client.auth.currentUser;
+    if (user == null) throw Exception('Usuário não autenticado');
+
+    // Tentar buscar do cache local ou DB (Admin)
+    final admin = await _client
+        .from('users_adm')
+        .select('cnpj_academia')
+        .eq('id', user.id)
+        .maybeSingle();
+
+    if (admin != null) return admin['cnpj_academia'];
+    throw Exception('Academia não encontrada');
+  }
+
+  // Buscar lista de profissionais disponíveis (Nutris e Personais)
+  static Future<List<Map<String, dynamic>>> getAvailableProfessionals() async {
+    try {
+      final nutris = await UserService.getUsersByRole(UserRole.nutritionist);
+      final trainers = await UserService.getUsersByRole(UserRole.trainer);
+
+      // Combinar e adicionar campo de tipo "clean"
+      final cleanNutris = nutris
+          .map((u) => {
+                ...u,
+                'type_label': 'Nutricionista',
+                'type_code': 'nutritionist'
+              })
+          .toList();
+
+      final cleanTrainers = trainers
+          .map((u) =>
+              {...u, 'type_label': 'Personal Trainer', 'type_code': 'trainer'})
+          .toList();
+
+      return [...cleanNutris, ...cleanTrainers];
+    } catch (e) {
+      print('Erro ao buscar profissionais: $e');
+      return [];
+    }
+  }
+
+  // Criar Agendamento
+  static Future<Map<String, dynamic>> createAppointment({
+    String? studentId,
+    String? visitorName,
+    String? visitorPhone,
+    required List<String> professionalIds,
+    required DateTime scheduledAt,
+  }) async {
+    try {
+      final cnpj = await _getAcademyCnpj();
+
+      if (studentId == null && (visitorName == null || visitorName.isEmpty)) {
+        throw Exception('É necessário informar um aluno ou nome do visitante.');
+      }
+
+      final data = {
+        'cnpj_academia': cnpj,
+        'student_id': studentId,
+        'visitor_name': visitorName,
+        'visitor_phone': visitorPhone,
+        'professional_ids': professionalIds,
+        'scheduled_at': scheduledAt.toIso8601String(),
+        'status': 'scheduled',
+      };
+
+      await _client.from('appointments').insert(data);
+
+      return {'success': true, 'message': 'Agendamento realizado com sucesso!'};
+    } catch (e) {
+      return {'success': false, 'message': 'Erro ao agendar: ${e.toString()}'};
+    }
+  }
+
+  // Buscar Agendamentos
+  static Future<List<Map<String, dynamic>>> getAppointments({
+    String?
+        statusFilter, // 'scheduled' (Aguardando), 'completed' (Concluída), ou null/all
+  }) async {
+    try {
+      final cnpj = await _getAcademyCnpj();
+
+      // Construção da query: Filtros primeiro, Ordem por último
+      var query = _client
+          .from('appointments')
+          .select('*, users_alunos(nome, telefone)')
+          .eq('cnpj_academia', cnpj);
+
+      if (statusFilter == 'scheduled') {
+        query = query.eq('status', 'scheduled');
+      } else if (statusFilter == 'completed') {
+        query = query.eq('status', 'completed');
+      } else if (statusFilter == 'cancelled') {
+        query = query.eq('status', 'cancelled');
+      }
+
+      final response = await query.order('scheduled_at', ascending: true);
+
+      final List<dynamic> data = response as List<dynamic>;
+
+      return data.map((item) {
+        final map = item as Map<String, dynamic>;
+        // Normalizar nome do aluno se existir
+        String? studentName;
+        String? studentPhone;
+
+        if (map['users_alunos'] != null) {
+          studentName = map['users_alunos']['nome'];
+          studentPhone = map['users_alunos']['telefone'];
+        }
+
+        return {
+          ...map,
+          'display_name': studentName ?? map['visitor_name'] ?? 'Desconhecido',
+          'display_phone': studentPhone ?? map['visitor_phone'],
+        };
+      }).toList();
+    } catch (e) {
+      print('Erro ao buscar agendamentos: $e');
+      return [];
+    }
+  }
+
+  // Atualizar Status (Rápido)
+  static Future<void> updateStatus(String id, String newStatus) async {
+    await _client
+        .from('appointments')
+        .update({'status': newStatus}).eq('id', id);
+  }
+
+  // Deletar Agendamento
+  static Future<void> deleteAppointment(String id) async {
+    await _client.from('appointments').delete().eq('id', id);
+  }
+
+  // Editar Agendamento Completo
+  static Future<void> updateAppointment({
+    required String id,
+    String? studentId,
+    String? visitorName,
+    String? visitorPhone,
+    required List<String> professionalIds,
+    required DateTime scheduledAt,
+    String? status, // Novo parametro
+  }) async {
+    try {
+      if (studentId == null && (visitorName == null || visitorName.isEmpty)) {
+        throw Exception('É necessário informar um aluno ou nome do visitante.');
+      }
+
+      final data = {
+        'student_id': studentId,
+        'visitor_name': visitorName,
+        'visitor_phone': visitorPhone,
+        'professional_ids': professionalIds,
+        'scheduled_at': scheduledAt.toIso8601String(),
+      };
+
+      if (status != null) {
+        data['status'] = status;
+      }
+
+      await _client.from('appointments').update(data).eq('id', id);
+    } catch (e) {
+      throw Exception('Erro ao atualizar: $e');
+    }
+  }
+}

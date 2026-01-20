@@ -1,0 +1,193 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'supabase_service.dart';
+
+/*
+  SQL REQUIRED FOR THIS SERVICE:
+
+  create table public.physical_assessments (
+    id uuid default gen_random_uuid() primary key,
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+    cnpj_academia text not null,
+    nutritionist_id uuid not null references public.users_nutricionista(id),
+    student_id uuid not null references public.users_alunos(id),
+    assessment_date timestamp with time zone not null,
+    weight numeric, -- Peso (kg)
+    height numeric, -- Altura (cm)
+    neck numeric,   -- Pescoço
+    chest numeric,  -- Peitoral
+    waist numeric,  -- Cintura
+    abdomen numeric, -- Abdômen
+    hips numeric,   -- Quadril
+    right_arm numeric, -- Braço Direito
+    left_arm numeric,  -- Braço Esquerdo
+    right_thigh numeric, -- Coxa Direita
+    left_thigh numeric,  -- Coxa Esquerda
+    right_calf numeric,  -- Panturrilha Direita
+    left_calf numeric,   -- Panturrilha Esquerda
+    body_fat numeric,    -- % Gordura
+    muscle_mass numeric, -- % Massa Muscular
+    notes text
+  );
+
+  -- RLS Policies
+  alter table public.physical_assessments enable row level security;
+
+  create policy "Nutritionists can view their academy assessments"
+  on public.physical_assessments for select
+  using (cnpj_academia = (select cnpj_academia from public.users_nutricionista where id = auth.uid()));
+
+  create policy "Nutritionists can insert assessments"
+  on public.physical_assessments for insert
+  with check (auth.uid() = nutritionist_id);
+
+  create policy "Nutritionists can update assessments"
+  on public.physical_assessments for update
+  using (auth.uid() = nutritionist_id);
+
+  create policy "Nutritionists can delete assessments"
+  on public.physical_assessments for delete
+  using (auth.uid() = nutritionist_id);
+*/
+
+class PhysicalAssessmentService {
+  static final SupabaseClient _client = SupabaseService.client;
+
+  // Obter CNPJ do nutricionista atual
+  static Future<String> _getNutritionistCnpj() async {
+    final user = _client.auth.currentUser;
+    if (user == null) throw Exception('Usuário não autenticado');
+
+    final nutri = await _client
+        .from('users_nutricionista')
+        .select('cnpj_academia')
+        .eq('id', user.id)
+        .maybeSingle();
+
+    if (nutri != null) return nutri['cnpj_academia'];
+    throw Exception('Nutricionista não encontrado ou sem academia vinculada');
+  }
+
+  // Buscar todos os relatórios do nutricionista (com dados do aluno)
+  static Future<List<Map<String, dynamic>>> getAssessments() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return [];
+
+    final response = await _client
+        .from('physical_assessments')
+        .select('*, users_alunos(id, nome, email)')
+        .eq('nutritionist_id', user.id)
+        .order('assessment_date', ascending: false);
+
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  // Buscar todos os relatórios DE UM ALUNO (com nome do nutricionista)
+  static Future<List<Map<String, dynamic>>> getStudentAssessments(
+      String studentId) async {
+    final response = await _client
+        .from('physical_assessments')
+        .select('*, users_nutricionista(nome)')
+        .eq('student_id', studentId)
+        .order('assessment_date', ascending: false);
+
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  // Criar Relatório
+  static Future<void> createAssessment({
+    required String studentId,
+    required DateTime date,
+    double? weight,
+    double? height,
+    double? neck,
+    double? chest,
+    double? waist,
+    double? abdomen,
+    double? hips,
+    double? rightArm,
+    double? leftArm,
+    double? rightThigh,
+    double? leftThigh,
+    double? rightCalf,
+    double? leftCalf,
+    double? bodyFat,
+    double? muscleMass,
+    String? notes,
+  }) async {
+    final user = _client.auth.currentUser;
+    if (user == null) throw Exception('Usuário não autenticado');
+
+    final cnpj = await _getNutritionistCnpj();
+
+    await _client.from('physical_assessments').insert({
+      'cnpj_academia': cnpj,
+      'nutritionist_id': user.id,
+      'student_id': studentId,
+      'assessment_date': date.toIso8601String(),
+      'weight': weight,
+      'height': height,
+      'neck': neck,
+      'chest': chest,
+      'waist': waist,
+      'abdomen': abdomen,
+      'hips': hips,
+      'right_arm': rightArm,
+      'left_arm': leftArm,
+      'right_thigh': rightThigh,
+      'left_thigh': leftThigh,
+      'right_calf': rightCalf,
+      'left_calf': leftCalf,
+      'body_fat': bodyFat,
+      'muscle_mass': muscleMass,
+      'notes': notes,
+    });
+  }
+
+  // Atualizar Relatório
+  static Future<void> updateAssessment({
+    required String id,
+    DateTime? date,
+    double? weight,
+    double? height,
+    double? neck,
+    double? chest,
+    double? waist,
+    double? abdomen,
+    double? hips,
+    double? rightArm,
+    double? leftArm,
+    double? rightThigh,
+    double? leftThigh,
+    double? rightCalf,
+    double? leftCalf,
+    double? bodyFat,
+    double? muscleMass,
+    String? notes,
+  }) async {
+    final Map<String, dynamic> updates = {};
+    if (date != null) updates['assessment_date'] = date.toIso8601String();
+    updates['weight'] = weight;
+    updates['height'] = height;
+    updates['neck'] = neck;
+    updates['chest'] = chest;
+    updates['waist'] = waist;
+    updates['abdomen'] = abdomen;
+    updates['hips'] = hips;
+    updates['right_arm'] = rightArm;
+    updates['left_arm'] = leftArm;
+    updates['right_thigh'] = rightThigh;
+    updates['left_thigh'] = leftThigh;
+    updates['right_calf'] = rightCalf;
+    updates['left_calf'] = leftCalf;
+    updates['body_fat'] = bodyFat;
+    updates['muscle_mass'] = muscleMass;
+    if (notes != null) updates['notes'] = notes;
+
+    await _client.from('physical_assessments').update(updates).eq('id', id);
+  }
+
+  // Excluir Relatório
+  static Future<void> deleteAssessment(String id) async {
+    await _client.from('physical_assessments').delete().eq('id', id);
+  }
+}

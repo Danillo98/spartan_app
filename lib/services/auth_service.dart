@@ -1,0 +1,658 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'supabase_service.dart';
+import 'registration_token_service.dart';
+import '../models/user_role.dart';
+
+class AuthService {
+  static final SupabaseClient _client = SupabaseService.client;
+
+  /// Retorna o usuário autenticado atualmente (se houver)
+  static User? get currentUser => _client.auth.currentUser;
+
+  // ============================================
+  // CADASTRO COM TOKEN CRIPTOGRAFADO
+  // ============================================
+
+  /// Inicia cadastro de administrador
+  /// NÃO cria conta ainda - apenas gera token e envia email
+  static Future<Map<String, dynamic>> registerAdmin({
+    required String name,
+    required String email,
+    required String password,
+    required String phone,
+    required String cnpjAcademia, // NOVO!
+    required String academia, // NOVO!
+    required String cnpj,
+    required String cpf,
+    required String address,
+  }) async {
+    try {
+      // Verificar se email já existe em users_adm
+      final existingUser = await _client
+          .from('users_adm')
+          .select('email')
+          .eq('email', email)
+          .maybeSingle();
+
+      if (existingUser != null) {
+        return {
+          'success': false,
+          'message': 'Este email já está cadastrado',
+        };
+      }
+
+      // Criar token com dados criptografados (SEM salvar no banco!)
+      // Usar campos cnpj e cpf para armazenar cnpjAcademia e academia
+      final tokenData = RegistrationTokenService.createToken(
+        name: name,
+        email: email,
+        password: password,
+        phone: phone,
+        cnpj: cnpjAcademia, // CNPJ da academia
+        cpf: academia, // Nome da academia
+        address: 'admin|$cnpj|$cpf|$address', // Role + Dados do admin
+      );
+
+      final token = tokenData['token'] as String;
+
+      // URL de confirmação com deep link para abrir o app
+      final confirmationUrl =
+          'https://spartan-app.netlify.app/confirm.html?token=$token';
+
+      print('🔐 Token criado: ${token.substring(0, 20)}...');
+      print('🔗 URL de confirmação: $confirmationUrl');
+
+      try {
+        print('📧 Tentando enviar email para: $email');
+
+        final response = await _client.auth.signUp(
+          email: email,
+          password: password,
+          emailRedirectTo: confirmationUrl,
+        );
+
+        print('✅ SignUp executado com sucesso');
+        print('📧 User ID: ${response.user?.id}');
+        print('📧 Email confirmado: ${response.user?.emailConfirmedAt}');
+
+        // Fazer logout imediatamente (não queremos que o usuário fique logado)
+        await _client.auth.signOut();
+        print('✅ Logout realizado');
+
+        return {
+          'success': true,
+          'email': email,
+          'message': 'Verifique seu email para confirmar o cadastro.',
+          'requiresVerification': true,
+        };
+      } catch (e) {
+        print('❌ Erro ao enviar email: $e');
+        // Se falhar, retornar token para teste manual
+        return {
+          'success': true,
+          'email': email,
+          'token': token, // Para testes
+          'message': 'Cadastro iniciado! Use o token para testar: $token',
+          'requiresVerification': true,
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Erro ao iniciar cadastro: ${e.toString()}',
+      };
+    }
+  }
+
+  /// Confirmar cadastro usando token do email
+  /// AGORA SIM cria a conta no Supabase
+  static Future<Map<String, dynamic>> confirmRegistration(String token) async {
+    try {
+      print('🔄 Iniciando confirmação de cadastro...');
+      print('🔑 Token recebido: ${token.substring(0, 20)}...');
+
+      // Validar e decodificar token
+      final data = RegistrationTokenService.validateToken(token);
+
+      if (data == null) {
+        print('❌ Token inválido ou expirado');
+        return {
+          'success': false,
+          'message': 'Link inválido ou expirado. Tente cadastrar novamente.',
+        };
+      }
+
+      print('✅ Token válido!');
+
+      // Extrair dados do token
+      final name = data['name'] as String;
+      final email = data['email'] as String;
+      final password = data['password'] as String;
+      final phone = data['phone'] as String;
+      final cnpj = data['cnpj'] as String;
+      final cpf = data['cpf'] as String;
+      final address = data['address'] as String;
+      final birthDate = data['birthDate'] as String?;
+
+      print('📧 Email: $email');
+
+      // Verificar se email já foi cadastrado em qualquer tabela
+      var existingUser = await _client
+          .from('users_adm')
+          .select('email')
+          .eq('email', email)
+          .maybeSingle();
+      if (existingUser == null)
+        existingUser = await _client
+            .from('users_nutricionista')
+            .select('email')
+            .eq('email', email)
+            .maybeSingle();
+      if (existingUser == null)
+        existingUser = await _client
+            .from('users_personal')
+            .select('email')
+            .eq('email', email)
+            .maybeSingle();
+      if (existingUser == null)
+        existingUser = await _client
+            .from('users_alunos')
+            .select('email')
+            .eq('email', email)
+            .maybeSingle();
+
+      if (existingUser != null) {
+        print('⚠️ Usuário já existe na tabela users');
+        return {
+          'success': false,
+          'message': 'Este email já está cadastrado. Faça login.',
+        };
+      }
+
+      print('🔍 Verificando se existe usuário temporário no auth.users...');
+
+      // Verificar se existe usuário temporário no auth.users
+      // (criado pelo signUp inicial para enviar email)
+      try {
+        // Tentar fazer login com as credenciais para verificar se existe
+        final loginTest = await _client.auth.signInWithPassword(
+          email: email,
+          password: password,
+        );
+
+        if (loginTest.user != null) {
+          print('✅ Usuário temporário encontrado: ${loginTest.user!.id}');
+          print('📝 Criando registro na tabela correta...');
+
+          // Extrair dados do token
+          final cnpjAcademia = cnpj;
+          final academia = cpf;
+
+          final addressParts = address.split('|');
+          final role = addressParts.isNotEmpty ? addressParts[0] : 'student';
+
+          if (role == 'admin') {
+            final personalCpf = addressParts.length > 2 ? addressParts[2] : '';
+            final personalAddress =
+                addressParts.length > 3 ? addressParts[3] : '';
+
+            await _client.from('users_adm').insert({
+              'id': loginTest.user!.id,
+              'cnpj_academia': cnpjAcademia,
+              'academia': academia,
+              'nome': name,
+              'email': email,
+              'telefone': phone,
+              'cpf': personalCpf,
+              'endereco': personalAddress,
+              'email_verified': true,
+            });
+          } else {
+            final createdByAdminId =
+                addressParts.length > 1 ? addressParts[1] : loginTest.user!.id;
+
+            String tableName = 'users_alunos';
+            if (role == 'nutritionist')
+              tableName = 'users_nutricionista';
+            else if (role == 'trainer')
+              tableName = 'users_personal';
+            else if (role == 'student') tableName = 'users_alunos';
+
+            final insertData = {
+              'id': loginTest.user!.id,
+              'cnpj_academia': cnpjAcademia,
+              'academia': academia,
+              'nome': name,
+              'email': email,
+              'telefone': phone,
+              'created_by_admin_id': createdByAdminId,
+              'email_verified': true,
+              if (birthDate != null) 'data_nascimento': birthDate,
+            };
+
+            if (role == 'student' && data.containsKey('paymentDueDay')) {
+              insertData['payment_due_day'] = data['paymentDueDay'];
+            }
+
+            await _client.from(tableName).insert(insertData);
+          }
+
+          print('✅ Usuário criado na tabela $role!');
+
+          // Fazer logout
+          await _client.auth.signOut();
+
+          return {
+            'success': true,
+            'userId': loginTest.user!.id,
+            'email': email,
+            'message': 'Conta criada com sucesso! Você já pode fazer login.',
+          };
+        }
+      } catch (e) {
+        print('⚠️ Usuário temporário não encontrado ou erro no login: $e');
+        // Usuário não existe, criar novo
+      }
+
+      print('📝 Criando novo usuário no auth.users...');
+
+      // Criar novo usuário no Supabase Auth
+      final authResponse = await _client.auth.signUp(
+        email: email,
+        password: password,
+      );
+
+      if (authResponse.user == null) {
+        throw Exception('Erro ao criar usuário no Supabase Auth');
+      }
+
+      print('✅ Usuário criado no auth.users: ${authResponse.user!.id}');
+      print('📝 Criando registro na tabela correta...');
+
+      // Extrair dados do token
+      final cnpjAcademia = cnpj;
+      final academia = cpf;
+
+      // Address contém dados packeados: role|dados_extras
+      final addressParts = address.split('|');
+      final role = addressParts.isNotEmpty ? addressParts[0] : 'student';
+
+      print('🔍 Role identificado: $role');
+      print('🔍 Academia: $academia ($cnpjAcademia)');
+
+      // Inserir na tabela correta
+      if (role == 'admin') {
+        // Admin: admin|cnpj_pessoal|cpf_pessoal|endereco
+
+        final personalCpf = addressParts.length > 2 ? addressParts[2] : '';
+        final personalAddress = addressParts.length > 3 ? addressParts[3] : '';
+
+        await _client.from('users_adm').insert({
+          'id': authResponse.user!.id,
+          'cnpj_academia': cnpjAcademia,
+          'academia': academia,
+          'nome': name,
+          'email': email,
+          'telefone': phone,
+          'cpf': personalCpf,
+          'endereco': personalAddress,
+          'email_verified': true,
+        });
+      } else {
+        // Outros: role|created_by_admin_id
+        final createdByAdminId =
+            addressParts.length > 1 ? addressParts[1] : authResponse.user!.id;
+
+        String tableName = 'users_alunos';
+        if (role == 'nutritionist')
+          tableName = 'users_nutricionista';
+        else if (role == 'trainer')
+          tableName = 'users_personal';
+        else if (role == 'student') tableName = 'users_alunos';
+
+        final insertData = {
+          'id': authResponse.user!.id,
+          'cnpj_academia': cnpjAcademia,
+          'academia': academia,
+          'nome': name,
+          'email': email,
+          'telefone': phone,
+          'created_by_admin_id': createdByAdminId,
+          'email_verified': true,
+          if (birthDate != null) 'data_nascimento': birthDate,
+        };
+
+        // Adicionar dia de vencimento se disponível e for aluno
+        if (role == 'student' && data.containsKey('paymentDueDay')) {
+          insertData['payment_due_day'] = data['paymentDueDay'];
+        }
+
+        await _client.from(tableName).insert(insertData);
+      }
+
+      print('✅ Usuário criado na tabela $role com sucesso!');
+
+      // Fazer logout
+      await _client.auth.signOut();
+
+      return {
+        'success': true,
+        'userId': authResponse.user!.id,
+        'email': email,
+        'message': 'Conta criada com sucesso! Você já pode fazer login.',
+      };
+    } on AuthException catch (e) {
+      print('❌ AuthException: ${e.message}');
+      return {
+        'success': false,
+        'message': _getAuthErrorMessage(e.message),
+      };
+    } catch (e) {
+      print('❌ Erro geral: $e');
+      return {
+        'success': false,
+        'message': 'Erro ao confirmar cadastro: ${e.toString()}',
+      };
+    }
+  }
+
+  // ============================================
+  // LOGIN
+  // ============================================
+
+  // Método auxiliar para buscar endereço da academia
+  static Future<String?> _getAcademyAddress(String cnpjAcademia) async {
+    try {
+      final admin = await _client
+          .from('users_adm')
+          .select('endereco')
+          .eq('cnpj_academia', cnpjAcademia)
+          .maybeSingle();
+      return admin?['endereco'] as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // Método auxiliar para buscar usuário em todas as tabelas
+  static Future<Map<String, dynamic>?> _findUserInTables(String userId) async {
+    try {
+      // 1. Verificar users_adm
+      final admin = await _client
+          .from('users_adm')
+          .select()
+          .eq('id', userId)
+          .maybeSingle();
+      if (admin != null) {
+        // Admin já tem o próprio endereço
+        return {
+          ...admin,
+          'role': 'admin',
+          'endereco_academia':
+              admin['endereco'], // Mapear para usar a mesma chave
+        };
+      }
+
+      // 2. Verificar users_nutricionista
+      final nutri = await _client
+          .from('users_nutricionista')
+          .select()
+          .eq('id', userId)
+          .maybeSingle();
+      if (nutri != null) {
+        String? address;
+        if (nutri['cnpj_academia'] != null) {
+          address = await _getAcademyAddress(nutri['cnpj_academia']);
+        }
+        return {
+          ...nutri,
+          'role': 'nutritionist',
+          'endereco_academia': address,
+        };
+      }
+
+      // 3. Verificar users_personal
+      final personal = await _client
+          .from('users_personal')
+          .select()
+          .eq('id', userId)
+          .maybeSingle();
+      if (personal != null) {
+        String? address;
+        if (personal['cnpj_academia'] != null) {
+          address = await _getAcademyAddress(personal['cnpj_academia']);
+        }
+        return {
+          ...personal,
+          'role': 'trainer',
+          'endereco_academia': address,
+        };
+      }
+
+      // 4. Verificar users_alunos
+      final aluno = await _client
+          .from('users_alunos')
+          .select()
+          .eq('id', userId)
+          .maybeSingle();
+      if (aluno != null) {
+        String? address;
+        if (aluno['cnpj_academia'] != null) {
+          address = await _getAcademyAddress(aluno['cnpj_academia']);
+        }
+        return {
+          ...aluno,
+          'role': 'student',
+          'endereco_academia': address,
+        };
+      }
+
+      return null;
+    } catch (e) {
+      print('Erro ao buscar usuário nas tabelas: $e');
+      return null;
+    }
+  }
+
+  // Login com email e senha
+  static Future<Map<String, dynamic>> login({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final response = await _client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+
+      if (response.user == null) {
+        return {
+          'success': false,
+          'message': 'Erro ao fazer login',
+        };
+      }
+
+      // Buscar dados completos do usuário em todas as tabelas
+      final userData = await _findUserInTables(response.user!.id);
+
+      if (userData == null) {
+        // Usuário autenticado mas sem registro nas tabelas
+        // Isso pode acontecer se o cadastro falhou na etapa de inserção no banco
+        await _client.auth.signOut();
+        return {
+          'success': false,
+          'message': 'Cadastro incompleto. Entre em contato com o suporte.',
+        };
+      }
+
+      // Verificar bloqueio
+      if (userData['is_blocked'] == true) {
+        await _client.auth.signOut();
+        return {
+          'success': false,
+          'message':
+              'Conta bloqueada. Entre em contato com a administração da academia.',
+        };
+      }
+
+      return {
+        'success': true,
+        'user': userData,
+        'session': response.session,
+      };
+    } on AuthException catch (e) {
+      return {
+        'success': false,
+        'message': _getAuthErrorMessage(e.message),
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Erro ao fazer login: ${e.toString()}',
+      };
+    }
+  }
+
+  // Logout
+  static Future<void> logout() async {
+    await _client.auth.signOut();
+  }
+
+  // Alias para compatibilidade
+  static Future<void> signOut() async {
+    await logout();
+  }
+
+  // Alias para compatibilidade com signIn
+  static Future<Map<String, dynamic>> signIn({
+    required String email,
+    required String password,
+  }) async {
+    return await login(email: email, password: password);
+  }
+
+  // Verificar se usuário está logado
+  static bool isLoggedIn() {
+    return _client.auth.currentUser != null;
+  }
+
+  // Obter usuário atual
+  static User? getCurrentUser() {
+    return _client.auth.currentUser;
+  }
+
+  // Obter dados completos do usuário atual
+  static Future<Map<String, dynamic>?> getCurrentUserData() async {
+    final user = getCurrentUser();
+    if (user == null) return null;
+
+    return await _findUserInTables(user.id);
+  }
+
+  // Obter role do usuário atual
+  static Future<UserRole?> getCurrentUserRole() async {
+    final userData = await getCurrentUserData();
+    if (userData == null) return null;
+
+    final roleString = userData['role'] as String?;
+    if (roleString == null) return null;
+
+    return UserRole.values.firstWhere(
+      (role) => role.toString().split('.').last == roleString,
+      orElse: () => UserRole.student,
+    );
+  }
+
+  // ============================================
+  // RECUPERAÇÃO DE SENHA
+  // ============================================
+
+  /// Enviar email de recuperação de senha
+  static Future<void> sendPasswordResetEmail(String email) async {
+    try {
+      print('📧 Enviando email de recuperação para: $email');
+
+      // Verificar se o email existe na tabela users
+      // Verificar se o email existe via RPC segura (bypassa RLS)
+      print('🔍 Buscando email: $email via RPC check_email_exists...');
+
+      final bool exists = await _client
+          .rpc('check_email_exists', params: {'email_input': email});
+
+      if (!exists) {
+        print('⚠️ Abortando envio: Email não encontrado nas tabelas.');
+        throw AuthException('Email não cadastrado no sistema.');
+      }
+
+      print('✅ Email encontrado nas tabelas via RPC.');
+
+      // Enviar email de recuperação
+      // IMPORTANTE: Atualize esta URL após fazer deploy no Netlify
+      await _client.auth.resetPasswordForEmail(
+        email,
+        redirectTo: 'https://spartan-app.netlify.app/reset-password.html',
+      );
+
+      print('✅ Email de recuperação enviado com sucesso');
+    } on AuthException catch (e) {
+      print('❌ Erro ao enviar email: ${e.message}');
+      throw Exception(_getAuthErrorMessage(e.message));
+    } catch (e) {
+      print('❌ Erro geral: $e');
+      throw Exception('Erro ao enviar email de recuperação');
+    }
+  }
+
+  /// Redefinir senha usando token do email
+  static Future<void> resetPassword(
+      String accessToken, String newPassword) async {
+    try {
+      print('🔐 Redefinindo senha...');
+
+      // Validar senha
+      if (newPassword.length < 6) {
+        throw Exception('A senha deve ter no mínimo 6 caracteres');
+      }
+
+      // Atualizar senha usando o token de acesso
+      final response = await _client.auth.updateUser(
+        UserAttributes(password: newPassword),
+      );
+
+      if (response.user == null) {
+        throw Exception('Erro ao redefinir senha');
+      }
+
+      print('✅ Senha redefinida com sucesso');
+
+      // Fazer logout para forçar novo login
+      await _client.auth.signOut();
+    } on AuthException catch (e) {
+      print('❌ Erro ao redefinir senha: ${e.message}');
+      throw Exception(_getAuthErrorMessage(e.message));
+    } catch (e) {
+      print('❌ Erro geral: $e');
+      throw Exception('Erro ao redefinir senha: ${e.toString()}');
+    }
+  }
+
+  // ============================================
+  // MENSAGENS DE ERRO
+  // ============================================
+
+  static String _getAuthErrorMessage(String error) {
+    if (error.contains('Invalid login credentials')) {
+      return 'Email ou senha incorretos';
+    } else if (error.contains('Email not confirmed')) {
+      return 'Por favor, confirme seu email antes de fazer login';
+    } else if (error.contains('User already registered')) {
+      return 'Este email já está cadastrado';
+    } else if (error.contains('Invalid email')) {
+      return 'Email inválido';
+    } else if (error.contains('Password should be at least 6 characters')) {
+      return 'A senha deve ter pelo menos 6 caracteres';
+    } else {
+      return error;
+    }
+  }
+}
