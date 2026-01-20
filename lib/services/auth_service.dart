@@ -58,7 +58,7 @@ class AuthService {
 
       // URL de confirmação com deep link para abrir o app
       final confirmationUrl =
-          'https://spartan-app.netlify.app/confirm.html?token=$token';
+          'https://spartan-app-f8a98.web.app/confirm.html?token=$token';
 
       print('🔐 Token criado: ${token.substring(0, 20)}...');
       print('🔗 URL de confirmação: $confirmationUrl');
@@ -613,7 +613,7 @@ class AuthService {
       // IMPORTANTE: Atualize esta URL após fazer deploy no Netlify
       await _client.auth.resetPasswordForEmail(
         email,
-        redirectTo: 'https://spartan-app.netlify.app/reset-password.html',
+        redirectTo: 'https://spartan-app-f8a98.web.app/reset-password.html',
       );
 
       print('✅ Email de recuperação enviado com sucesso');
