@@ -7,6 +7,7 @@ import 'my_students_screen.dart';
 import 'nutritionist_profile_screen.dart';
 import '../../widgets/bulletin_board_card.dart';
 import 'reports/reports_list_screen.dart';
+import '../../widgets/responsive_utils.dart';
 
 class NutritionistDashboard extends StatefulWidget {
   const NutritionistDashboard({super.key});
@@ -155,170 +156,169 @@ class _NutritionistDashboardState extends State<NutritionistDashboard>
               child: SlideTransition(
                 position: _slideAnimation,
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Card de boas-vindas modernizado
-                      Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              const Color(0xFF2A9D8F),
-                              const Color(0xFF21867A),
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(24),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF2A9D8F).withOpacity(0.25),
-                              blurRadius: 24,
-                              offset: const Offset(0, 12),
+                  child: ResponsiveContainer(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Card de boas-vindas modernizado
+                        Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                const Color(0xFF2A9D8F),
+                                const Color(0xFF21867A),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
                             ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 70,
-                              height: 70,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.15),
-                                shape: BoxShape.circle,
-                                image: _userData?['photo_url'] != null
-                                    ? DecorationImage(
-                                        image: NetworkImage(
-                                            _userData!['photo_url']),
-                                        fit: BoxFit.cover,
+                            borderRadius: BorderRadius.circular(24),
+                            boxShadow: [
+                              BoxShadow(
+                                color:
+                                    const Color(0xFF2A9D8F).withOpacity(0.25),
+                                blurRadius: 24,
+                                offset: const Offset(0, 12),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 70,
+                                height: 70,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.15),
+                                  shape: BoxShape.circle,
+                                  image: _userData?['photo_url'] != null
+                                      ? DecorationImage(
+                                          image: NetworkImage(
+                                              _userData!['photo_url']),
+                                          fit: BoxFit.cover,
+                                        )
+                                      : null,
+                                ),
+                                child: _userData?['photo_url'] == null
+                                    ? const Icon(
+                                        Icons.restaurant_menu_rounded,
+                                        size: 36,
+                                        color: Colors.white,
                                       )
                                     : null,
                               ),
-                              child: _userData?['photo_url'] == null
-                                  ? const Icon(
-                                      Icons.restaurant_menu_rounded,
-                                      size: 36,
-                                      color: Colors.white,
-                                    )
-                                  : null,
-                            ),
-                            const SizedBox(width: 20),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Olá, Nutri!',
-                                    style: GoogleFonts.lato(
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
+                              const SizedBox(width: 20),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Olá, Nutri!',
+                                      style: GoogleFonts.lato(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    'Vamos criar planos incríveis hoje?',
-                                    style: GoogleFonts.lato(
-                                      fontSize: 14,
-                                      color: Colors.white.withOpacity(0.95),
-                                      fontWeight: FontWeight.w500,
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      'Vamos criar planos incríveis hoje?',
+                                      style: GoogleFonts.lato(
+                                        fontSize: 14,
+                                        color: Colors.white.withOpacity(0.95),
+                                        fontWeight: FontWeight.w500,
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 32),
+
+                        // Título da seção
+                        Padding(
+                          padding: const EdgeInsets.only(left: 4),
+                          child: Text(
+                            'Ferramentas',
+                            style: GoogleFonts.lato(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.primaryText,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Grid de funcionalidades modernizado
+                        ResponsiveGrid(
+                          spacing: 16,
+                          runSpacing: 16,
+                          children: [
+                            _buildModernFeatureCard(
+                              title: 'Alunos',
+                              icon: Icons.people_rounded,
+                              color: const Color(0xFF2A9D8F),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const MyStudentsNutritionistScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                            _buildModernFeatureCard(
+                              title: 'Dietas',
+                              icon: Icons.restaurant_menu_rounded,
+                              color: const Color(0xFF2A9D8F),
+                              onTap: () {
+                                Navigator.pushNamed(context, '/diets');
+                              },
+                            ),
+                            _buildModernFeatureCard(
+                              title: 'Relatórios',
+                              icon: Icons.analytics_rounded,
+                              color: const Color(0xFF2A9D8F),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const ReportsListScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                            _buildModernFeatureCard(
+                              title: 'Meu Perfil',
+                              icon: Icons.person_rounded,
+                              color: const Color(0xFF2A9D8F),
+                              onTap: () async {
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const NutritionistProfileScreen(),
+                                  ),
+                                );
+                                _loadUserData();
+                              },
                             ),
                           ],
                         ),
-                      ),
 
-                      const SizedBox(height: 32),
+                        const SizedBox(height: 32),
 
-                      // Título da seção
-                      Padding(
-                        padding: const EdgeInsets.only(left: 4),
-                        child: Text(
-                          'Ferramentas',
-                          style: GoogleFonts.lato(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.primaryText,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      // Grid de funcionalidades modernizado
-                      GridView.count(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        crossAxisCount: 2,
-                        mainAxisSpacing: 16,
-                        crossAxisSpacing: 16,
-                        childAspectRatio: 1.05,
-                        children: [
-                          _buildModernFeatureCard(
-                            title: 'Alunos',
-                            icon: Icons.people_rounded,
-                            color: const Color(0xFF2A9D8F),
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const MyStudentsNutritionistScreen(),
-                                ),
-                              );
-                            },
-                          ),
-                          _buildModernFeatureCard(
-                            title: 'Dietas',
-                            icon: Icons.restaurant_menu_rounded,
-                            color: const Color(0xFF2A9D8F),
-                            onTap: () {
-                              Navigator.pushNamed(context, '/diets');
-                            },
-                          ),
-                          _buildModernFeatureCard(
-                            title: 'Relatórios',
-                            icon: Icons.analytics_rounded,
-                            color: const Color(0xFF2A9D8F),
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const ReportsListScreen(),
-                                ),
-                              );
-                            },
-                          ),
-                          _buildModernFeatureCard(
-                            title: 'Meu Perfil',
-                            icon: Icons.person_rounded,
-                            color: const Color(0xFF2A9D8F),
-                            onTap: () async {
-                              await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const NutritionistProfileScreen(),
-                                ),
-                              );
-                              _loadUserData();
-                            },
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 32),
-
-                      // Card de avisos modernizado
-                      const BulletinBoardCard(baseColor: Color(0xFF2A9D8F)),
-                    ],
+                        // Card de avisos modernizado
+                        const BulletinBoardCard(baseColor: Color(0xFF2A9D8F)),
+                      ],
+                    ),
                   ),
                 ),
               ),
