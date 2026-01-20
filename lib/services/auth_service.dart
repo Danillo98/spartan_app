@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
 import 'registration_token_service.dart';
 import '../models/user_role.dart';
+import 'notification_service.dart';
 
 class AuthService {
   static final SupabaseClient _client = SupabaseService.client;
@@ -495,6 +496,15 @@ class AuthService {
         };
       }
 
+      // 🔔 Configurar Notificações (Tópico da Academia)
+      try {
+        await NotificationService.loginUser(userData['cnpj_academia']);
+        print(
+            "🔔 Notificações configuradas para academia: ${userData['cnpj_academia']}");
+      } catch (e) {
+        print("Erro ao configurar notificações no login: $e");
+      }
+
       return {
         'success': true,
         'user': userData,
@@ -514,7 +524,20 @@ class AuthService {
   }
 
   // Logout
+  // Logout
   static Future<void> logout() async {
+    // Desinscrever do tópico da academia antes de dar signOut
+    // Isso evita que o dispositivo continue recebendo push para a academia antiga
+    try {
+      // Precisamos dos dados antes de sair
+      final userData = await getCurrentUserData();
+      if (userData != null && userData['cnpj_academia'] != null) {
+        await NotificationService.logoutUser(userData['cnpj_academia']);
+      }
+    } catch (e) {
+      print("Erro ao desinscrever notificações: $e");
+    }
+
     await _client.auth.signOut();
   }
 
