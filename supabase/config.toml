@@ -1,0 +1,4 @@
+project_id = "spartan_app"
+
+[functions.send-push]
+verify_jwt = false

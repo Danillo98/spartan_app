@@ -19,13 +19,14 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          # flutter-version: '3.16.0' # Optional: pin version
+          flutter-version: '3.24.0' # Pinning version to avoid Wasm breaking changes with Firebase
 
       - name: Install Dependencies
         run: flutter pub get
 
       - name: Build Web
-        run: flutter build web --release
+        # Adjusted build command to avoid Wasm incompatibilities
+        run: flutter build web --release --no-tree-shake-icons
 
       - name: Deploy to Netlify
         uses: nwtgck/actions-netlify@v2.0
