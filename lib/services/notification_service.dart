@@ -1,98 +1,43 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:onesignal_flutter/onesignal_flutter.dart';
-import '../config/onesignal_config.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class NotificationService {
-  static const String _baseUrl = "https://onesignal.com/api/v1/notifications";
+  static final SupabaseClient _supabase = Supabase.instance.client;
 
-  // Inicializa o OneSignal no App
-  static Future<void> init() async {
-    // Removemos a verificação de null/empty para não quebrar o init se o user ainda não configurou,
-    // mas logamos um aviso.
-    if (OneSignalConfig.oneSignalAppId == "YOUR_ONESIGNAL_APP_ID") {
-      print("⚠️ OneSignal App ID não configurado em onesignal_config.dart");
-      return;
-    }
-
-    // Verbose logging set to help debug issues, remove before releasing your app.
-    OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
-
-    OneSignal.initialize(OneSignalConfig.oneSignalAppId);
-
-    // Prompt for Push Notification Permissions
-    OneSignal.Notifications.requestPermission(true);
-  }
-
-  // Identifica o usuário no OneSignal para segmentação
-  static Future<void> loginUser(
-      String userId, String role, String academyCnpj) async {
-    if (OneSignalConfig.oneSignalAppId == "YOUR_ONESIGNAL_APP_ID") return;
-
-    OneSignal.login(userId);
-    OneSignal.User.addTags({
-      "role": role,
-      "academy_cnpj": academyCnpj,
-    });
-  }
-
-  static Future<void> logoutUser() async {
-    if (OneSignalConfig.oneSignalAppId == "YOUR_ONESIGNAL_APP_ID") return;
-    OneSignal.logout();
-  }
-
-  // Enviar Push (Via REST API)
-  // Usado para disparar notificações de um usuário para outro
+  /// Envia notificação usando Supabase Edge Function (send-push)
   static Future<bool> sendPush({
     required String title,
     required String content,
-    List<String>? targetPlayerIds, // IDs externos (nossos user_ids)
-    List<String>? targetSegments, // Ex: ["All", "Active Users"]
+    List<String>? targetPlayerIds, // User IDs
+    String? targetTopic,
     Map<String, dynamic>? data,
   }) async {
-    if (OneSignalConfig.oneSignalRestApiKey == "YOUR_ONESIGNAL_REST_API_KEY") {
-      print("⚠️ OneSignal API Key não configurada. Push não enviado.");
-      return false;
-    }
-
     try {
-      final headers = {
-        "Content-Type": "application/json; charset=utf-8",
-        "Authorization": "Basic ${OneSignalConfig.oneSignalRestApiKey}",
-      };
-
-      final body = {
-        "app_id": OneSignalConfig.oneSignalAppId,
-        "headings": {"en": title, "pt": title},
-        "contents": {"en": content, "pt": content},
-        if (targetPlayerIds != null)
-          "include_aliases": {"external_id": targetPlayerIds},
-        if (targetSegments != null) "included_segments": targetSegments,
-        if (data != null) "data": data,
-      };
-
-      final response = await http.post(
-        Uri.parse(_baseUrl),
-        headers: headers,
-        body: jsonEncode(body),
+      final response = await _supabase.functions.invoke(
+        'send-push',
+        body: {
+          'title': title,
+          'body': content,
+          'userIds': targetPlayerIds,
+          'topic': targetTopic,
+          'data': data,
+        },
       );
 
-      if (response.statusCode == 200) {
-        print("✅ Push enviado com sucesso: $title");
+      if (response.status == 200) {
+        print("✅ Push sent successfully via Edge Function");
         return true;
       } else {
-        print("❌ Erro ao enviar Push: ${response.body}");
+        print("❌ Error sending Push: ${response.status} - ${response.data}");
         return false;
       }
     } catch (e) {
-      print("❌ Exceção ao enviar Push: $e");
+      print("❌ Exception sending Push: $e");
       return false;
     }
   }
 
-  // Casos de Uso Específicos
+  // --- USE CASES ---
 
-  // 1. Novo Treino (Personal -> Aluno)
   static Future<void> notifyNewWorkout(
       String studentId, String personalName) async {
     await sendPush(
@@ -103,7 +48,6 @@ class NotificationService {
     );
   }
 
-  // 2. Nova Dieta (Nutri -> Aluno)
   static Future<void> notifyNewDiet(String studentId, String nutriName) async {
     await sendPush(
       title: "Nova Dieta!",
@@ -113,65 +57,33 @@ class NotificationService {
     );
   }
 
-  // 3. Aviso Mural (Personal/Nutri -> Aluno Específico ou Todos da Academia se Admin)
-  static Future<void> notifyNotice(
-      String title, String authorRole, // 'Admin', 'Personal', 'Nutricionista'
-      {String? targetStudentId,
-      String? academyCnpj}) async {
+  static Future<void> notifyNotice(String title, String authorRole,
+      {String? targetStudentId, String? academyCnpj}) async {
     if (targetStudentId != null) {
-      // Aviso Específico
+      // Specific Student
       await sendPush(
         title: "Novo Aviso 📌",
-        content: title, // Título do aviso vira conteúdo da push
+        content: title,
         targetPlayerIds: [targetStudentId],
         data: {"type": "notice"},
       );
     } else if (academyCnpj != null) {
-      // Aviso Geral da Academia (Segmentado por Tag)
-      // Requer que tenhamos criado Segmentos no OneSignal ou filtro por Tag
-      // Vamos usar filtro por Tag via API
-
-      if (OneSignalConfig.oneSignalRestApiKey == "YOUR_ONESIGNAL_REST_API_KEY")
-        return;
-
-      final headers = {
-        "Content-Type": "application/json; charset=utf-8",
-        "Authorization": "Basic ${OneSignalConfig.oneSignalRestApiKey}",
-      };
-
-      final body = {
-        "app_id": OneSignalConfig.oneSignalAppId,
-        "headings": {
-          "en": "Aviso da Academia 📢",
-          "pt": "Aviso da Academia 📢"
-        },
-        "contents": {"en": title, "pt": title},
-        "filters": [
-          {
-            "field": "tag",
-            "key": "academy_cnpj",
-            "relation": "=",
-            "value": academyCnpj
-          }
-        ],
-        "data": {"type": "notice"},
-      };
-
-      await http.post(
-        Uri.parse(_baseUrl),
-        headers: headers,
-        body: jsonEncode(body),
+      // Academy Wide via Topic
+      final topic =
+          'academy_${academyCnpj.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '')}';
+      await sendPush(
+        title: "Aviso da Academia 📢",
+        content: title,
+        targetTopic: topic,
+        data: {"type": "notice"},
       );
     }
   }
 
-  // 4. Agendar Pagamento (Financeiro)
-  static Future<void> schedulePaymentReminder(
-      String studentId, int dueDay) async {
-    // Lógica complexa de agendamento requeira calcular data exata.
-    // Para simplificar neste MVP, não implementaremos agendamento remoto via API aqui
-    // pois requer gerenciamento de IDs de notificação para cancelar se pagar.
-    // Recomendação: Usar Local Notifications ou Jobs no Backend.
-    print("⚠️ Agendamento de notificação de pagamento requer backend job.");
+  // Init method to keep main.dart happy, though actual logic is now server-side or handled by OS
+  static Future<void> init() async {
+    print("NotificationService Initialized (Logic moved to Edge Functions)");
+    // Here we strictly handle token saving logic if needed client side,
+    // but the actual sending is now properly delegated.
   }
 }
