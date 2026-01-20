@@ -152,7 +152,7 @@ class AppTheme {
         prefixIconColor: primaryGold,
         suffixIconColor: primaryGold,
       ),
-      cardTheme: CardThemeData(
+      cardTheme: CardTheme(
         color: white,
         elevation: 2,
         shadowColor: Colors.black.withOpacity(0.08),

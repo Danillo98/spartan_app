@@ -26,7 +26,7 @@ jobs:
 
       - name: Build Web
         # Adjusted build command to avoid Wasm incompatibilities
-        run: flutter build web --release --no-tree-shake-icons
+        run: flutter build web --release --no-tree-shake-icons --web-renderer html
 
       - name: Deploy to Netlify
         uses: nwtgck/actions-netlify@v2.0
