@@ -47,18 +47,17 @@ class ResponsiveGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
-    int crossAxisCount = 1;
+    int crossAxisCount = 2; // Padrão: 2 colunas (Celular)
 
-    if (width > 1100) {
-      crossAxisCount = 3; // PC Grande
-    } else if (width > 700) {
-      crossAxisCount = 2; // Tablet / PC Pequeno
+    if (width > 1200) {
+      crossAxisCount = 4; // PC Grande
+    } else if (width > 800) {
+      crossAxisCount = 3; // Tablet / Laptop
     }
 
-    // Se tiver poucos itens, não precisa criar colunas vazias
-    if (children.length < crossAxisCount) {
-      crossAxisCount = children.length > 0 ? children.length : 1;
-    }
+    // A lógica de reduzir colunas se tiver poucos itens foi removida
+    // para manter o tamanho dos cards consistente (quadrados/retangulares)
+    // independentemente da quantidade de itens.
 
     return GridView.builder(
       physics: const NeverScrollableScrollPhysics(),
