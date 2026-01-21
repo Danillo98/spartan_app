@@ -104,31 +104,6 @@
             background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
         }
 
-        .info {
-            background: #f8f9fa;
-            border-left: 4px solid #1a1a1a;
-            padding: 20px;
-            margin-top: 30px;
-            text-align: left;
-            border-radius: 5px;
-        }
-
-        .info h3 {
-            color: #1a1a1a;
-            font-size: 18px;
-            margin-bottom: 15px;
-        }
-
-        .info ol {
-            margin-left: 20px;
-            color: #666;
-            line-height: 1.8;
-        }
-
-        .info li {
-            margin-bottom: 8px;
-        }
-
         .success-icon {
             font-size: 64px;
             margin-bottom: 20px;
@@ -145,21 +120,6 @@
             50% {
                 transform: translateY(-10px);
             }
-        }
-
-        .device-specific {
-            display: none;
-        }
-
-        .note {
-            margin-top: 20px;
-            padding: 15px;
-            background: #fff9e6;
-            border-left: 4px solid #ffc107;
-            border-radius: 5px;
-            color: #856404;
-            font-size: 14px;
-            text-align: left;
         }
 
         @media (max-width: 600px) {
@@ -204,70 +164,10 @@
             <p id="install-message"
                 style="display:none; color: #1a1a1a; margin-top: 15px; font-weight: bold; font-size: 14px; background: #e8f5e9; padding: 10px; border-radius: 8px; border: 1px solid #c8e6c9;">
             </p>
-
-            <!-- Instruções específicas por dispositivo -->
-            <div class="info">
-                <h3>📱 Como Acessar o Aplicativo:</h3>
-
-                <!-- Android -->
-                <div id="android-instructions" class="device-specific">
-                    <p><strong>O aplicativo não está instalado?</strong></p>
-                    <ol>
-                        <li>Toque em <strong>"Instalar Aplicativo"</strong> acima</li>
-                        <li>No navegador Chrome, toque no menu <strong>(⋮)</strong></li>
-                        <li>Selecione <strong>"Adicionar à tela inicial"</strong></li>
-                        <li>Confirme tocando em <strong>"Adicionar"</strong></li>
-                        <li>Abra o app pela tela inicial e faça login!</li>
-                    </ol>
-                </div>
-
-                <!-- iOS -->
-                <div id="ios-instructions" class="device-specific">
-                    <p><strong>O aplicativo não está instalado?</strong></p>
-                    <ol>
-                        <li>Toque em <strong>"Instalar Aplicativo"</strong> acima</li>
-                        <li>No Safari, toque no botão de <strong>compartilhar (□↑)</strong></li>
-                        <li>Role para baixo e toque em <strong>"Adicionar à Tela de Início"</strong></li>
-                        <li>Toque em <strong>"Adicionar"</strong></li>
-                        <li>Abra o app pela tela inicial e faça login!</li>
-                    </ol>
-                </div>
-
-                <!-- Desktop -->
-                <div id="desktop-instructions" class="device-specific">
-                    <p><strong>O aplicativo não está instalado?</strong></p>
-                    <ol>
-                        <li>Clique em <strong>"Instalar Aplicativo"</strong> acima</li>
-                        <li>No navegador, procure pelo ícone de instalação na barra de endereço</li>
-                        <li>Clique em <strong>"Instalar"</strong></li>
-                        <li>Abra o Spartan App e faça login!</li>
-                    </ol>
-                </div>
-            </div>
-
-            <div class="note">
-                💡 <strong>Importante:</strong> Após instalar o aplicativo, abra-o pela tela inicial do seu dispositivo
-                e faça login com suas credenciais.
-            </div>
         </div>
     </div>
 
     <script>
-        // Detecta o tipo de dispositivo
-        function detectDevice() {
-            const userAgent = navigator.userAgent.toLowerCase();
-            const isAndroid = /android/.test(userAgent);
-            const isIOS = /iphone|ipad|ipod/.test(userAgent);
-
-            if (isAndroid) {
-                document.getElementById('android-instructions').style.display = 'block';
-            } else if (isIOS) {
-                document.getElementById('ios-instructions').style.display = 'block';
-            } else {
-                document.getElementById('desktop-instructions').style.display = 'block';
-            }
-        }
-
         // Extrair token e code da URL
         const urlParams = new URLSearchParams(window.location.search);
         const hashParams = new URLSearchParams(window.location.hash.substring(1));
@@ -278,7 +178,7 @@
         console.log('Token:', token);
         console.log('Code:', code);
 
-        // URL base do app (será configurada após deploy)
+        // URL base do app
         const APP_URL = window.location.origin;
 
         if (token || code) {
@@ -295,16 +195,23 @@
                 document.getElementById('spinner').style.display = 'none';
                 document.getElementById('manual-section').style.display = 'block';
 
-                // Detectar dispositivo e mostrar instruções
-                detectDevice();
-
-                // Configurar botão para instalar o app
+                // Configurar botões
                 const installBtn = document.getElementById('install-app-btn');
                 installBtn.style.display = 'inline-block';
 
-                // Configurar botão de verificar conta
                 const verifyBtn = document.getElementById('verify-account-btn');
                 verifyBtn.style.display = 'inline-block';
+
+                // AUTO-TRIGGER: Se for desktop E tiver prompt disponível, disparar automaticamente
+                const userAgent = navigator.userAgent.toLowerCase();
+                const isDesktop = !(/android|iphone|ipad|ipod/.test(userAgent));
+
+                if (isDesktop && deferredPrompt) {
+                    console.log('Desktop detectado com PWA disponível. Disparando instalação automática...');
+                    setTimeout(() => {
+                        installBtn.click();
+                    }, 1000);
+                }
             }, 3000);
         } else {
             // Token não encontrado
@@ -312,7 +219,6 @@
             document.getElementById('message').textContent = 'Link inválido. Token não encontrado.';
             document.getElementById('message').style.color = '#d32f2f';
 
-            // Mostrar botão para ir ao app
             setTimeout(() => {
                 const container = document.querySelector('.container');
                 const btn = document.createElement('a');
@@ -332,14 +238,13 @@
             deferredPrompt = e;
         });
 
-        // Lógica do botão Instalar (Instalação ou Aviso)
+        // Lógica do botão Instalar
         document.getElementById('install-app-btn').addEventListener('click', async (e) => {
             const msgElement = document.getElementById('install-message');
 
-            // Se tiver prompt de instalação (App não instalado)
             if (deferredPrompt) {
                 msgElement.style.display = 'block';
-                msgElement.innerHTML = '🔄 Iniciando download e instalação...<br>Se solicitado, confirme a instalação na tela.';
+                msgElement.innerHTML = '🔄 Iniciando instalação...<br>Confirme quando solicitado.';
 
                 e.preventDefault();
                 deferredPrompt.prompt();
@@ -348,77 +253,46 @@
                 deferredPrompt = null;
 
                 if (outcome === 'accepted') {
-                    msgElement.innerHTML = '✅ Instalação concluída!<br>Agora clique em "Verificar Conta".';
+                    msgElement.innerHTML = '✅ Instalado! Clique em "Verificar Conta".';
                     msgElement.style.background = '#e8f5e9';
-                    msgElement.style.borderColor = '#c8e6c9';
-
-                    // Oculta botão de instalar após sucesso
                     document.getElementById('install-app-btn').style.display = 'none';
-
-                    // Mostra botão verificar se ainda não estiver
-                    document.getElementById('verify-account-btn').style.display = 'inline-block';
                 } else {
                     msgElement.innerHTML = '⚠️ Instalação cancelada.';
                 }
             } else {
-                // App já instalado OU navegador não suporta prompt automático (comum em Desktop)
-                // Vamos perguntar ao usuário se realmente está instalado
-                const isInstalled = confirm('O Spartan App já está instalado neste dispositivo?\n\n[OK] Sim, já instalei.\n[Cancelar] Não, ainda não instalei.');
-
-                if (isInstalled) {
-                    alert('Ótimo! Clique em "Verificar Conta" para abrir o aplicativo.');
-                    msgElement.style.display = 'block';
-                    msgElement.innerHTML = 'ℹ️ Use o botão "Verificar Conta" abaixo.';
-                    msgElement.style.background = '#e3f2fd';
-                } else {
-                    // Caso não esteja instalado, mostrar instruções manuais
-                    alert('Para instalar no Computador:\n1. Olhe para a barra de endereço do navegador\n2. Clique no ícone de instalar (seta para baixo ou +)\n3. Clique em "Instalar"');
-
-                    msgElement.style.display = 'block';
-                    msgElement.innerHTML = '👇 <b>Instalação Manual PC:</b><br>Clique no ícone de instalar na barra de endereço do navegador ↗️';
-                    msgElement.style.background = '#fff3cd';
-
-                    // Forçar exibição das instruções de desktop
-                    document.getElementById('desktop-instructions').style.display = 'block';
-                }
+                msgElement.style.display = 'block';
+                msgElement.innerHTML = 'ℹ️ Clique em "Verificar Conta" para continuar.';
+                msgElement.style.background = '#e3f2fd';
             }
         });
 
         // Lógica do botão Verificar Conta
         document.getElementById('verify-account-btn').addEventListener('click', () => {
-            // Garante que o token existe
             const t = token || code;
             if (!t) {
-                alert('Erro: Token de verificação não encontrado. solicite um novo link.');
+                alert('Erro: Token de verificação não encontrado.');
                 return;
             }
 
             const dl = `io.supabase.spartanapp://confirm?token=${t}`;
             console.log('Verificando conta via Deep Link:', dl);
 
-            // Feedback visual
             const btn = document.getElementById('verify-account-btn');
             const originalText = btn.textContent;
             btn.textContent = '🔄 Abrindo App...';
 
-            // 1. Tenta abrir via Deep Link Nativo
+            // Tenta abrir via Deep Link Nativo
             window.location.href = dl;
 
-            // 2. Fallback: Se não abrir em 2 segundos, tenta abrir versão Web PWA
-            // Isso acontece se o app não estiver instalado ou o deep link falhar
+            // Fallback: Se não abrir, vai para web app
             setTimeout(() => {
-                console.log('Deep link falhou ou app não abriu. Tentando web app...');
-                // Redireciona para a home do PWA com o token na URL para que o Flutter web processe
-                // IMPORTANTE: Deve corresponder à rota que o Flutter Web espera
+                console.log('Fallback: Abrindo web app...');
                 window.location.href = window.location.origin + `/#/confirm?token=${t}`;
-
-                // Restaura texto
                 btn.textContent = originalText;
             }, 2500);
         });
     </script>
     <script>
-        // ... previous script ...
         // Register Service Worker
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function () {
