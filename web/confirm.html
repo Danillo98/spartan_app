@@ -332,13 +332,15 @@
             deferredPrompt = e;
         });
 
-        // Lógica do botão Instalar (Apenas Instalação)
+        // Lógica do botão Instalar (Instalação ou Aviso)
         document.getElementById('install-app-btn').addEventListener('click', async (e) => {
             const msgElement = document.getElementById('install-message');
-            msgElement.style.display = 'block';
-            msgElement.innerHTML = '🔄 Iniciando download e instalação...<br>Se solicitado, confirme a instalação na tela.';
 
+            // Se tiver prompt de instalação (App não instalado)
             if (deferredPrompt) {
+                msgElement.style.display = 'block';
+                msgElement.innerHTML = '🔄 Iniciando download e instalação...<br>Se solicitado, confirme a instalação na tela.';
+
                 e.preventDefault();
                 deferredPrompt.prompt();
                 const { outcome } = await deferredPrompt.userChoice;
@@ -353,27 +355,46 @@
                     // Oculta botão de instalar após sucesso
                     document.getElementById('install-app-btn').style.display = 'none';
 
-                    // Tenta abrir o app automaticamente
-                    setTimeout(() => {
-                        const dl = `io.supabase.spartanapp://confirm?token=${token || code}`;
-                        window.location.href = dl;
-                    }, 1500);
+                    // Mostra botão verificar se ainda não estiver
+                    document.getElementById('verify-account-btn').style.display = 'inline-block';
                 } else {
                     msgElement.innerHTML = '⚠️ Instalação cancelada.';
                 }
             } else {
-                // Fallback se não houver prompt (iOS/PC) - tenta abrir
-                msgElement.innerHTML = '📱 Abrindo...';
-                const dl = `io.supabase.spartanapp://confirm?token=${token || code}`;
-                window.location.href = dl;
+                // App já instalado (ou não suportado, assumimos instalado neste contexto)
+                // O usuário pediu aviso claro:
+                alert('✅ O aplicativo já está instalado no seu dispositivo!\n\nPor favor, clique no botão "Verificar Conta" para acessar.');
+
+                msgElement.style.display = 'block';
+                msgElement.innerHTML = 'ℹ️ O aplicativo já está instalado. Use o botão "Verificar Conta" abaixo.';
+                msgElement.style.background = '#e3f2fd';
             }
         });
 
-        // Lógica do botão Verificar Conta (Abre o App com o Token)
+        // Lógica do botão Verificar Conta
         document.getElementById('verify-account-btn').addEventListener('click', () => {
-            const dl = `io.supabase.spartanapp://confirm?token=${token || code}`;
+            // Garante que o token existe
+            const t = token || code;
+            if (!t) {
+                alert('Erro: Token de verificação não encontrado. solicite um novo link.');
+                return;
+            }
+
+            const dl = `io.supabase.spartanapp://confirm?token=${t}`;
             console.log('Verificando conta via Deep Link:', dl);
+
+            // Feedback visual
+            const btn = document.getElementById('verify-account-btn');
+            const originalText = btn.textContent;
+            btn.textContent = '🔄 Abrindo App...';
+
+            // Tenta abrir deep link
             window.location.href = dl;
+
+            // Restaura texto após um tempo (caso o usuário volte)
+            setTimeout(() => {
+                btn.textContent = originalText;
+            }, 2000);
         });
     </script>
     <script>
