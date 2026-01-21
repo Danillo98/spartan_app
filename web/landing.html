@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Spartan App - Sistema de Gerenciamento de Academia">
     <title>Spartan App - Bem-vindo</title>
+    <link rel="manifest" href="manifest.json">
 
     <style>
         * {
@@ -390,6 +391,12 @@
 
         // Inicializa a detecção de dispositivo
         detectDevice();
+
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function () {
+                navigator.serviceWorker.register('flutter_service_worker.js');
+            });
+        }
     </script>
 </body>
 

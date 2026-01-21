@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "35162978395",
+    "project_id": "spartan-app-f8a98",
+    "storage_bucket": "spartan-app-f8a98.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:35162978395:android:1cb2eaca8adf17c407677e",
+        "android_client_info": {
+          "package_name": "com.example.spartan_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyByv5RjScaQ8SxBQc3F2mOhlfKaOsTTxFg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
