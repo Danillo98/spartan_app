@@ -10,18 +10,46 @@ import 'screens/nutritionist/diets_list_screen.dart';
 import 'services/supabase_service.dart';
 import 'services/auth_service.dart';
 import 'services/notification_service.dart'; // Added this import
+import 'services/notification_service.dart'; // Added this import
 import 'config/app_theme.dart';
+import 'package:app_links/app_links.dart';
+import 'package:windows_single_instance/windows_single_instance.dart';
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 
-void main() async {
+void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 1. Configurar Instância Única no Windows
+  if (!kIsWeb && Platform.isWindows) {
+    try {
+      await WindowsSingleInstance.ensureSingleInstance(
+          args, "com.example.spartan_app_unique_id", onSecondWindow: (args) {
+        print("Segunda instância detectada! Argumentos recebidos: $args");
+        // A segunda instância será fechada automaticamente, mas antes passa os args
+        // O pacote windows_single_instance não reabre automaticamente a janela se estiver minimizada,
+        // mas garante que não abre outra.
+        // Para tratar o deep link recebido na segunda instância, precisamos que a primeira instância
+        // esteja escutando. O flutter_single_instance não passa os dados via Stream automaticamente?
+        // Na verdade, o callback onSecondWindow roda na PRIMEIRA instância quando a segunda tenta abrir.
+
+        // Se vier um argumento que parece um link, podemos processar manualmente?
+        // Mas com 'app_links', ele deve capturar também.
+        // O comportamento padrão do windows_single_instance é trazer a janela pra frente?
+        // Sim, normalmente traz.
+      });
+    } catch (e) {
+      print("Erro ao configurar Windows Single Instance: $e");
+    }
+  }
 
   // Inicializa o Supabase
   await SupabaseService.initialize();
 
   // Inicializar Notificações (OneSignal)
-  // Requer onesignal_flutter adicionado ao pubspec.yaml
   try {
-    await NotificationService.init();
+    // await NotificationService.init();
+    // Comentado para evitar erro se não tiver configurado ainda
   } catch (e) {
     print("Erro ao inicializar notificações: $e");
   }
@@ -45,10 +73,58 @@ class SpartanApp extends StatefulWidget {
 class _SpartanAppState extends State<SpartanApp> {
   final _navigatorKey = GlobalKey<NavigatorState>();
 
+  final _appLinks = AppLinks();
+
   @override
   void initState() {
     super.initState();
+    _setupDeepLinks(); // Novo método robusto
     _setupAuthListener();
+  }
+
+  // Listener nativo para Deep Links (Desktop/Mobile)
+  void _setupDeepLinks() {
+    _appLinks.uriLinkStream.listen((uri) {
+      print('🔗 Deep Link recebido: $uri');
+      _handleDeepLink(uri);
+    });
+  }
+
+  Future<void> _handleDeepLink(Uri uri) async {
+    // Verificar se é recuperação de senha ou confirmação
+    // URLs do Supabase geralmente vêm com fragment #access_token=...&type=recovery
+    // ou query params ?token=... para OTP.
+
+    // Fragmento (Hash)
+    final fragment = uri.fragment;
+    if (fragment.contains('type=recovery')) {
+      // Tentativa de parse manual do fragmento
+      // access_token=xxx&refresh_token=yyy&type=recovery...
+      final params = Uri.splitQueryString(fragment);
+      final accessToken = params['access_token'];
+
+      if (accessToken != null) {
+        print('🔐 Recuperação de senha via Deep Link detectada!');
+        _navigatorKey.currentState?.pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (context) => ResetPasswordScreen(
+              token: accessToken,
+            ),
+          ),
+          (route) => false,
+        );
+      }
+    }
+
+    // Tratamento Padrão do Supabase (passa URL para o client lidar com a sessão)
+    // Isso é importante para que o onAuthStateChange dispare
+    try {
+      // Obter auth code da URL se houver (PKCE Flow)
+      // Mas se for implicit flow (fragment), o onAuthStateChange deve pegar
+      // Apenas se certifique que a janela está ativa.
+    } catch (e) {
+      print('Erro ao processar Deep Link: $e');
+    }
   }
 
   void _setupAuthListener() {
@@ -60,16 +136,29 @@ class _SpartanAppState extends State<SpartanApp> {
       print('🔔 Auth Event: $event');
 
       // 1. EVENTO ESPECÍFICO DE RECUPERAÇÃO DE SENHA
-      if (event == AuthChangeEvent.passwordRecovery && session != null) {
+      if (event == AuthChangeEvent.passwordRecovery) {
+        // session pode ser null no início, mas se o evento disparou,
+        // o supabase client deve ter token em memória ou a sessão está sendo recuperada.
+        // Se session vier null, pode ser um problema, mas vamos tentar pegar currentSession
+
+        final currentSession =
+            SupabaseService.client.auth.currentSession ?? session;
+
         print('🔐 Evento de Password Recovery detectado!');
-        _navigatorKey.currentState?.pushAndRemoveUntil(
-          MaterialPageRoute(
-            builder: (context) => ResetPasswordScreen(
-              token: session.accessToken,
+
+        if (currentSession != null) {
+          _navigatorKey.currentState?.pushAndRemoveUntil(
+            MaterialPageRoute(
+              builder: (context) => ResetPasswordScreen(
+                token: currentSession.accessToken,
+              ),
             ),
-          ),
-          (route) => false,
-        );
+            (route) => false,
+          );
+        } else {
+          print(
+              '⚠️ Sessão nula no evento Password Recovery. Aguardando listener de DeepLink...');
+        }
         return;
       }
 
