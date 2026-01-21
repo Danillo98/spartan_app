@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
@@ -62,11 +61,12 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
     if (pickedFile != null) {
       setState(() => _isUploading = true);
       try {
-        final file = File(pickedFile.path);
         final userId = _userData?['id'];
 
         if (userId != null) {
-          final url = await ProfileService.uploadProfilePhoto(file, userId);
+          // Passa o XFile diretamente (funciona em web e mobile)
+          final url =
+              await ProfileService.uploadProfilePhoto(pickedFile, userId);
           if (url != null) {
             final success =
                 await ProfileService.updatePhotoUrl(userId, 'admin', url);

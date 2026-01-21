@@ -1,60 +1,103 @@
 import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ProfileService {
   static final SupabaseClient _client = Supabase.instance.client;
 
-  /// Faz upload da foto para o bucket 'profiles' e retorna a URL pública
-  static Future<String?> uploadProfilePhoto(File file, String userId) async {
+  /// Upload de foto de perfil (compatível com Web e Mobile)
+  static Future<String?> uploadProfilePhoto(
+    dynamic file,
+    String userId,
+  ) async {
     try {
-      final fileExt = file.path.split('.').last;
-      final fileName =
-          '$userId/profile_${DateTime.now().millisecondsSinceEpoch}.$fileExt';
+      Uint8List bytes;
+      String fileName;
 
-      // Upload to 'profiles' bucket
-      // Nota: O bucket 'profiles' deve existir no Supabase e ser público
-      await _client.storage.from('profiles').upload(
-            fileName,
-            file,
-            fileOptions: const FileOptions(cacheControl: '3600', upsert: true),
+      // Se for Web, file é XFile
+      if (kIsWeb) {
+        final XFile xFile = file as XFile;
+        bytes = await xFile.readAsBytes();
+        fileName = xFile.name;
+      } else {
+        // Mobile: file é File
+        final File ioFile = file as File;
+        bytes = await ioFile.readAsBytes();
+        fileName = ioFile.path.split('/').last;
+      }
+
+      // Nome único para o arquivo
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final path = 'profile_photos/$userId\_$timestamp\_$fileName';
+
+      // Upload para o Supabase Storage
+      await _client.storage.from('profiles').uploadBinary(
+            path,
+            bytes,
+            fileOptions: const FileOptions(
+              cacheControl: '3600',
+              upsert: true,
+            ),
           );
 
-      // Get Public URL
-      final imageUrl = _client.storage.from('profiles').getPublicUrl(fileName);
-      return imageUrl;
+      // Retornar URL pública
+      final url = _client.storage.from('profiles').getPublicUrl(path);
+      return url;
     } catch (e) {
       print('Erro ao fazer upload da foto: $e');
       return null;
     }
   }
 
-  /// Atualiza a URL da foto na tabela correta baseada na role
+  /// Atualizar URL da foto no banco de dados
   static Future<bool> updatePhotoUrl(
-      String userId, String role, String url) async {
+    String userId,
+    String role,
+    String photoUrl,
+  ) async {
     try {
-      String table;
-      // Mapeamento das roles conforme retornado pelo AuthService
+      String tableName;
       switch (role) {
         case 'admin':
-          table = 'users_adm';
-          break;
-        case 'trainer':
-          table = 'users_personal';
+          tableName = 'users_adm';
           break;
         case 'nutritionist':
-          table = 'users_nutricionista';
+          tableName = 'users_nutricionista';
+          break;
+        case 'trainer':
+          tableName = 'users_personal';
           break;
         case 'student':
-          table = 'users_alunos';
+          tableName = 'users_alunos';
           break;
         default:
-          return false;
+          throw Exception('Role inválido: $role');
       }
 
-      await _client.from(table).update({'photo_url': url}).eq('id', userId);
+      await _client.from(tableName).update({
+        'photo_url': photoUrl,
+      }).eq('id', userId);
+
       return true;
     } catch (e) {
-      print('Erro ao atualizar URL da foto no banco: $e');
+      print('Erro ao atualizar URL da foto: $e');
+      return false;
+    }
+  }
+
+  /// Deletar foto de perfil
+  static Future<bool> deleteProfilePhoto(String photoUrl) async {
+    try {
+      // Extrair o path da URL
+      final uri = Uri.parse(photoUrl);
+      final path = uri.pathSegments.last;
+
+      await _client.storage.from('profiles').remove([path]);
+      return true;
+    } catch (e) {
+      print('Erro ao deletar foto: $e');
       return false;
     }
   }

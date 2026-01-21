@@ -243,14 +243,26 @@
             console.log('PWA foi instalado com sucesso!');
             const msgElement = document.getElementById('install-message');
             msgElement.style.display = 'block';
-            msgElement.innerHTML = '✅ Aplicativo instalado!<br>📌 Verifique sua Área de Trabalho ou Menu Iniciar.';
+            msgElement.innerHTML = '✅ Instalado! Abrindo e verificando conta...';
             msgElement.style.background = '#e8f5e9';
 
             // Ocultar botão de instalar
             document.getElementById('install-app-btn').style.display = 'none';
 
-            // Destacar botão de verificar
-            document.getElementById('verify-account-btn').style.display = 'inline-block';
+            // Aguardar 1 segundo e então abrir o app com verificação automática
+            setTimeout(() => {
+                const t = token || code;
+                if (t) {
+                    // Tentar abrir via deep link primeiro
+                    const dl = `io.supabase.spartanapp://confirm?token=${t}`;
+                    window.location.href = dl;
+
+                    // Fallback para web app após 2 segundos
+                    setTimeout(() => {
+                        window.location.href = window.location.origin + `/#/confirm?token=${t}`;
+                    }, 2000);
+                }
+            }, 1000);
         });
 
         // Lógica do botão Instalar
