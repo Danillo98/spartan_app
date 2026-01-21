@@ -1,6 +1,3 @@
-import 'dart:io';
-import 'dart:typed_data';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -9,45 +6,60 @@ class ProfileService {
 
   /// Upload de foto de perfil (compatível com Web e Mobile)
   static Future<String?> uploadProfilePhoto(
-    dynamic file,
+    XFile file,
     String userId,
   ) async {
     try {
-      Uint8List bytes;
-      String fileName;
-
-      // Se for Web, file é XFile
-      if (kIsWeb) {
-        final XFile xFile = file as XFile;
-        bytes = await xFile.readAsBytes();
-        fileName = xFile.name;
-      } else {
-        // Mobile: file é File
-        final File ioFile = file as File;
-        bytes = await ioFile.readAsBytes();
-        fileName = ioFile.path.split('/').last;
-      }
+      // Ler bytes do arquivo (funciona em web e mobile)
+      final bytes = await file.readAsBytes();
+      final fileName = file.name;
 
       // Nome único para o arquivo
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final path = 'profile_photos/$userId\_$timestamp\_$fileName';
+      final extension = fileName.split('.').last;
+      final path = 'profile_photos/${userId}_$timestamp.$extension';
+
+      print('📤 Iniciando upload: $path (${bytes.length} bytes)');
 
       // Upload para o Supabase Storage
       await _client.storage.from('profiles').uploadBinary(
             path,
             bytes,
-            fileOptions: const FileOptions(
+            fileOptions: FileOptions(
               cacheControl: '3600',
               upsert: true,
+              contentType: _getContentType(extension),
             ),
           );
 
+      print('✅ Upload concluído');
+
       // Retornar URL pública
       final url = _client.storage.from('profiles').getPublicUrl(path);
+      print('🔗 URL gerada: $url');
+
       return url;
-    } catch (e) {
-      print('Erro ao fazer upload da foto: $e');
+    } catch (e, stackTrace) {
+      print('❌ Erro ao fazer upload da foto: $e');
+      print('Stack trace: $stackTrace');
       return null;
+    }
+  }
+
+  /// Determinar content type baseado na extensão
+  static String _getContentType(String extension) {
+    switch (extension.toLowerCase()) {
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'gif':
+        return 'image/gif';
+      case 'webp':
+        return 'image/webp';
+      default:
+        return 'image/jpeg';
     }
   }
 

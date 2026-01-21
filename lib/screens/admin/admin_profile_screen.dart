@@ -55,48 +55,85 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   }
 
   Future<void> _pickAndUploadImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    try {
+      // Mostrar opções: Câmera ou Galeria
+      final source = await showDialog<ImageSource>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Escolher foto'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Câmera'),
+                onTap: () => Navigator.pop(context, ImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Galeria'),
+                onTap: () => Navigator.pop(context, ImageSource.gallery),
+              ),
+            ],
+          ),
+        ),
+      );
 
-    if (pickedFile != null) {
-      setState(() => _isUploading = true);
-      try {
+      if (source == null) return;
+
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(
+        source: source,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+
+      if (pickedFile != null) {
+        setState(() => _isUploading = true);
+
         final userId = _userData?['id'];
-
-        if (userId != null) {
-          // Passa o XFile diretamente (funciona em web e mobile)
-          final url =
-              await ProfileService.uploadProfilePhoto(pickedFile, userId);
-          if (url != null) {
-            final success =
-                await ProfileService.updatePhotoUrl(userId, 'admin', url);
-            if (success) {
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                      content: Text('Foto atualizada com sucesso!'),
-                      backgroundColor: Colors.green),
-                );
-                _loadData();
-              }
-            } else {
-              throw Exception('Falha ao atualizar URL no banco');
-            }
-          } else {
-            throw Exception('Falha no upload da imagem');
-          }
+        if (userId == null) {
+          throw Exception('ID do usuário não encontrado');
         }
-      } catch (e) {
+
+        // Upload direto do XFile (funciona em web e mobile)
+        final url = await ProfileService.uploadProfilePhoto(pickedFile, userId);
+
+        if (url == null) {
+          throw Exception('Falha no upload da imagem');
+        }
+
+        // Atualizar URL no banco
+        final success =
+            await ProfileService.updatePhotoUrl(userId, 'admin', url);
+
+        if (!success) {
+          throw Exception('Falha ao atualizar URL no banco');
+        }
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-                content: Text('Erro ao atualizar foto: $e'),
-                backgroundColor: Colors.red),
+            const SnackBar(
+              content: Text('Foto atualizada com sucesso!'),
+              backgroundColor: Colors.green,
+            ),
           );
+          await _loadData();
         }
-      } finally {
-        if (mounted) setState(() => _isUploading = false);
       }
+    } catch (e) {
+      print('Erro completo ao atualizar foto: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao atualizar foto: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
     }
   }
 

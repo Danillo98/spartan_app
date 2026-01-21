@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
@@ -46,47 +45,73 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
   }
 
   Future<void> _pickAndUploadImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    try {
+      final source = await showDialog<ImageSource>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Escolher foto'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Câmera'),
+                onTap: () => Navigator.pop(context, ImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Galeria'),
+                onTap: () => Navigator.pop(context, ImageSource.gallery),
+              ),
+            ],
+          ),
+        ),
+      );
 
-    if (pickedFile != null) {
-      setState(() => _isUploading = true);
-      try {
-        final file = File(pickedFile.path);
+      if (source == null) return;
+
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(
+        source: source,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+
+      if (pickedFile != null) {
+        setState(() => _isUploading = true);
+
         final userId = _profileData?['id'];
+        if (userId == null) throw Exception('ID do usuário não encontrado');
 
-        if (userId != null) {
-          final url = await ProfileService.uploadProfilePhoto(file, userId);
-          if (url != null) {
-            final success =
-                await ProfileService.updatePhotoUrl(userId, 'student', url);
-            if (success) {
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                      content: Text('Foto atualizada com sucesso!'),
-                      backgroundColor: Colors.green),
-                );
-                _loadProfile();
-              }
-            } else {
-              throw Exception('Falha ao atualizar URL no banco');
-            }
-          } else {
-            throw Exception('Falha no upload da imagem');
-          }
-        }
-      } catch (e) {
+        final url = await ProfileService.uploadProfilePhoto(pickedFile, userId);
+        if (url == null) throw Exception('Falha no upload da imagem');
+
+        final success =
+            await ProfileService.updatePhotoUrl(userId, 'student', url);
+        if (!success) throw Exception('Falha ao atualizar URL no banco');
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-                content: Text('Erro ao atualizar foto: $e'),
-                backgroundColor: Colors.red),
+            const SnackBar(
+              content: Text('Foto atualizada com sucesso!'),
+              backgroundColor: Colors.green,
+            ),
           );
+          await _loadProfile();
         }
-      } finally {
-        if (mounted) setState(() => _isUploading = false);
       }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao atualizar foto: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
     }
   }
 
