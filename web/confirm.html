@@ -361,13 +361,26 @@
                     msgElement.innerHTML = '⚠️ Instalação cancelada.';
                 }
             } else {
-                // App já instalado (ou não suportado, assumimos instalado neste contexto)
-                // O usuário pediu aviso claro:
-                alert('✅ O aplicativo já está instalado no seu dispositivo!\n\nPor favor, clique no botão "Verificar Conta" para acessar.');
+                // App já instalado OU navegador não suporta prompt automático (comum em Desktop)
+                // Vamos perguntar ao usuário se realmente está instalado
+                const isInstalled = confirm('O Spartan App já está instalado neste dispositivo?\n\n[OK] Sim, já instalei.\n[Cancelar] Não, ainda não instalei.');
 
-                msgElement.style.display = 'block';
-                msgElement.innerHTML = 'ℹ️ O aplicativo já está instalado. Use o botão "Verificar Conta" abaixo.';
-                msgElement.style.background = '#e3f2fd';
+                if (isInstalled) {
+                    alert('Ótimo! Clique em "Verificar Conta" para abrir o aplicativo.');
+                    msgElement.style.display = 'block';
+                    msgElement.innerHTML = 'ℹ️ Use o botão "Verificar Conta" abaixo.';
+                    msgElement.style.background = '#e3f2fd';
+                } else {
+                    // Caso não esteja instalado, mostrar instruções manuais
+                    alert('Para instalar no Computador:\n1. Olhe para a barra de endereço do navegador\n2. Clique no ícone de instalar (seta para baixo ou +)\n3. Clique em "Instalar"');
+
+                    msgElement.style.display = 'block';
+                    msgElement.innerHTML = '👇 <b>Instalação Manual PC:</b><br>Clique no ícone de instalar na barra de endereço do navegador ↗️';
+                    msgElement.style.background = '#fff3cd';
+
+                    // Forçar exibição das instruções de desktop
+                    document.getElementById('desktop-instructions').style.display = 'block';
+                }
             }
         });
 
