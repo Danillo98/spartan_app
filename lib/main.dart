@@ -8,9 +8,7 @@ import 'screens/reset_password_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/nutritionist/diets_list_screen.dart';
 import 'services/supabase_service.dart';
-import 'services/auth_service.dart';
-import 'services/notification_service.dart'; // Added this import
-import 'services/notification_service.dart'; // Added this import
+// import 'services/notification_service.dart';
 import 'config/app_theme.dart';
 import 'package:app_links/app_links.dart';
 import 'package:windows_single_instance/windows_single_instance.dart';
