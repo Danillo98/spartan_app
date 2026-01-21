@@ -887,11 +887,11 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
                         ),
                       )
                     : Text(
-                        _currentStep == 2 ? 'CADASTRAR' : 'PRÓXIMO',
+                        _currentStep == 2 ? 'Cadastrar' : 'PRÓXIMO',
                         style: GoogleFonts.lato(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          letterSpacing: 2,
+                          letterSpacing: 1,
                           color: Colors.white,
                         ),
                       ),

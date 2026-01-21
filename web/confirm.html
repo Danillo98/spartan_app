@@ -196,7 +196,11 @@
             <p>Seu email foi confirmado com sucesso. Agora você precisa acessar o aplicativo.</p>
 
             <!-- Botões de ação -->
-            <button id="install-app-btn" class="btn" style="display: none;">⬇️ Instalar Aplicativo</button>
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 10px;">
+                <button id="install-app-btn" class="btn" style="display: none;">⬇️ Instalar Aplicativo</button>
+                <button id="verify-account-btn" class="btn btn-secondary" style="display: none;">✅ Verificar
+                    Conta</button>
+            </div>
             <p id="install-message"
                 style="display:none; color: #1a1a1a; margin-top: 15px; font-weight: bold; font-size: 14px; background: #e8f5e9; padding: 10px; border-radius: 8px; border: 1px solid #c8e6c9;">
             </p>
@@ -294,11 +298,13 @@
                 // Detectar dispositivo e mostrar instruções
                 detectDevice();
 
-                // Configurar botão para tentar abrir o app novamente
                 // Configurar botão para instalar o app
                 const installBtn = document.getElementById('install-app-btn');
                 installBtn.style.display = 'inline-block';
-                // Removemos o listener antigo de apenas redirect para unificar na lógica abaixo
+
+                // Configurar botão de verificar conta
+                const verifyBtn = document.getElementById('verify-account-btn');
+                verifyBtn.style.display = 'inline-block';
             }, 3000);
         } else {
             // Token não encontrado
@@ -326,7 +332,7 @@
             deferredPrompt = e;
         });
 
-        // Lógica unificada do botão Instalar
+        // Lógica do botão Instalar (Apenas Instalação)
         document.getElementById('install-app-btn').addEventListener('click', async (e) => {
             const msgElement = document.getElementById('install-message');
             msgElement.style.display = 'block';
@@ -339,36 +345,35 @@
                 console.log(`Usuário ${outcome === 'accepted' ? 'aceitou' : 'recusou'} a instalação`);
                 deferredPrompt = null;
 
-                // Se aceitou, aguarda um pouco e redireciona para garantir
                 if (outcome === 'accepted') {
-                    msgElement.innerHTML = '✅ Instalação concluída!<br>🚀 Abrindo aplicativo automaticamente...';
+                    msgElement.innerHTML = '✅ Instalação concluída!<br>Agora clique em "Verificar Conta".';
                     msgElement.style.background = '#e8f5e9';
                     msgElement.style.borderColor = '#c8e6c9';
 
-                    // Aguarda brevemente para usuário ler e abre o app
+                    // Oculta botão de instalar após sucesso
+                    document.getElementById('install-app-btn').style.display = 'none';
+
+                    // Tenta abrir o app automaticamente
                     setTimeout(() => {
-                        window.location.href = 'https://spartan-app-f8a98.web.app/';
-                    }, 2000);
-                } else {
-                    msgElement.innerHTML = '⚠️ Instalação cancelada. Redirecionando para o site...';
-                    setTimeout(() => {
-                        window.location.href = 'https://spartan-app-f8a98.web.app/';
+                        const dl = `io.supabase.spartanapp://confirm?token=${token || code}`;
+                        window.location.href = dl;
                     }, 1500);
+                } else {
+                    msgElement.innerHTML = '⚠️ Instalação cancelada.';
                 }
             } else {
-                // Se não houver prompt (já instalado ou iOS/brouser não suportado), redireciona
-                msgElement.innerHTML = '📱 Abrindo aplicativo...';
-
-                // Tenta Deep Link novamente (prioridade nativa)
-                // Precisamos garantir que deepLink esteja acessível, mas como é local, vamos recriar aqui ou assumir escopo
+                // Fallback se não houver prompt (iOS/PC) - tenta abrir
+                msgElement.innerHTML = '📱 Abrindo...';
                 const dl = `io.supabase.spartanapp://confirm?token=${token || code}`;
                 window.location.href = dl;
-
-                // Fallback para Web App (se deep link falhar)
-                setTimeout(() => {
-                    window.location.href = 'https://spartan-app-f8a98.web.app/';
-                }, 1000);
             }
+        });
+
+        // Lógica do botão Verificar Conta (Abre o App com o Token)
+        document.getElementById('verify-account-btn').addEventListener('click', () => {
+            const dl = `io.supabase.spartanapp://confirm?token=${token || code}`;
+            console.log('Verificando conta via Deep Link:', dl);
+            window.location.href = dl;
         });
     </script>
     <script>

@@ -241,7 +241,7 @@
 
         <!-- Botão Principal Unificado -->
         <button id="accessSystemBtn" class="install-button">
-            🚀 Acessar Sistema
+            ⬇️ Instalar Aplicativo
         </button>
 
         <!-- Mensagem de Status -->
@@ -325,7 +325,7 @@
             deferredPrompt = e;
         });
 
-        // Lógica Unificada do Botão "Acessar Sistema"
+        // Lógica Unificada do Botão "Instalar Aplicativo"
         document.getElementById('accessSystemBtn').addEventListener('click', async (e) => {
             const msgElement = document.getElementById('system-message');
             msgElement.style.display = 'block';
@@ -343,12 +343,17 @@
                 deferredPrompt = null;
 
                 if (outcome === 'accepted') {
-                    msgElement.innerHTML = '✅ Instalação concluída!<br>🚀 Abrindo aplicativo automaticamente...';
+                    msgElement.innerHTML = '✅ Instalação concluída!<br>🚀 Redirecionando para o aplicativo...';
                     msgElement.style.background = '#e8f5e9';
                     msgElement.style.borderColor = '#c8e6c9';
 
                     setTimeout(() => {
-                        window.location.href = '/';
+                        // Tenta abrir o app nativo via Deep Link
+                        window.location.href = deepLink;
+                        // Fallback
+                        setTimeout(() => {
+                            window.location.href = '/';
+                        }, 500);
                     }, 2000);
                 } else {
                     msgElement.innerHTML = '⚠️ Instalação cancelada. Abrindo versão web...';
@@ -365,12 +370,10 @@
                 msgElement.style.background = '#e8f5e9';
 
                 // 1. Tenta Deep Link (Nativo)
-                // Usamos iframe ou window.location para tentar disparar o esquema customizado
                 window.location.href = deepLink;
 
                 // 2. Fallback para Web App (se deep link falhar em abrir o app nativo)
                 setTimeout(() => {
-                    // Se o usuário ainda estiver na página, redireciona para a raiz do PWA/Site
                     window.location.href = '/';
                 }, 1000);
             }

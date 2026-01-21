@@ -457,11 +457,11 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
                             ),
                           )
                         : Text(
-                            'CADASTRAR',
+                            'Cadastrar',
                             style: GoogleFonts.lato(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
-                              letterSpacing: 2,
+                              letterSpacing: 1,
                             ),
                           ),
                   ),
