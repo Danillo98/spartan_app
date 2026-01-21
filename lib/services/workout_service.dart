@@ -6,6 +6,7 @@ class WorkoutService {
 
   // Buscar alunos do personal que têm fichas
   // Buscar TODOS os alunos da academia do personal
+  // Buscar TODOS os alunos da academia do personal
   static Future<List<Map<String, dynamic>>> getMyStudents() async {
     try {
       final user = _client.auth.currentUser;
@@ -30,10 +31,7 @@ class WorkoutService {
           .eq('id_academia', idAcademia)
           .order('nome');
 
-      // 3. Buscar fichas para calcular count (opcional, mas mantendo compatibilidade)
-      // Filtramos fichas onde este personal é o criador, ou da academia toda?
-      // O método original retornava "students of the personal".
-      // Para manter a contagem de "quantas fichas EU fiz para esse aluno":
+      // 3. Buscar fichas criadas por este personal (para contador)
       final workouts = await _client
           .from('workouts')
           .select('student_id')
@@ -46,7 +44,7 @@ class WorkoutService {
 
         return {
           'id': student['id'],
-          'name': student['nome'],
+          'name': student['nome'], // Campo normalizado para UI
           'email': student['email'],
           'workout_count': workoutCount,
         };

@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../config/app_theme.dart';
 import 'dart:math';
+import 'dart:ui' as ui;
 
 class StudentReportDetailScreen extends StatelessWidget {
   final Map<String, dynamic> report;
@@ -72,7 +73,7 @@ class StudentReportDetailScreen extends StatelessWidget {
                     color: const Color(0xFF457B9D),
                   ),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
                 Expanded(
                   child: _buildMetricCard(
                     title: '% Gordura',
@@ -81,16 +82,20 @@ class StudentReportDetailScreen extends StatelessWidget {
                     color: AppTheme.primaryRed,
                   ),
                 ),
+                if (muscleMass > 0) ...[
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildMetricCard(
+                      title: 'Massa Musc.',
+                      value: '$muscleMass%',
+                      icon: Icons.fitness_center_rounded,
+                      color: const Color(0xFF2A9D8F),
+                    ),
+                  ),
+                ] else
+                  const Spacer(), // Mantém proporção de 2 colunas se não tiver massa
               ],
             ),
-            const SizedBox(height: 16),
-            if (muscleMass > 0)
-              _buildMetricCard(
-                title: 'Massa Muscular (%)',
-                value: '$muscleMass%',
-                icon: Icons.fitness_center_rounded,
-                color: const Color(0xFF2A9D8F),
-              ),
 
             // Charts Section
             if (allReports.length > 1) ...[
@@ -379,6 +384,10 @@ class SimpleLineChartPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (points.isEmpty) return;
 
+    final padding = 30.0; // Margem para textos
+    final w = size.width - (padding * 2);
+    final h = size.height - (padding * 2);
+
     final paint = Paint()
       ..color = lineColor
       ..strokeWidth = 3
@@ -396,12 +405,14 @@ class SimpleLineChartPainter extends CustomPainter {
     // Add some padding to range
     double range = maxVal - minVal;
     if (range == 0) range = 10;
-    minVal -= range * 0.1;
-    maxVal += range * 0.1;
+    minVal -= range * 0.2; // Mais espaço embaixo
+    maxVal += range * 0.2; // Mais espaço em cima
+
     range = maxVal - minVal;
 
-    final w = size.width;
-    final h = size.height;
+    // Shift canvas for padding
+    canvas.save();
+    canvas.translate(padding, padding);
 
     // Draw Grid (3 lines)
     for (int i = 0; i <= 2; i++) {
@@ -411,26 +422,77 @@ class SimpleLineChartPainter extends CustomPainter {
 
     // path
     final path = Path();
+    final List<Offset> pointOffsets = [];
+
     for (int i = 0; i < points.length; i++) {
       final x = (i / (points.length - 1)) * w;
       final normalizedVal = (points[i].value - minVal) / range;
       final y = h - (normalizedVal * h);
+
+      pointOffsets.add(Offset(x, y));
 
       if (i == 0) {
         path.moveTo(x, y);
       } else {
         path.lineTo(x, y);
       }
-
-      // Draw dot
-      final dotPaint = Paint()..color = lineColor;
-      canvas.drawCircle(Offset(x, y), 4, dotPaint);
-
-      // Draw dot center
-      canvas.drawCircle(Offset(x, y), 2, Paint()..color = Colors.white);
     }
 
     canvas.drawPath(path, paint);
+
+    // Draw dots and labels
+    for (int i = 0; i < points.length; i++) {
+      final offset = pointOffsets[i];
+      final point = points[i];
+
+      // Dot
+      final dotPaint = Paint()..color = lineColor;
+      canvas.drawCircle(offset, 5, dotPaint);
+      canvas.drawCircle(offset, 3, Paint()..color = Colors.white);
+
+      // Value Label (Above)
+      final textSpan = TextSpan(
+        text: point.value.toStringAsFixed(1),
+        style: TextStyle(
+          color: lineColor,
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+        ),
+      );
+      final textPainter = TextPainter(
+        text: textSpan,
+        textDirection: ui.TextDirection.ltr,
+      );
+      textPainter.layout();
+      textPainter.paint(
+        canvas,
+        Offset(offset.dx - (textPainter.width / 2), offset.dy - 20),
+      );
+
+      // Date Label (Below)
+      // Show date only for first, last, or if few points to avoid clutter
+      if (points.length <= 5 || i == 0 || i == points.length - 1) {
+        final dateText = DateFormat('dd/MM').format(point.date);
+        final dateSpan = TextSpan(
+          text: dateText,
+          style: TextStyle(
+            color: Colors.grey[600],
+            fontSize: 10,
+          ),
+        );
+        final datePainter = TextPainter(
+          text: dateSpan,
+          textDirection: ui.TextDirection.ltr,
+        );
+        datePainter.layout();
+        datePainter.paint(
+          canvas,
+          Offset(offset.dx - (datePainter.width / 2), h + 10),
+        );
+      }
+    }
+
+    canvas.restore();
   }
 
   @override

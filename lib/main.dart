@@ -89,11 +89,32 @@ class _SpartanAppState extends State<SpartanApp> {
   }
 
   Future<void> _handleDeepLink(Uri uri) async {
-    // Verificar se é recuperação de senha ou confirmação
-    // URLs do Supabase geralmente vêm com fragment #access_token=...&type=recovery
-    // ou query params ?token=... para OTP.
+    print('🔗 Deep Link Bruto: $uri');
 
-    // Fragmento (Hash)
+    // Caso 1: Custom Scheme (io.supabase.spartanapp://reset-password?token=...)
+    if (uri.scheme == 'io.supabase.spartanapp' &&
+        (uri.host == 'reset-password' || uri.path.contains('reset-password'))) {
+      final token = uri.queryParameters['token'];
+      // Alguns deep links podem vir como fragment (login implicito)
+      final fragmentToken = Uri.splitQueryString(uri.fragment)['access_token'];
+
+      final finalToken = token ?? fragmentToken;
+
+      if (finalToken != null) {
+        print('🔐 Custom Scheme Reset detectado! Token: $finalToken');
+        _navigatorKey.currentState?.pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (context) => ResetPasswordScreen(
+              token: finalToken,
+            ),
+          ),
+          (route) => false,
+        );
+        return;
+      }
+    }
+
+    // Caso 2: Fragmento Supabase (Hash)
     final fragment = uri.fragment;
     if (fragment.contains('type=recovery')) {
       // Tentativa de parse manual do fragmento
@@ -102,7 +123,7 @@ class _SpartanAppState extends State<SpartanApp> {
       final accessToken = params['access_token'];
 
       if (accessToken != null) {
-        print('🔐 Recuperação de senha via Deep Link detectada!');
+        print('🔐 Recuperação de senha via Fragment detectada!');
         _navigatorKey.currentState?.pushAndRemoveUntil(
           MaterialPageRoute(
             builder: (context) => ResetPasswordScreen(
@@ -112,16 +133,6 @@ class _SpartanAppState extends State<SpartanApp> {
           (route) => false,
         );
       }
-    }
-
-    // Tratamento Padrão do Supabase (passa URL para o client lidar com a sessão)
-    // Isso é importante para que o onAuthStateChange dispare
-    try {
-      // Obter auth code da URL se houver (PKCE Flow)
-      // Mas se for implicit flow (fragment), o onAuthStateChange deve pegar
-      // Apenas se certifique que a janela está ativa.
-    } catch (e) {
-      print('Erro ao processar Deep Link: $e');
     }
   }
 
