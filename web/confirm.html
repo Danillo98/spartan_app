@@ -238,6 +238,21 @@
             deferredPrompt = e;
         });
 
+        // Detectar quando o app foi instalado com sucesso
+        window.addEventListener('appinstalled', (evt) => {
+            console.log('PWA foi instalado com sucesso!');
+            const msgElement = document.getElementById('install-message');
+            msgElement.style.display = 'block';
+            msgElement.innerHTML = '✅ Aplicativo instalado!<br>📌 Verifique sua Área de Trabalho ou Menu Iniciar.';
+            msgElement.style.background = '#e8f5e9';
+
+            // Ocultar botão de instalar
+            document.getElementById('install-app-btn').style.display = 'none';
+
+            // Destacar botão de verificar
+            document.getElementById('verify-account-btn').style.display = 'inline-block';
+        });
+
         // Lógica do botão Instalar
         document.getElementById('install-app-btn').addEventListener('click', async (e) => {
             const msgElement = document.getElementById('install-message');
