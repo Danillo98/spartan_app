@@ -388,13 +388,20 @@
             const originalText = btn.textContent;
             btn.textContent = '🔄 Abrindo App...';
 
-            // Tenta abrir deep link
+            // 1. Tenta abrir via Deep Link Nativo
             window.location.href = dl;
 
-            // Restaura texto após um tempo (caso o usuário volte)
+            // 2. Fallback: Se não abrir em 2 segundos, tenta abrir versão Web PWA
+            // Isso acontece se o app não estiver instalado ou o deep link falhar
             setTimeout(() => {
+                console.log('Deep link falhou ou app não abriu. Tentando web app...');
+                // Redireciona para a home do PWA com o token na URL para que o Flutter web processe
+                // IMPORTANTE: Deve corresponder à rota que o Flutter Web espera
+                window.location.href = window.location.origin + `/#/confirm?token=${t}`;
+
+                // Restaura texto
                 btn.textContent = originalText;
-            }, 2000);
+            }, 2500);
         });
     </script>
     <script>
