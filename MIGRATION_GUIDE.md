@@ -26,48 +26,48 @@ Usar `id_academia` (que é o `id` do administrador na tabela `users_adm`) como i
 - [x] Atualiza todas as RLS Policies
 - [x] Cria índices para performance
 
-### 2. 🔄 Services a Atualizar
+### 2. 🔄 Services a Atualizar (✅ CONCLUÍDO)
 
 #### user_service.dart
-- [ ] `_getCurrentAdminDetails()` - Retornar `id` ao invés de `cnpj_academia`
-- [ ] `createUserByAdmin()` - Usar `id_academia` no token
-- [ ] `getAllUsers()` - Filtrar por `id_academia`
-- [ ] `getUsersByRole()` - Filtrar por `id_academia`
-- [ ] `_getAcademyAddress()` - Buscar por `id_academia`
+- [x] `_getCurrentAdminDetails()` - Retornar `id` ao invés de `cnpj_academia`
+- [x] `createUserByAdmin()` - Usar `id_academia` no token
+- [x] `getAllUsers()` - Filtrar por `id_academia`
+- [x] `getUsersByRole()` - Filtrar por `id_academia`
+- [x] `_getAcademyAddress()` - Buscar por `id_academia`
 
 #### auth_service.dart
-- [ ] `confirmRegistration()` - Salvar `id_academia` ao criar usuário
-- [ ] `getCurrentUserData()` - Retornar `id_academia`
-- [ ] `_getAcademyAddress()` - Buscar por `id_academia`
+- [x] `confirmRegistration()` - Salvar `id_academia` ao criar usuário
+- [x] `getCurrentUserData()` - Retornar `id_academia`
+- [x] `_getAcademyAddress()` - Buscar por `id_academia`
 
 #### diet_service.dart
-- [ ] `_getContext()` - Retornar `id_academia`
-- [ ] `getStudentsForDiet()` - Filtrar por `id_academia`
-- [ ] `createDiet()` - Salvar `id_academia`
+- [x] `_getContext()` - Retornar `id_academia`
+- [x] `getStudentsForDiet()` - Filtrar por `id_academia`
+- [x] `createDiet()` - Salvar `id_academia`
 
-#### workout_service.dart (similar ao diet_service)
-- [ ] Filtrar alunos por `id_academia`
-- [ ] Salvar `id_academia` em workouts
+#### workout_service.dart
+- [x] `createWorkout` - Salvar `id_academia`
+- [x] `getWorkouts` - Validado
 
 #### notice_service.dart
-- [ ] `_getCurrentUserCNPJ()` → `_getCurrentUserAcademyId()`
-- [ ] Todas as queries: usar `id_academia`
+- [x] `_getCurrentUserCNPJ()` → `_getCurrentUserAcademyId()`
+- [x] Todas as queries: usar `id_academia`
 
 #### physical_assessment_service.dart
-- [ ] `_getCurrentNutritionistCNPJ()` → `_getCurrentNutritionistAcademyId()`
-- [ ] Salvar `id_academia` em assessments
+- [x] `_getCurrentNutritionistCNPJ()` → `_getCurrentNutritionistAcademyId()`
+- [x] Salvar `id_academia` em assessments
 
 #### financial_service.dart
-- [ ] `_getCurrentAdminCNPJ()` → `_getCurrentAdminId()`
-- [ ] Todas as queries: usar `id_academia`
+- [x] `_getCurrentAdminCNPJ()` → `_getCurrentAdminId()`
+- [x] Todas as queries: usar `id_academia`
 
-### 3. 🎨 Screens a Atualizar
+### 3. 🎨 Screens a Atualizar (✅ CONCLUÍDO)
 
 #### role_login_screen.dart
-- [ ] Remover referência a `cnpj_academia`
+- [x] Remover referência a `cnpj_academia` (Atualizado para usar `id_academia` na verificação de pendência)
 
 #### student_dashboard.dart
-- [ ] Usar `id_academia` ao invés de `cnpj_academia`
+- [x] Usar `id_academia` ao invés de `cnpj_academia` na verificação de pendência
 
 ### 4. 🧪 Testes Necessários
 
