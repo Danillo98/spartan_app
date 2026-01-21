@@ -7,7 +7,7 @@ import '../config/supabase_config.dart';
 class UserService {
   static final SupabaseClient _client = SupabaseService.client;
 
-  // Helper: Obter dados do admin atual para contexto (para pegar cnpj_academia)
+  // Helper: Obter dados do admin atual para contexto (para pegar id_academia)
   static Future<Map<String, dynamic>> _getCurrentAdminDetails() async {
     final currentUser = _client.auth.currentUser;
     if (currentUser == null) {
@@ -39,9 +39,9 @@ class UserService {
     try {
       // 1. Obter dados do admin (Contexto da Academia)
       final adminDetails = await _getCurrentAdminDetails();
-      final cnpjAcademia = adminDetails['cnpj_academia'];
+      final cnpjAcademia = adminDetails['cnpj_academia']; // Manter para o token
       final academia = adminDetails['academia'];
-      final adminId = adminDetails['id'];
+      final adminId = adminDetails['id']; // ID do admin = ID da academia
 
       // 2. Criar token com dados do usuário usando RegistrationTokenService
       // Mapping:
@@ -143,23 +143,18 @@ class UserService {
   static Future<List<Map<String, dynamic>>> getAllUsers() async {
     try {
       final adminDetails = await _getCurrentAdminDetails();
-      final cnpjAcademia = adminDetails['cnpj_academia'];
+      final idAcademia = adminDetails['id']; // ID do admin = ID da academia
 
-      // Buscar em paralelo nas 4 tabelas filtrando por CNPJ da Academia
-      final adminsF =
-          _client.from('users_adm').select().eq('cnpj_academia', cnpjAcademia);
+      // Buscar em paralelo nas 4 tabelas filtrando por ID da Academia
+      final adminsF = _client.from('users_adm').select().eq('id', idAcademia);
       final nutrisF = _client
           .from('users_nutricionista')
           .select()
-          .eq('cnpj_academia', cnpjAcademia);
-      final trainersF = _client
-          .from('users_personal')
-          .select()
-          .eq('cnpj_academia', cnpjAcademia);
-      final studentsF = _client
-          .from('users_alunos')
-          .select()
-          .eq('cnpj_academia', cnpjAcademia);
+          .eq('id_academia', idAcademia);
+      final trainersF =
+          _client.from('users_personal').select().eq('id_academia', idAcademia);
+      final studentsF =
+          _client.from('users_alunos').select().eq('id_academia', idAcademia);
 
       final results =
           await Future.wait([adminsF, nutrisF, trainersF, studentsF]);
@@ -233,7 +228,7 @@ class UserService {
       UserRole role) async {
     try {
       final adminDetails = await _getCurrentAdminDetails();
-      final cnpjAcademia = adminDetails['cnpj_academia'];
+      final idAcademia = adminDetails['id']; // ID do admin = ID da academia
       final roleString = role.toString().split('.').last;
 
       String tableName;
@@ -249,7 +244,7 @@ class UserService {
       final response = await _client
           .from(tableName)
           .select()
-          .eq('cnpj_academia', cnpjAcademia)
+          .eq('id_academia', idAcademia)
           .order('nome'); // Campo 'nome' existe em todas agora
 
       return List<Map<String, dynamic>>.from(

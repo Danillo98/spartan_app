@@ -227,6 +227,7 @@ class AuthService {
               'email': email,
               'telefone': phone,
               'created_by_admin_id': createdByAdminId,
+              'id_academia': createdByAdminId, // ID do admin = ID da academia
               'email_verified': true,
               if (birthDate != null) 'data_nascimento': birthDate,
             };
@@ -319,6 +320,7 @@ class AuthService {
           'email': email,
           'telefone': phone,
           'created_by_admin_id': createdByAdminId,
+          'id_academia': createdByAdminId, // ID do admin = ID da academia
           'email_verified': true,
           if (birthDate != null) 'data_nascimento': birthDate,
         };
