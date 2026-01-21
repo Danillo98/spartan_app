@@ -71,7 +71,7 @@ class UserService {
 
       // 3. URL de confirmação com deep link
       final confirmationUrl =
-          'https://spartan-app.netlify.app/confirm.html?token=$token';
+          'https://spartan-app-f8a98.web.app/confirm.html?token=$token';
 
       print('🔐 Token criado para $roleString na academia $academia');
       print('🔗 URL: $confirmationUrl');
