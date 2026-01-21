@@ -17,6 +17,18 @@ Usar `id_academia` (que é o `id` do administrador na tabela `users_adm`) como i
 - Esse ID representa UMA academia específica
 - É imutável e garante isolamento total
 
+### 4. Correção de Erros de Nulo (CRÍTICO)
+Se você encontrar erros como `null value in column "cnpj_academia"`, execute o script:
+`supabase/migrations/FIX_NULL_CNPJ_ERRORS.sql`
+
+Isso tornará a coluna antiga opcional, permitindo que o sistema funcione apenas com `id_academia`.
+
+### 5. Otimização de Performance (NOVO)
+Para corrigir lentidão no carregamento e salvamento de dados, execute o script:
+`supabase/migrations/PERFORMANCE_INDEXES.sql`
+
+Isso criará índices essenciais para o campo `id_academia` e chaves estrangeiras.
+
 ## 📋 CHECKLIST DE MIGRAÇÃO
 
 ### 1. ✅ Migration SQL

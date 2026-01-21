@@ -5,32 +5,39 @@ class WorkoutService {
   static final _client = Supabase.instance.client;
 
   // Buscar alunos do personal que têm fichas
+  // Buscar TODOS os alunos da academia do personal
   static Future<List<Map<String, dynamic>>> getMyStudents() async {
     try {
       final user = _client.auth.currentUser;
       if (user == null) return [];
 
-      // Buscar fichas do personal logado
+      // 1. Buscar id_academia do personal logado
+      final personalData = await _client
+          .from('users_personal')
+          .select('id_academia')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      if (personalData == null || personalData['id_academia'] == null) {
+        return [];
+      }
+      final idAcademia = personalData['id_academia'];
+
+      // 2. Buscar todos os alunos da mesma academia
+      final students = await _client
+          .from('users_alunos')
+          .select('id, nome, email')
+          .eq('id_academia', idAcademia)
+          .order('nome');
+
+      // 3. Buscar fichas para calcular count (opcional, mas mantendo compatibilidade)
+      // Filtramos fichas onde este personal é o criador, ou da academia toda?
+      // O método original retornava "students of the personal".
+      // Para manter a contagem de "quantas fichas EU fiz para esse aluno":
       final workouts = await _client
           .from('workouts')
           .select('student_id')
           .eq('personal_id', user.id);
-
-      // Extrair IDs únicos de alunos
-      final studentIds = workouts
-          .map((w) => w['student_id'])
-          .where((id) => id != null)
-          .toSet()
-          .toList();
-
-      if (studentIds.isEmpty) return [];
-
-      // Buscar informações dos alunos
-      final students = await _client
-          .from('users_alunos')
-          .select('id, nome, email')
-          .inFilter('id', studentIds)
-          .order('nome');
 
       // Contar fichas por aluno
       final studentsWithCount = students.map((student) {

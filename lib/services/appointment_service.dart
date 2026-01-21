@@ -6,20 +6,41 @@ import '../models/user_role.dart';
 class AppointmentService {
   static final SupabaseClient _client = SupabaseService.client;
 
-  // Obter CNPJ da academia atual
-  static Future<String> _getAcademyCnpj() async {
+  // Obter ID da academia atual
+  static Future<String> _getAcademyId() async {
     final user = _client.auth.currentUser;
     if (user == null) throw Exception('Usuário não autenticado');
+    final userId = user.id;
 
-    // Tentar buscar do cache local ou DB (Admin)
+    // Tentar como Admin
     final admin = await _client
         .from('users_adm')
-        .select('cnpj_academia')
-        .eq('id', user.id)
+        .select('id')
+        .eq('id', userId)
         .maybeSingle();
+    if (admin != null) return admin['id'];
 
-    if (admin != null) return admin['cnpj_academia'];
-    throw Exception('Academia não encontrada');
+    // Tentar como Nutricionista
+    final nutri = await _client
+        .from('users_nutricionista')
+        .select('id_academia')
+        .eq('id', userId)
+        .maybeSingle();
+    if (nutri != null && nutri['id_academia'] != null) {
+      return nutri['id_academia'];
+    }
+
+    // Tentar como Personal
+    final personal = await _client
+        .from('users_personal')
+        .select('id_academia')
+        .eq('id', userId)
+        .maybeSingle();
+    if (personal != null && personal['id_academia'] != null) {
+      return personal['id_academia'];
+    }
+
+    throw Exception('Academia não encontrada para o usuário atual.');
   }
 
   // Buscar lista de profissionais disponíveis (Nutris e Personais)
@@ -58,14 +79,14 @@ class AppointmentService {
     required DateTime scheduledAt,
   }) async {
     try {
-      final cnpj = await _getAcademyCnpj();
+      final academyId = await _getAcademyId();
 
       if (studentId == null && (visitorName == null || visitorName.isEmpty)) {
         throw Exception('É necessário informar um aluno ou nome do visitante.');
       }
 
       final data = {
-        'cnpj_academia': cnpj,
+        'id_academia': academyId,
         'student_id': studentId,
         'visitor_name': visitorName,
         'visitor_phone': visitorPhone,
@@ -88,13 +109,13 @@ class AppointmentService {
         statusFilter, // 'scheduled' (Aguardando), 'completed' (Concluída), ou null/all
   }) async {
     try {
-      final cnpj = await _getAcademyCnpj();
+      final academyId = await _getAcademyId();
 
       // Construção da query: Filtros primeiro, Ordem por último
       var query = _client
           .from('appointments')
           .select('*, users_alunos(nome, telefone)')
-          .eq('cnpj_academia', cnpj);
+          .eq('id_academia', academyId);
 
       if (statusFilter == 'scheduled') {
         query = query.eq('status', 'scheduled');
