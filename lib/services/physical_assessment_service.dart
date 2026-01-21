@@ -52,18 +52,18 @@ import 'supabase_service.dart';
 class PhysicalAssessmentService {
   static final SupabaseClient _client = SupabaseService.client;
 
-  // Obter CNPJ do nutricionista atual
-  static Future<String> _getNutritionistCnpj() async {
+  // Obter ID da Academia do nutricionista atual
+  static Future<String> _getNutritionistAcademyId() async {
     final user = _client.auth.currentUser;
     if (user == null) throw Exception('Usuário não autenticado');
 
     final nutri = await _client
         .from('users_nutricionista')
-        .select('cnpj_academia')
+        .select('id_academia')
         .eq('id', user.id)
         .maybeSingle();
 
-    if (nutri != null) return nutri['cnpj_academia'];
+    if (nutri != null) return nutri['id_academia'];
     throw Exception('Nutricionista não encontrado ou sem academia vinculada');
   }
 
@@ -117,10 +117,11 @@ class PhysicalAssessmentService {
     final user = _client.auth.currentUser;
     if (user == null) throw Exception('Usuário não autenticado');
 
-    final cnpj = await _getNutritionistCnpj();
+    final idAcademia = await _getNutritionistAcademyId();
 
     await _client.from('physical_assessments').insert({
-      'cnpj_academia': cnpj,
+      'id_academia': idAcademia, // Use id_academia
+      // 'cnpj_academia': cnpj, // REMOVIDO
       'nutritionist_id': user.id,
       'student_id': studentId,
       'assessment_date': date.toIso8601String(),

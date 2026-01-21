@@ -66,11 +66,21 @@ class WorkoutService {
       final user = _client.auth.currentUser;
       if (user == null) throw Exception('Usuário não autenticado');
 
+      // Buscar id_academia do personal
+      final personalData = await _client
+          .from('users_personal')
+          .select('id_academia')
+          .eq('id', user.id)
+          .single();
+
+      final idAcademia = personalData['id_academia'];
+
       final workoutData = await _client
           .from('workouts')
           .insert({
             'personal_id': user.id,
             'student_id': studentId,
+            'id_academia': idAcademia, // Insert id_academia
             'name': name,
             'description': description,
             'goal': goal,
@@ -150,6 +160,8 @@ class WorkoutService {
           // Join correto com users_alunos
           .select('*, student:users_alunos!student_id(nome)')
           .eq('personal_id', user.id)
+          // RLS already handles id_academia isolation via personal_id linkage,
+          // but we rely on RLS policies.
           .order('created_at', ascending: false);
 
       // Adaptar resposta para UI

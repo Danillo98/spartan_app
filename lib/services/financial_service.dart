@@ -6,20 +6,13 @@ import '../models/user_role.dart';
 class FinancialService {
   static final SupabaseClient _client = SupabaseService.client;
 
-  // Obter CNPJ da academia atual (contexto)
-  static Future<String> _getAcademyCnpj() async {
+  // Obter ID da academia atual (contexto do Admin)
+  static Future<String> _getAcademyId() async {
     final user = _client.auth.currentUser;
     if (user == null) throw Exception('Usuário não autenticado');
 
-    // Tentar buscar do cache local ou DB
-    final admin = await _client
-        .from('users_adm')
-        .select('cnpj_academia')
-        .eq('id', user.id)
-        .maybeSingle();
-
-    if (admin != null) return admin['cnpj_academia'];
-    throw Exception('Academia não encontrada');
+    // Apenas Admin acessa Finanças, então o ID do usuário é o ID da academia
+    return user.id;
   }
 
   // Adicionar Transação
@@ -32,10 +25,11 @@ class FinancialService {
     String? relatedUserId,
     String? relatedUserRole,
   }) async {
-    final cnpj = await _getAcademyCnpj();
+    final idAcademia = await _getAcademyId();
 
     await _client.from('financial_transactions').insert({
-      'cnpj_academia': cnpj,
+      'id_academia': idAcademia, // Use id_academia
+      // 'cnpj_academia': cnpj, // REMOVE
       'description': description,
       'amount': amount,
       'type': type,
@@ -51,7 +45,7 @@ class FinancialService {
     int? month,
     int? year,
   }) async {
-    final cnpj = await _getAcademyCnpj();
+    final idAcademia = await _getAcademyId();
     final now = DateTime.now();
     final targetMonth = month ?? now.month;
     final targetYear = year ?? now.year;
@@ -64,7 +58,7 @@ class FinancialService {
     final responseCurrent = await _client
         .from('financial_transactions')
         .select()
-        .eq('cnpj_academia', cnpj)
+        .eq('id_academia', idAcademia)
         .gte('transaction_date', startOfMonth.toIso8601String())
         .lte('transaction_date', endOfMonth.toIso8601String())
         .order('transaction_date', ascending: false)
@@ -77,7 +71,7 @@ class FinancialService {
     final responseFixed = await _client
         .from('financial_transactions')
         .select()
-        .eq('cnpj_academia', cnpj)
+        .eq('id_academia', idAcademia)
         .eq('type', 'expense')
         .eq('category', 'fixed')
         .lt('transaction_date', startOfMonth.toIso8601String());
@@ -170,7 +164,7 @@ class FinancialService {
 
   // Obter resumo anual (lista de 12 meses + total do ano)
   static Future<Map<String, dynamic>> getAnnualSummary(int year) async {
-    final cnpj = await _getAcademyCnpj();
+    final idAcademia = await _getAcademyId();
 
     // 1. Buscar TODAS as transações do ano
     final startOfYear = DateTime(year, 1, 1);
@@ -179,7 +173,7 @@ class FinancialService {
     final responseYear = await _client
         .from('financial_transactions')
         .select()
-        .eq('cnpj_academia', cnpj)
+        .eq('id_academia', idAcademia)
         .gte('transaction_date', startOfYear.toIso8601String())
         .lte('transaction_date', endOfYear.toIso8601String());
 
@@ -189,7 +183,7 @@ class FinancialService {
     final responseFixedPast = await _client
         .from('financial_transactions')
         .select()
-        .eq('cnpj_academia', cnpj)
+        .eq('id_academia', idAcademia)
         .eq('type', 'expense')
         .eq('category', 'fixed')
         .lt('transaction_date', startOfYear.toIso8601String());
@@ -379,7 +373,7 @@ class FinancialService {
   // Verificar se o aluno está inadimplente (Bloqueio de Acesso)
   static Future<bool> isStudentOverdue({
     required String studentId,
-    required String cnpjAcademia,
+    required String idAcademia, // NOW expects ID
     int? paymentDueDay,
   }) async {
     // Se não tiver dia de vencimento, a rigor não vence (ou assume dia 1, ou 10? Regra de negócio)
@@ -399,7 +393,7 @@ class FinancialService {
     final response = await _client
         .from('financial_transactions')
         .select()
-        .eq('cnpj_academia', cnpjAcademia)
+        .eq('id_academia', idAcademia)
         .eq('related_user_id', studentId)
         .eq('type', 'income') // Pagamento é entrada
         .gte('transaction_date', startOfMonth.toIso8601String())

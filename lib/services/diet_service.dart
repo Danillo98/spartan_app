@@ -21,6 +21,7 @@ class DietService {
         'admin_id': nutri['created_by_admin_id'],
         'cnpj': nutri['cnpj_academia'],
         'academia': nutri['academia'],
+        'id_academia': nutri['id_academia'], // Add id_academia
       };
     }
 
@@ -35,6 +36,7 @@ class DietService {
         'admin_id': admin['id'],
         'cnpj': admin['cnpj_academia'],
         'academia': admin['academia'],
+        'id_academia': admin['id'], // Admin ID is id_academia
       };
     }
 
@@ -48,7 +50,7 @@ class DietService {
       final response = await _client
           .from('diets')
           .select()
-          .eq('cnpj_academia', context['cnpj'])
+          .eq('id_academia', context['id_academia']) // Use id_academia filter
           .order('created_at', ascending: false);
 
       return await _populateUsers(response);
@@ -88,6 +90,7 @@ class DietService {
             'created_by_admin_id': context['admin_id'],
             'cnpj_academia': context['cnpj'],
             'academia': context['academia'],
+            'id_academia': context['id_academia'], // Insert id_academia
             'objective_diet': goal,
             'total_calories': totalCalories,
             'start_date': startDate,

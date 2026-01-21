@@ -117,16 +117,16 @@ class _RoleLoginScreenState extends State<RoleLoginScreen>
         // VERIFICAÇÃO DE INADIMPLÊNCIA (Apenas para Alunos)
         if (userRole == UserRole.student) {
           final studentId = userData['id'];
-          final cnpjAcademia = userData['cnpj_academia'];
+          final idAcademia = userData['id_academia'];
           final paymentDueDay = userData['payment_due_day'];
 
-          if (cnpjAcademia != null) {
+          if (idAcademia != null) {
             // Chamada segura para verificar pendência
             bool isOverdue = false;
             try {
               isOverdue = await FinancialService.isStudentOverdue(
                 studentId: studentId,
-                cnpjAcademia: cnpjAcademia,
+                idAcademia: idAcademia,
                 paymentDueDay: paymentDueDay is int
                     ? paymentDueDay
                     : int.tryParse(paymentDueDay.toString()),

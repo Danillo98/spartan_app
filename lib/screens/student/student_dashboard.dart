@@ -87,15 +87,15 @@ class _StudentDashboardState extends State<StudentDashboard>
 
   Future<void> _checkFinancialStatus(Map<String, dynamic> data) async {
     final studentId = data['id'];
-    final cnpjAcademia = data['cnpj_academia'];
+    final idAcademia = data['id_academia'];
     final paymentDueDay = data['payment_due_day'];
 
-    if (cnpjAcademia != null) {
+    if (idAcademia != null) {
       bool isOverdue = false;
       try {
         isOverdue = await FinancialService.isStudentOverdue(
           studentId: studentId,
-          cnpjAcademia: cnpjAcademia,
+          idAcademia: idAcademia,
           paymentDueDay: paymentDueDay is int
               ? paymentDueDay
               : int.tryParse(paymentDueDay.toString()),

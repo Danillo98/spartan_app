@@ -4,45 +4,42 @@ import 'supabase_service.dart';
 class NoticeService {
   static final SupabaseClient _client = SupabaseService.client;
 
-  // Obter CNPJ (Auxiliar) - Similar ao AppointmentService
-  static Future<String> _getAcademyCnpj() async {
+  // Obter ID da Academia (Auxiliar)
+  static Future<String> _getAcademyId() async {
     final user = _client.auth.currentUser;
     if (user == null) throw Exception('Usuário não autenticado');
 
-    // Tenta buscar em cada tabela para descobrir o CNPJ do usuário atual
-    // Otimização: Cachear isso seria ideal, mas por segurança vamos checar
-
-    // 1. Admin
+    // 1. Admin (O próprio ID é o ID da academia)
     final admin = await _client
         .from('users_adm')
-        .select('cnpj_academia')
+        .select('id')
         .eq('id', user.id)
         .maybeSingle();
-    if (admin != null) return admin['cnpj_academia'];
+    if (admin != null) return admin['id'];
 
     // 2. Aluno
     final student = await _client
         .from('users_alunos')
-        .select('cnpj_academia')
+        .select('id_academia')
         .eq('id', user.id)
         .maybeSingle();
-    if (student != null) return student['cnpj_academia'];
+    if (student != null) return student['id_academia'];
 
     // 3. Nutri
     final nutri = await _client
         .from('users_nutricionista')
-        .select('cnpj_academia')
+        .select('id_academia')
         .eq('id', user.id)
         .maybeSingle();
-    if (nutri != null) return nutri['cnpj_academia'];
+    if (nutri != null) return nutri['id_academia'];
 
     // 4. Personal
     final trainer = await _client
         .from('users_personal')
-        .select('cnpj_academia')
+        .select('id_academia')
         .eq('id', user.id)
         .maybeSingle();
-    if (trainer != null) return trainer['cnpj_academia'];
+    if (trainer != null) return trainer['id_academia'];
 
     throw Exception('Academia não encontrada para o usuário');
   }
@@ -50,12 +47,12 @@ class NoticeService {
   // --- CRUD ADMIN ---
 
   static Future<List<Map<String, dynamic>>> getNotices() async {
-    final cnpj = await _getAcademyCnpj();
+    final idAcademia = await _getAcademyId();
     // Lista ordenada por criação (mais recentes primeiro)
     final response = await _client
         .from('notices')
         .select()
-        .eq('cnpj_academia', cnpj)
+        .eq('id_academia', idAcademia)
         .order('created_at', ascending: false);
     return List<Map<String, dynamic>>.from(response);
   }
@@ -68,9 +65,10 @@ class NoticeService {
     String? targetStudentId,
     String authorLabel = 'Gestão da Academia',
   }) async {
-    final cnpj = await _getAcademyCnpj();
+    final idAcademia = await _getAcademyId();
     await _client.from('notices').insert({
-      'cnpj_academia': cnpj,
+      'id_academia': idAcademia, // Use id_academia
+      // 'cnpj_academia': cnpj, // Removido, usando id_academia
       'title': title,
       'description': description,
       'start_at': startAt.toIso8601String(),
@@ -128,7 +126,7 @@ class NoticeService {
       final user = _client.auth.currentUser;
       if (user == null) return [];
 
-      final cnpj = await _getAcademyCnpj();
+      final idAcademia = await _getAcademyId();
       final now = DateTime.now().toIso8601String();
 
       // Busca avisos ativos da academia
@@ -136,7 +134,7 @@ class NoticeService {
       final response = await _client
           .from('notices')
           .select()
-          .eq('cnpj_academia', cnpj)
+          .eq('id_academia', idAcademia)
           .or('target_student_id.is.null,target_student_id.eq.${user.id}')
           .lte('start_at', now) // Começou antes ou agora
           .gte('end_at', now) // Termina depois ou agora
@@ -145,7 +143,7 @@ class NoticeService {
       final notices = List<Map<String, dynamic>>.from(response);
 
       // --- INJECT SYSTEM WARNINGS ---
-      await _injectPaymentWarning(user.id, notices, cnpj);
+      await _injectPaymentWarning(user.id, notices, idAcademia);
 
       return notices;
     } catch (e) {
@@ -155,8 +153,8 @@ class NoticeService {
   }
 
   // Verifica e injeta aviso de pagamento (Regra de 3 dias)
-  static Future<void> _injectPaymentWarning(
-      String userId, List<Map<String, dynamic>> notices, String cnpj) async {
+  static Future<void> _injectPaymentWarning(String userId,
+      List<Map<String, dynamic>> notices, String idAcademia) async {
     try {
       // 1. Verificar se é aluno e pegar dia de vencimento
       final student = await _client
@@ -187,7 +185,7 @@ class NoticeService {
         final payment = await _client
             .from('financial_transactions')
             .select('id')
-            .eq('cnpj_academia', cnpj)
+            .eq('id_academia', idAcademia)
             .eq('related_user_id', userId)
             .eq('type', 'income')
             .gte('transaction_date', startOfMonth.toIso8601String())
@@ -204,7 +202,7 @@ class NoticeService {
             'start_at': now.toIso8601String(),
             'end_at': now.add(const Duration(days: 1)).toIso8601String(),
             'created_at': now.toIso8601String(),
-            'cnpj_academia': cnpj,
+            'id_academia': idAcademia,
           };
 
           // Inserir no topo

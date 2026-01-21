@@ -84,8 +84,8 @@ ADD COLUMN IF NOT EXISTS id_academia UUID REFERENCES public.users_adm(id) ON DEL
 
 UPDATE public.workouts
 SET id_academia = (
-  SELECT id_academia FROM public.users_personal 
-  WHERE users_personal.id = workouts.trainer_id
+  SELECT id_academia FROM public.users_personal
+  WHERE users_personal.id = workouts.personal_id
 )
 WHERE id_academia IS NULL;
 
