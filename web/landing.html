@@ -238,15 +238,15 @@
             </div>
         </div>
 
-        <!-- Botão de instalação (aparece automaticamente se PWA estiver disponível) -->
-        <button id="installButton" class="install-button hidden">
-            📲 Instalar Aplicativo
+        <!-- Botão Principal Unificado -->
+        <button id="accessSystemBtn" class="install-button">
+            🚀 Acessar Sistema
         </button>
 
-        <!-- Link direto para o app -->
-        <a href="/" class="install-button" id="openAppButton">
-            🚀 Acessar Sistema
-        </a>
+        <!-- Mensagem de Status -->
+        <p id="system-message"
+            style="display:none; color: #1a1a1a; margin-top: 15px; font-weight: bold; font-size: 14px; background: #e8f5e9; padding: 10px; border-radius: 8px; border: 1px solid #c8e6c9;">
+        </p>
 
         <!-- Instruções específicas por dispositivo -->
         <div class="instructions">
@@ -300,7 +300,6 @@
             const userAgent = navigator.userAgent.toLowerCase();
             const isAndroid = /android/.test(userAgent);
             const isIOS = /iphone|ipad|ipod/.test(userAgent);
-            const isMobile = isAndroid || isIOS;
 
             if (isAndroid) {
                 document.getElementById('android-instructions').style.display = 'block';
@@ -311,43 +310,66 @@
             }
         }
 
-        // Evento de instalação do PWA
+        // Variáveis globais
+        const APP_URL = window.location.origin;
+        // Deep link genérico para abrir o app
+        const deepLink = 'io.supabase.spartanapp://home';
+
+        // Suporte para instalação PWA
         let deferredPrompt;
 
         window.addEventListener('beforeinstallprompt', (e) => {
             console.log('PWA pode ser instalado');
             e.preventDefault();
             deferredPrompt = e;
-
-            // Mostra o botão de instalação
-            const installButton = document.getElementById('installButton');
-            installButton.classList.remove('hidden');
-
-            // Esconde o botão "Acessar Sistema" quando o botão de instalação aparecer
-            document.getElementById('openAppButton').style.display = 'none';
         });
 
-        // Quando o usuário clicar no botão de instalação
-        document.getElementById('installButton').addEventListener('click', async () => {
-            if (!deferredPrompt) {
-                // Se não houver prompt, redireciona para o app
-                window.location.href = '/';
-                return;
+        // Lógica Unificada do Botão "Acessar Sistema"
+        document.getElementById('accessSystemBtn').addEventListener('click', async (e) => {
+            const msgElement = document.getElementById('system-message');
+            msgElement.style.display = 'block';
+
+            // CASO 1: PWA Disponível para Instalação (Prioridade Máxima)
+            if (deferredPrompt) {
+                msgElement.innerHTML = '🔄 Iniciando download e instalação...<br>Se solicitado, confirme a instalação na tela.';
+                msgElement.style.background = '#e8f5e9';
+
+                e.preventDefault(); // Impede comportamento padrão se houver
+                deferredPrompt.prompt();
+
+                const { outcome } = await deferredPrompt.userChoice;
+                console.log(`Usuário ${outcome === 'accepted' ? 'aceitou' : 'recusou'} a instalação`);
+                deferredPrompt = null;
+
+                if (outcome === 'accepted') {
+                    msgElement.innerHTML = '✅ Instalação concluída!<br>🚀 Abrindo aplicativo automaticamente...';
+                    msgElement.style.background = '#e8f5e9';
+                    msgElement.style.borderColor = '#c8e6c9';
+
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 2000);
+                } else {
+                    msgElement.innerHTML = '⚠️ Instalação cancelada. Abrindo versão web...';
+                    msgElement.style.background = '#fff3cd';
+                    msgElement.style.borderColor = '#ffeeba';
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 1500);
+                }
             }
+            // CASO 2: App já instalado ou Prompt indisponível (iOS/Não suportado)
+            else {
+                msgElement.innerHTML = '📱 Abrindo aplicativo...';
+                msgElement.style.background = '#e8f5e9';
 
-            // Mostra o prompt de instalação
-            deferredPrompt.prompt();
+                // 1. Tenta Deep Link (Nativo)
+                // Usamos iframe ou window.location para tentar disparar o esquema customizado
+                window.location.href = deepLink;
 
-            // Aguarda a escolha do usuário
-            const { outcome } = await deferredPrompt.userChoice;
-            console.log(`Usuário ${outcome === 'accepted' ? 'aceitou' : 'recusou'} a instalação`);
-
-            // Limpa o prompt
-            deferredPrompt = null;
-
-            // Redireciona para o app após instalação
-            if (outcome === 'accepted') {
+                // 2. Fallback para Web App (se deep link falhar em abrir o app nativo)
                 setTimeout(() => {
+                    // Se o usuário ainda estiver na página, redireciona para a raiz do PWA/Site
                     window.location.href = '/';
                 }, 1000);
             }
@@ -356,7 +378,11 @@
         // Detecta quando o app foi instalado
         window.addEventListener('appinstalled', () => {
             console.log('PWA foi instalado com sucesso');
-            // Redireciona para o app
+            const msgElement = document.getElementById('system-message');
+            if (msgElement) {
+                msgElement.style.display = 'block';
+                msgElement.innerHTML = '✅ App instalado! Abrindo...';
+            }
             setTimeout(() => {
                 window.location.href = '/';
             }, 1000);
