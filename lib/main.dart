@@ -188,7 +188,6 @@ class _SpartanAppState extends State<SpartanApp> {
         return;
       }
 
-      // 2. TENTATIVA DE DETECÇÃO VIA URL (BACKUP)
       // 2. Outros eventos de login (confirmação de email, etc)
       if (event == AuthChangeEvent.signedIn && session != null) {
         print('📧 Usuário logado. Verificando token de confirmação...');
@@ -197,9 +196,13 @@ class _SpartanAppState extends State<SpartanApp> {
         final uri = Uri.base;
         final token = uri.queryParameters['token'];
 
-        if (token != null) {
+        // IGNORAR se for rota de reset de senha
+        final isResetRoute = uri.path.contains('/reset-password') ||
+            uri.fragment.contains('/reset-password');
+
+        if (token != null && !isResetRoute) {
           print(
-              '🔄 Token encontrado na URL base. Navegando para tela de confirmação...');
+              '🔄 Token encontrado na URL base e NÃO é reset. Navegando para confirmação...');
 
           _navigatorKey.currentState?.pushAndRemoveUntil(
             MaterialPageRoute(
