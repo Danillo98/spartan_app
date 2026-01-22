@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dieta - Impressão</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Lato:wght@300;400;700&display=swap"
+        rel="stylesheet">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Lato', sans-serif;
+            padding: 20px;
+            background: white;
+            color: #333;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        /* Cabeçalho */
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #D4AF37;
+        }
+
+        .logo {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 15px;
+        }
+
+        h1 {
+            font-family: 'Cinzel', serif;
+            color: #000;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 14px;
+        }
+
+        /* Informações da Dieta */
+        .diet-info {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+
+        .diet-info h2 {
+            font-family: 'Cinzel', serif;
+            color: #000;
+            font-size: 22px;
+            margin-bottom: 15px;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+
+        .info-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .info-label {
+            font-weight: bold;
+            color: #000;
+            font-size: 12px;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .info-value {
+            color: #333;
+            font-size: 16px;
+        }
+
+        /* Dias da Semana */
+        .day-section {
+            margin-bottom: 40px;
+            page-break-inside: avoid;
+        }
+
+        .day-header {
+            background: linear-gradient(135deg, #1a1a1a 0%, #000 100%);
+            color: #D4AF37;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .day-header h3 {
+            font-family: 'Cinzel', serif;
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        /* Refeições */
+        .meal {
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .meal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .meal-time {
+            font-weight: bold;
+            color: #D4AF37;
+            font-size: 14px;
+        }
+
+        .meal-name {
+            font-family: 'Cinzel', serif;
+            font-size: 18px;
+            color: #000;
+        }
+
+        .meal-calories {
+            background: #D4AF37;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .meal-content {
+            margin-top: 10px;
+        }
+
+        .foods {
+            color: #333;
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+
+        .macros {
+            display: flex;
+            gap: 15px;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px dashed #e0e0e0;
+        }
+
+        .macro {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .macro strong {
+            color: #000;
+        }
+
+        .instructions {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f0f8ff;
+            border-left: 3px solid #D4AF37;
+            font-size: 13px;
+            color: #555;
+        }
+
+        /* Rodapé */
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 2px solid #e0e0e0;
+            text-align: center;
+            color: #999;
+            font-size: 12px;
+        }
+
+        /* Botão de Impressão */
+        .print-button {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #1a1a1a 0%, #000 100%);
+            color: #D4AF37;
+            border: 2px solid #D4AF37;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-family: 'Cinzel', serif;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s;
+        }
+
+        .print-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Estilos para Impressão */
+        @media print {
+            body {
+                padding: 0;
+            }
+
+            .print-button {
+                display: none;
+            }
+
+            .day-section {
+                page-break-inside: avoid;
+            }
+
+            .meal {
+                page-break-inside: avoid;
+            }
+        }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 50px;
+            font-size: 18px;
+            color: #666;
+        }
+
+        .error {
+            text-align: center;
+            padding: 50px;
+            color: #d32f2f;
+        }
+    </style>
+</head>
+
+<body>
+    <button class="print-button" onclick="window.print()">🖨️ Imprimir / Salvar PDF</button>
+
+    <div id="loading" class="loading">
+        Carregando dieta...
+    </div>
+
+    <div id="error" class="error" style="display: none;">
+        Erro ao carregar a dieta. Verifique se o link está correto.
+    </div>
+
+    <div id="content" class="container" style="display: none;">
+        <!-- Conteúdo será inserido aqui via JavaScript -->
+    </div>
+
+    <script>
+        // Função para obter parâmetros da URL
+        function getUrlParams() {
+            const params = new URLSearchParams(window.location.search);
+            return {
+                dietData: params.get('data')
+            };
+        }
+
+        // Função para formatar data
+        function formatDate(dateStr) {
+            if (!dateStr) return 'Não definido';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('pt-BR');
+        }
+
+        // Função para renderizar a dieta
+        function renderDiet(diet) {
+            const content = document.getElementById('content');
+
+            let html = `
+                <div class="header">
+                    <img src="assets/assets/images/splash_logo.png" 
+                         alt="Spartan Logo" 
+                         class="logo"
+                         onerror="this.style.display='none'">
+                    <h1>Plano Alimentar</h1>
+                    <p class="subtitle">Spartan Gym - Nutrição e Saúde</p>
+                </div>
+
+                <div class="diet-info">
+                    <h2>${diet.name_diet || 'Dieta'}</h2>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <span class="info-label">Aluno</span>
+                            <span class="info-value">${diet.student_name || 'N/A'}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Nutricionista</span>
+                            <span class="info-value">${diet.nutritionist_name || 'N/A'}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Objetivo</span>
+                            <span class="info-value">${diet.objective_diet || 'N/A'}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Calorias Totais</span>
+                            <span class="info-value">${diet.total_calories || 0} kcal</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Início</span>
+                            <span class="info-value">${formatDate(diet.start_date)}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Validade</span>
+                            <span class="info-value">${formatDate(diet.end_date)}</span>
+                        </div>
+                    </div>
+                    ${diet.description ? `<p style="margin-top: 15px; color: #666;">${diet.description}</p>` : ''}
+                </div>
+            `;
+
+            // Renderizar dias da semana
+            if (diet.diet_days && diet.diet_days.length > 0) {
+                diet.diet_days.forEach(day => {
+                    html += `
+                        <div class="day-section">
+                            <div class="day-header">
+                                <h3>${day.day_name || `Dia ${day.day_number}`}</h3>
+                            </div>
+                    `;
+
+                    // Renderizar refeições do dia
+                    if (day.meals && day.meals.length > 0) {
+                        day.meals.forEach(meal => {
+                            html += `
+                                <div class="meal">
+                                    <div class="meal-header">
+                                        <div>
+                                            <div class="meal-time">${meal.meal_time || 'Horário não definido'}</div>
+                                            <div class="meal-name">${meal.meal_name || 'Refeição'}</div>
+                                        </div>
+                                        <div class="meal-calories">${meal.calories || 0} kcal</div>
+                                    </div>
+                                    <div class="meal-content">
+                                        <div class="foods">${meal.foods || 'Alimentos não especificados'}</div>
+                                        ${(meal.protein || meal.carbs || meal.fats) ? `
+                                            <div class="macros">
+                                                ${meal.protein ? `<div class="macro"><strong>Proteínas:</strong> ${meal.protein}g</div>` : ''}
+                                                ${meal.carbs ? `<div class="macro"><strong>Carboidratos:</strong> ${meal.carbs}g</div>` : ''}
+                                                ${meal.fats ? `<div class="macro"><strong>Gorduras:</strong> ${meal.fats}g</div>` : ''}
+                                            </div>
+                                        ` : ''}
+                                        ${meal.instructions ? `
+                                            <div class="instructions">
+                                                <strong>Instruções:</strong> ${meal.instructions}
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            `;
+                        });
+                    } else {
+                        html += '<p style="color: #999; padding: 20px;">Nenhuma refeição cadastrada para este dia.</p>';
+                    }
+
+                    html += '</div>';
+                });
+            } else {
+                html += '<p style="color: #999; text-align: center; padding: 40px;">Nenhum dia da semana cadastrado.</p>';
+            }
+
+            html += `
+                <div class="footer">
+                    <p>Documento gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}</p>
+                    <p>Spartan Gym - Todos os direitos reservados</p>
+                </div>
+            `;
+
+            content.innerHTML = html;
+            content.style.display = 'block';
+        }
+
+        // Carregar dados ao iniciar
+        window.addEventListener('load', () => {
+            const { dietData } = getUrlParams();
+
+            if (!dietData) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').textContent = 'Nenhum dado de dieta foi fornecido.';
+                return;
+            }
+
+            try {
+                const diet = JSON.parse(decodeURIComponent(dietData));
+                document.getElementById('loading').style.display = 'none';
+                renderDiet(diet);
+            } catch (e) {
+                console.error('Erro ao processar dados:', e);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').textContent = 'Erro ao processar os dados da dieta.';
+            }
+        });
+    </script>
+</body>
+
+</html>

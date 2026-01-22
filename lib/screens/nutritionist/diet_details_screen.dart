@@ -1,3 +1,6 @@
+import 'dart:convert';
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html show window;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/diet_service.dart';
@@ -197,6 +200,21 @@ class _DietDetailsScreenState extends State<DietDetailsScreen> {
                   if (result == true) {
                     _loadDiet(); // Recarregar dieta após edição
                   }
+                }
+              },
+            ),
+            PopupMenuItem(
+              child: Row(
+                children: [
+                  const Icon(Icons.picture_as_pdf_rounded, size: 20),
+                  const SizedBox(width: 12),
+                  Text('Baixar PDF', style: GoogleFonts.lato()),
+                ],
+              ),
+              onTap: () async {
+                await Future.delayed(const Duration(milliseconds: 100));
+                if (mounted) {
+                  _openPrintPage();
                 }
               },
             ),
@@ -893,6 +911,60 @@ class _DietDetailsScreenState extends State<DietDetailsScreen> {
       return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
     } catch (e) {
       return 'Data inválida';
+    }
+  }
+
+  void _openPrintPage() async {
+    try {
+      // Preparar dados para impressão
+      final printData = {
+        'name_diet': _diet!['name_diet'],
+        'description': _diet!['description'],
+        'student_name': _diet!['student']?['name'],
+        'nutritionist_name': _diet!['nutritionist']?['name'],
+        'objective_diet': _diet!['objective_diet'],
+        'total_calories': _diet!['total_calories'],
+        'start_date': _diet!['start_date'],
+        'end_date': _diet!['end_date'],
+        'diet_days': _diet!['diet_days'],
+      };
+
+      // Converter para JSON e encodar para URL
+      final jsonData = jsonEncode(printData);
+      final encodedData = Uri.encodeComponent(jsonData);
+
+      // Construir URL
+      final baseUrl = Uri.base.origin; // https://spartan-app-f8a98.web.app
+      final printUrl = '$baseUrl/print-diet.html?data=$encodedData';
+
+      // Abrir em nova aba (Web) ou navegador (Mobile)
+      html.window.open(printUrl, '_blank');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Abrindo página de impressão...',
+              style: GoogleFonts.lato(),
+            ),
+            backgroundColor: nutritionistPrimary,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Erro ao abrir página de impressão: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Erro ao gerar PDF: $e',
+              style: GoogleFonts.lato(),
+            ),
+            backgroundColor: AppTheme.accentRed,
+          ),
+        );
+      }
     }
   }
 
