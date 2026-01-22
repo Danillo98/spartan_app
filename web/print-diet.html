@@ -38,17 +38,29 @@
             border-bottom: 3px solid #D4AF37;
         }
 
-        .logo {
-            width: 80px;
-            height: 80px;
-            margin: 0 auto 15px;
+        .logo-container {
+            width: 180px;
+            height: 180px;
+            margin: 0 auto 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .logo-img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
         }
 
         h1 {
             font-family: 'Cinzel', serif;
             color: #000;
-            font-size: 28px;
+            font-size: 32px;
             margin-bottom: 10px;
+            font-weight: bold;
         }
 
         .subtitle {
@@ -135,7 +147,7 @@
 
         .meal-time {
             font-weight: bold;
-            color: #D4AF37;
+            color: #000;
             font-size: 14px;
         }
 
@@ -146,11 +158,11 @@
         }
 
         .meal-calories {
-            background: #D4AF37;
-            color: white;
-            padding: 5px 12px;
+            background: #000;
+            color: #D4AF37;
+            padding: 6px 14px;
             border-radius: 20px;
-            font-size: 12px;
+            font-size: 13px;
             font-weight: bold;
         }
 
@@ -274,6 +286,38 @@
     </div>
 
     <script>
+        // Ordem correta dos dias da semana
+        const WEEK_ORDER = {
+            'segunda': 1,
+            'segunda-feira': 1,
+            'terça': 2,
+            'terça-feira': 2,
+            'terca': 2,
+            'terca-feira': 2,
+            'quarta': 3,
+            'quarta-feira': 3,
+            'quinta': 4,
+            'quinta-feira': 4,
+            'sexta': 5,
+            'sexta-feira': 5,
+            'sábado': 6,
+            'sabado': 6,
+            'domingo': 7
+        };
+
+        // Função para ordenar dias da semana
+        function sortDaysByWeek(days) {
+            return days.sort((a, b) => {
+                const nameA = (a.day_name || '').toLowerCase().trim();
+                const nameB = (b.day_name || '').toLowerCase().trim();
+
+                const orderA = WEEK_ORDER[nameA] || a.day_number || 999;
+                const orderB = WEEK_ORDER[nameB] || b.day_number || 999;
+
+                return orderA - orderB;
+            });
+        }
+
         // Função para obter parâmetros da URL
         function getUrlParams() {
             const params = new URLSearchParams(window.location.search);
@@ -295,10 +339,12 @@
 
             let html = `
                 <div class="header">
-                    <img src="assets/assets/images/splash_logo.png" 
-                         alt="Spartan Logo" 
-                         class="logo"
-                         onerror="this.style.display='none'">
+                    <div class="logo-container">
+                        <img src="assets/assets/images/splash_logo.png" 
+                             alt="Spartan Logo" 
+                             class="logo-img"
+                             onerror="this.src='../assets/images/splash_logo.png'; this.onerror=null;">
+                    </div>
                     <h1>Plano Alimentar</h1>
                     <p class="subtitle">Spartan Gym - Nutrição e Saúde</p>
                 </div>
@@ -335,9 +381,11 @@
                 </div>
             `;
 
-            // Renderizar dias da semana
+            // Ordenar e renderizar dias da semana
             if (diet.diet_days && diet.diet_days.length > 0) {
-                diet.diet_days.forEach(day => {
+                const sortedDays = sortDaysByWeek(diet.diet_days);
+
+                sortedDays.forEach(day => {
                     html += `
                         <div class="day-section">
                             <div class="day-header">
