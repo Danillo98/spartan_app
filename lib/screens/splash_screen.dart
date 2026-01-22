@@ -3,6 +3,7 @@ import 'dart:async';
 import '../config/app_theme.dart';
 import 'login_screen.dart';
 import '../services/auth_service.dart';
+import '../services/supabase_service.dart';
 import 'admin/admin_dashboard.dart';
 import 'nutritionist/nutritionist_dashboard.dart';
 import 'trainer/trainer_dashboard.dart';
@@ -49,6 +50,29 @@ class _SplashScreenState extends State<SplashScreen>
     // Verificação de login após 3 segundos
     Timer(const Duration(seconds: 3), () async {
       if (mounted) {
+        // Verificar se é uma sessão de password recovery
+        final currentSession = SupabaseService.client.auth.currentSession;
+        if (currentSession != null) {
+          // Verificar se o access token contém informações de recovery
+          // Quando é recovery, o Supabase não cria registro nas tabelas de usuário
+          try {
+            final userData = await AuthService.getCurrentUserData();
+            if (userData == null && AuthService.isLoggedIn()) {
+              // Usuário logado mas sem dados = sessão de recovery
+              print('⚠️ Sessão de recovery detectada. Não redirecionando.');
+              // Não fazer nada, deixar o AuthListener ou DeepLink handler cuidar
+              return;
+            }
+          } catch (e) {
+            print('⚠️ Erro ao verificar dados do usuário: $e');
+            // Se der erro ao buscar dados, pode ser recovery também
+            if (AuthService.isLoggedIn()) {
+              print('⚠️ Possível sessão de recovery. Não redirecionando.');
+              return;
+            }
+          }
+        }
+
         Widget targetScreen = const LoginScreen();
 
         if (AuthService.isLoggedIn()) {
