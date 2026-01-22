@@ -549,6 +549,19 @@ class _DietDetailsScreenState extends State<DietDetailsScreen> {
   Widget _buildDayItem(Map<String, dynamic> day) {
     final meals = (day['meals'] as List?) ?? [];
 
+    // Calcular totais do dia
+    int totalCalories = 0;
+    int totalProtein = 0;
+    int totalCarbs = 0;
+    int totalFats = 0;
+
+    for (var meal in meals) {
+      totalCalories += (meal['calories'] as int?) ?? 0;
+      totalProtein += (meal['protein'] as int?) ?? 0;
+      totalCarbs += (meal['carbs'] as int?) ?? 0;
+      totalFats += (meal['fats'] as int?) ?? 0;
+    }
+
     return ExpansionTile(
       leading: CircleAvatar(
         backgroundColor: nutritionistPrimary.withOpacity(0.1),
@@ -567,12 +580,30 @@ class _DietDetailsScreenState extends State<DietDetailsScreen> {
           color: AppTheme.primaryText,
         ),
       ),
-      subtitle: Text(
-        '${meals.length} ${meals.length == 1 ? 'refeição' : 'refeições'} • ${day['total_calories'] ?? 0} kcal',
-        style: GoogleFonts.lato(
-          fontSize: 13,
-          color: AppTheme.secondaryText,
-        ),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${meals.length} ${meals.length == 1 ? 'refeição' : 'refeições'}',
+            style: GoogleFonts.lato(
+              fontSize: 13,
+              color: AppTheme.secondaryText,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              _buildMacroChip(
+                  'Cal', '$totalCalories kcal', const Color(0xFFFF6B6B)),
+              const SizedBox(width: 6),
+              _buildMacroChip('P', '${totalProtein}g', const Color(0xFF4CAF50)),
+              const SizedBox(width: 6),
+              _buildMacroChip('C', '${totalCarbs}g', const Color(0xFF2196F3)),
+              const SizedBox(width: 6),
+              _buildMacroChip('G', '${totalFats}g', const Color(0xFFFFA726)),
+            ],
+          ),
+        ],
       ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
