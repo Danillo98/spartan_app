@@ -929,15 +929,18 @@ class _DietDetailsScreenState extends State<DietDetailsScreen> {
         'diet_days': _diet!['diet_days'],
       };
 
-      // Converter para JSON e encodar para URL
+      // Converter para JSON
       final jsonData = jsonEncode(printData);
-      final encodedData = Uri.encodeComponent(jsonData);
 
-      // Construir URL
-      final baseUrl = Uri.base.origin; // https://spartan-app-f8a98.web.app
-      final printUrl = '$baseUrl/print-diet.html?data=$encodedData';
+      // Salvar no localStorage (evita limite de URL)
+      // ignore: avoid_web_libraries_in_flutter
+      html.window.localStorage['spartan_diet_print'] = jsonData;
 
-      // Abrir em nova aba (Web) ou navegador (Mobile)
+      // Construir URL (sem dados, apenas trigger)
+      final baseUrl = Uri.base.origin;
+      final printUrl = '$baseUrl/print-diet.html';
+
+      // Abrir em nova aba
       html.window.open(printUrl, '_blank');
 
       if (mounted) {

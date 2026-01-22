@@ -446,7 +446,17 @@
 
         // Carregar dados ao iniciar
         window.addEventListener('load', () => {
-            const { dietData } = getUrlParams();
+            // Tentar ler do localStorage primeiro (método novo)
+            let dietData = localStorage.getItem('spartan_diet_print');
+
+            // Fallback: tentar ler da URL (método antigo, para compatibilidade)
+            if (!dietData) {
+                const params = new URLSearchParams(window.location.search);
+                dietData = params.get('data');
+                if (dietData) {
+                    dietData = decodeURIComponent(dietData);
+                }
+            }
 
             if (!dietData) {
                 document.getElementById('loading').style.display = 'none';
@@ -456,7 +466,11 @@
             }
 
             try {
-                const diet = JSON.parse(decodeURIComponent(dietData));
+                const diet = JSON.parse(dietData);
+
+                // Limpar localStorage após carregar (evita dados antigos)
+                localStorage.removeItem('spartan_diet_print');
+
                 document.getElementById('loading').style.display = 'none';
                 renderDiet(diet);
             } catch (e) {
