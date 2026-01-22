@@ -980,9 +980,10 @@ class _DietDetailsScreenState extends State<DietDetailsScreen> {
       // ignore: avoid_web_libraries_in_flutter
       html.window.localStorage['spartan_diet_print'] = jsonData;
 
-      // Construir URL (sem dados, apenas trigger)
+      // Construir URL (v2 + timestamp para evitar cache)
       final baseUrl = Uri.base.origin;
-      final printUrl = '$baseUrl/print-diet.html';
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final printUrl = '$baseUrl/print-diet-v2.html?v=$timestamp';
 
       // Abrir em nova aba
       html.window.open(printUrl, '_blank');
