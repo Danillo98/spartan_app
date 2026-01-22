@@ -116,15 +116,44 @@
         .day-header {
             background: linear-gradient(135deg, #1a1a1a 0%, #000 100%);
             color: #D4AF37;
-            padding: 15px 20px;
+            padding: 18px 24px;
             border-radius: 8px;
             margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
         .day-header h3 {
             font-family: 'Cinzel', serif;
-            font-size: 20px;
+            font-size: 22px;
             font-weight: bold;
+            margin: 0;
+        }
+
+        .day-totals {
+            display: flex;
+            gap: 20px;
+            font-size: 13px;
+            color: #D4AF37;
+        }
+
+        .day-total-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .day-total-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            opacity: 0.8;
+            margin-bottom: 2px;
+        }
+
+        .day-total-value {
+            font-weight: bold;
+            font-size: 14px;
         }
 
         /* Refeições */
@@ -148,21 +177,22 @@
         .meal-time {
             font-weight: bold;
             color: #000;
-            font-size: 14px;
+            font-size: 15px;
         }
 
         .meal-name {
             font-family: 'Cinzel', serif;
-            font-size: 18px;
+            font-size: 20px;
             color: #000;
+            font-weight: 600;
         }
 
         .meal-calories {
             background: #000;
             color: #D4AF37;
-            padding: 6px 14px;
+            padding: 7px 16px;
             border-radius: 20px;
-            font-size: 13px;
+            font-size: 14px;
             font-weight: bold;
         }
 
@@ -171,9 +201,11 @@
         }
 
         .foods {
-            color: #333;
-            line-height: 1.6;
+            color: #222;
+            line-height: 1.7;
             margin-bottom: 10px;
+            font-size: 15px;
+            font-weight: 400;
         }
 
         .macros {
@@ -185,12 +217,14 @@
         }
 
         .macro {
-            font-size: 12px;
-            color: #666;
+            font-size: 13px;
+            color: #555;
+            font-weight: 500;
         }
 
         .macro strong {
             color: #000;
+            font-weight: 700;
         }
 
         .instructions {
@@ -333,6 +367,17 @@
             return date.toLocaleDateString('pt-BR');
         }
 
+        // Função para calcular totais do dia
+        function calculateDayTotals(meals) {
+            return meals.reduce((totals, meal) => {
+                totals.calories += meal.calories || 0;
+                totals.protein += meal.protein || 0;
+                totals.carbs += meal.carbs || 0;
+                totals.fats += meal.fats || 0;
+                return totals;
+            }, { calories: 0, protein: 0, carbs: 0, fats: 0 });
+        }
+
         // Função para renderizar a dieta
         function renderDiet(diet) {
             const content = document.getElementById('content');
@@ -386,10 +431,32 @@
                 const sortedDays = sortDaysByWeek(diet.diet_days);
 
                 sortedDays.forEach(day => {
+                    // Calcular totais do dia
+                    const meals = day.meals || [];
+                    const totals = calculateDayTotals(meals);
+
                     html += `
                         <div class="day-section">
                             <div class="day-header">
                                 <h3>${day.day_name || `Dia ${day.day_number}`}</h3>
+                                <div class="day-totals">
+                                    <div class="day-total-item">
+                                        <div class="day-total-label">Calorias</div>
+                                        <div class="day-total-value">${totals.calories} kcal</div>
+                                    </div>
+                                    <div class="day-total-item">
+                                        <div class="day-total-label">Proteínas</div>
+                                        <div class="day-total-value">${totals.protein}g</div>
+                                    </div>
+                                    <div class="day-total-item">
+                                        <div class="day-total-label">Carboidratos</div>
+                                        <div class="day-total-value">${totals.carbs}g</div>
+                                    </div>
+                                    <div class="day-total-item">
+                                        <div class="day-total-label">Gorduras</div>
+                                        <div class="day-total-value">${totals.fats}g</div>
+                                    </div>
+                                </div>
                             </div>
                     `;
 
