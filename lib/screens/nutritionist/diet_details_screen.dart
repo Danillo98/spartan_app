@@ -573,37 +573,33 @@ class _DietDetailsScreenState extends State<DietDetailsScreen> {
           ),
         ),
       ),
-      title: Text(
-        day['day_name'] ?? 'Dia sem nome',
-        style: GoogleFonts.lato(
-          fontWeight: FontWeight.bold,
-          color: AppTheme.primaryText,
-        ),
-      ),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      title: Row(
         children: [
-          Text(
-            '${meals.length} ${meals.length == 1 ? 'refeição' : 'refeições'}',
-            style: GoogleFonts.lato(
-              fontSize: 13,
-              color: AppTheme.secondaryText,
+          Expanded(
+            child: Text(
+              day['day_name'] ?? 'Dia sem nome',
+              style: GoogleFonts.lato(
+                fontWeight: FontWeight.bold,
+                color: AppTheme.primaryText,
+              ),
             ),
           ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              _buildMacroChip(
-                  'Cal', '$totalCalories kcal', const Color(0xFFFF6B6B)),
-              const SizedBox(width: 6),
-              _buildMacroChip('P', '${totalProtein}g', const Color(0xFF4CAF50)),
-              const SizedBox(width: 6),
-              _buildMacroChip('C', '${totalCarbs}g', const Color(0xFF2196F3)),
-              const SizedBox(width: 6),
-              _buildMacroChip('G', '${totalFats}g', const Color(0xFFFFA726)),
-            ],
-          ),
+          const SizedBox(width: 8),
+          _buildMacroChip('Cal', '$totalCalories', const Color(0xFFFF6B6B)),
+          const SizedBox(width: 4),
+          _buildMacroChip('P', '${totalProtein}g', const Color(0xFF4CAF50)),
+          const SizedBox(width: 4),
+          _buildMacroChip('C', '${totalCarbs}g', const Color(0xFF2196F3)),
+          const SizedBox(width: 4),
+          _buildMacroChip('G', '${totalFats}g', const Color(0xFFFFA726)),
         ],
+      ),
+      subtitle: Text(
+        '${meals.length} ${meals.length == 1 ? 'refeição' : 'refeições'}',
+        style: GoogleFonts.lato(
+          fontSize: 13,
+          color: AppTheme.secondaryText,
+        ),
       ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
