@@ -611,10 +611,10 @@ class AuthService {
 
       print('✅ Email encontrado nas tabelas via RPC.');
 
-      // Enviar email de recuperação com deep link direto para o app
+      // Enviar email de recuperação - abre na mesma aba se já estiver aberta
       await _client.auth.resetPasswordForEmail(
         email,
-        redirectTo: 'io.supabase.spartanapp://reset-password',
+        redirectTo: 'https://spartan-app-f8a98.web.app/',
       );
 
       print('✅ Email de recuperação enviado com sucesso');
