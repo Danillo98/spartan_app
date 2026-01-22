@@ -229,22 +229,32 @@ class _SpartanAppState extends State<SpartanApp> {
       onGenerateRoute: (settings) {
         print('🔗 onGenerateRoute: ${settings.name}');
 
-        // Se a rota tem um token, processar confirmação
-        if (settings.name != null && settings.name!.contains('token=')) {
-          try {
-            final uri = Uri.parse(settings.name!);
-            final token = uri.queryParameters['token'];
+        if (settings.name == null) return null;
 
-            print('🔑 Token extraído: $token');
+        final uri = Uri.parse(settings.name!);
+        final token = uri.queryParameters['token'];
 
-            if (token != null && token.isNotEmpty) {
-              print('✅ Navegando para EmailConfirmationScreen');
-              return MaterialPageRoute(
-                builder: (context) => EmailConfirmationScreen(token: token),
-              );
-            }
-          } catch (e) {
-            print('❌ Erro ao processar rota: $e');
+        // Rota de Redefinição de Senha
+        if (uri.path.contains('/reset-password') ||
+            settings.name!.startsWith('/reset-password')) {
+          print('🔑 Rota de reset de senha detectada. Token: $token');
+          if (token != null && token.isNotEmpty) {
+            return MaterialPageRoute(
+              builder: (context) => ResetPasswordScreen(token: token),
+            );
+          }
+        }
+
+        // Rota de Confirmação de Email
+        if (uri.path.contains('/confirm') ||
+            settings.name!.startsWith('/confirm') ||
+            settings.name!.contains('token=')) {
+          // Mantendo compatibilidade com links antigos que só tinham o token
+          print('🔑 Rota de confirmação detectada. Token: $token');
+          if (token != null && token.isNotEmpty) {
+            return MaterialPageRoute(
+              builder: (context) => EmailConfirmationScreen(token: token),
+            );
           }
         }
 
