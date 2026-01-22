@@ -5,6 +5,7 @@ import '../../../config/app_theme.dart';
 import '../../../services/financial_service.dart';
 import '../../../services/user_service.dart';
 import '../../../models/user_role.dart';
+import '../../../widgets/searchable_selection.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   final Map<String, dynamic>? transactionToEdit;
@@ -352,33 +353,26 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                             ),
                             const SizedBox(height: 16),
 
-                            // Selector Usuário
+                            // Selector Usuário (Searchable)
                             _isLoadingUsers
-                                ? const CircularProgressIndicator()
-                                : DropdownButtonFormField<String>(
-                                    value: _selectedUserId,
-                                    decoration: InputDecoration(
-                                      labelText: 'Selecionar Usuário',
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                              horizontal: 12, vertical: 14),
-                                    ),
-                                    items: _availableUsers.map((user) {
-                                      return DropdownMenuItem<String>(
-                                        value: user['id'],
-                                        child: Text(
-                                          user['name'] ?? 'Sem nome',
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      );
-                                    }).toList(),
-                                    onChanged: (value) {
-                                      setState(() => _selectedUserId = value);
+                                ? const Center(
+                                    child: CircularProgressIndicator())
+                                : SearchableSelection<Map<String, dynamic>>(
+                                    label: 'Selecionar Usuário',
+                                    hintText: 'Escolha um usuário',
+                                    items: _availableUsers,
+                                    value: _selectedUserId != null
+                                        ? _availableUsers.firstWhere(
+                                            (u) => u['id'] == _selectedUserId,
+                                            orElse: () => {})
+                                        : null,
+                                    labelBuilder: (user) =>
+                                        user['name'] ?? 'Sem nome',
+                                    onChanged: (user) {
+                                      setState(() {
+                                        _selectedUserId = user?['id'];
+                                      });
                                     },
-                                    hint: const Text('Escolha um usuário'),
                                   ),
                           ],
                         ),

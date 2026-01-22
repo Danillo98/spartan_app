@@ -370,12 +370,62 @@ class UserService {
   }
 
   // Buscar alunos para staff (usando RPC segura)
+  // Buscar alunos para staff (Lógica Manual para garantir filtro por id_academia)
   static Future<List<Map<String, dynamic>>> getStudentsForStaff() async {
     try {
-      final List<dynamic> data = await _client.rpc('get_students_for_staff');
+      final user = _client.auth.currentUser;
+      if (user == null) return [];
+
+      String? idAcademia;
+
+      // 1. Tentar encontrar como Admin
+      final admin = await _client
+          .from('users_adm')
+          .select('id') // Admin ID é o id_academia
+          .eq('id', user.id)
+          .maybeSingle();
+      if (admin != null) {
+        idAcademia = admin['id'];
+      }
+
+      // 2. Tentar encontrar como Nutricionista
+      if (idAcademia == null) {
+        final nutri = await _client
+            .from('users_nutricionista')
+            .select('id_academia')
+            .eq('id', user.id)
+            .maybeSingle();
+        if (nutri != null) {
+          idAcademia = nutri['id_academia'];
+        }
+      }
+
+      // 3. Tentar encontrar como Personal
+      if (idAcademia == null) {
+        final personal = await _client
+            .from('users_personal')
+            .select('id_academia')
+            .eq('id', user.id)
+            .maybeSingle();
+        if (personal != null) {
+          idAcademia = personal['id_academia'];
+        }
+      }
+
+      if (idAcademia == null) {
+        print('⚠️ Usuário não encontrado em nenhuma tabela de staff.');
+        return [];
+      }
+
+      // 4. Buscar alunos desta academia
+      final data = await _client
+          .from('users_alunos')
+          .select('id, nome, email, telefone, cnpj_academia')
+          .eq('id_academia', idAcademia)
+          .order('nome');
 
       // Normalizar campos (nome→name, telefone→phone) e adicionar role
-      final students = data.map((d) {
+      final students = (data as List).map((d) {
         final Map<String, dynamic> student =
             Map<String, dynamic>.from(d as Map);
         return {
@@ -388,13 +438,9 @@ class UserService {
         };
       }).toList();
 
-      // Ensure Alphabetical Order
-      students
-          .sort((a, b) => (a['name'] as String).compareTo(b['name'] as String));
-
       return students;
     } catch (e) {
-      print('❌ Erro ao buscar alunos via RPC: $e');
+      print('❌ Erro ao buscar alunos (Manual): $e');
       return [];
     }
   }

@@ -7,6 +7,7 @@ import '../../services/user_service.dart';
 import '../../services/auth_service.dart';
 import '../../models/user_role.dart';
 import '../../services/notification_service.dart';
+import '../../widgets/searchable_selection.dart';
 
 class NoticeManagerScreen extends StatefulWidget {
   const NoticeManagerScreen({super.key});
@@ -489,40 +490,33 @@ class _NoticeFormModalState extends State<_NoticeFormModal> {
               ),
               const SizedBox(height: 24),
               // Seletor de Destinatário (Apenas para Personal/Nutri ou Admin Opcional)
-              // Logica: Admin -> Default Todos (Null). Staff -> Obrigatório selecionar aluno.
               if (_availableStudents.isNotEmpty) ...[
-                DropdownButtonFormField<String>(
-                  value: _selectedStudentId,
-                  decoration: const InputDecoration(
-                    labelText: 'Destinatário (Aluno)',
-                    border: OutlineInputBorder(),
-                    helperText:
-                        'Deixe vazio para enviar para todos (se permitido)',
-                  ),
-                  items: [
-                    // Opção "Todos" apenas se for Admin (ou se a regra permitir)
-                    // Para simplificar: Staff deve selecionar um aluno.
-                    if (_isAdmin)
-                      const DropdownMenuItem(
-                        value: null,
-                        child: Text('Todos da Academia',
-                            style: TextStyle(fontWeight: FontWeight.bold)),
-                      ),
-                    ..._availableStudents.map((s) {
-                      return DropdownMenuItem(
-                        value: s['id'].toString(),
-                        child: Text(s['name'] ?? 'Aluno'),
-                      );
-                    }),
-                  ],
-                  onChanged: (v) => setState(() => _selectedStudentId = v),
-                  validator: (v) {
-                    if (!_isAdmin && v == null) {
-                      return 'Selecione um aluno para enviar o aviso.';
-                    }
-                    return null;
+                SearchableSelection<Map<String, dynamic>>(
+                  label: 'Destinatário (Aluno)',
+                  hintText: _isAdmin
+                      ? 'Deixe vazio para enviar a todos'
+                      : 'Selecione um aluno...',
+                  items: _availableStudents,
+                  value: _selectedStudentId != null
+                      ? _availableStudents.firstWhere(
+                          (s) => s['id'].toString() == _selectedStudentId,
+                          orElse: () => {})
+                      : null,
+                  labelBuilder: (s) => s['name'] ?? 'Aluno',
+                  onChanged: (user) {
+                    setState(() {
+                      _selectedStudentId = user?['id']?.toString();
+                    });
                   },
                 ),
+                if (!_isAdmin && _selectedStudentId == null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0, left: 4),
+                    child: Text(
+                      'Selecione um aluno para enviar o aviso.',
+                      style: TextStyle(color: Colors.red[700], fontSize: 12),
+                    ),
+                  ),
                 const SizedBox(height: 16),
               ],
 

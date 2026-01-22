@@ -46,9 +46,9 @@ class _SearchableSelectionState<T> extends State<SearchableSelection<T>> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
-              color: AppTheme.lightGrey,
+              color: Colors.white,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.transparent),
+              border: Border.all(color: Colors.grey.shade400),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -60,8 +60,8 @@ class _SearchableSelectionState<T> extends State<SearchableSelection<T>> {
                         : widget.hintText,
                     style: TextStyle(
                       color: widget.value != null
-                          ? AppTheme.primaryText
-                          : Colors.grey[600],
+                          ? Colors.black87
+                          : Colors.grey[700],
                       fontSize: 16,
                     ),
                     overflow: TextOverflow.ellipsis,
