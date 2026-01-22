@@ -611,11 +611,10 @@ class AuthService {
 
       print('✅ Email encontrado nas tabelas via RPC.');
 
-      // Enviar email de recuperação
-      // IMPORTANTE: Atualize esta URL após fazer deploy no Netlify
+      // Enviar email de recuperação com deep link direto para o app
       await _client.auth.resetPasswordForEmail(
         email,
-        redirectTo: 'https://spartan-app-f8a98.web.app/reset-password.html',
+        redirectTo: 'io.supabase.spartanapp://reset-password',
       );
 
       print('✅ Email de recuperação enviado com sucesso');
