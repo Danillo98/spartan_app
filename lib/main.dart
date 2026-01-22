@@ -76,8 +76,25 @@ class _SpartanAppState extends State<SpartanApp> {
   @override
   void initState() {
     super.initState();
+    _checkInitialLink(); // Verificar link inicial ANTES de tudo
     _setupDeepLinks(); // Novo método robusto
     _setupAuthListener();
+  }
+
+  // Verificar se o app foi aberto com um deep link
+  Future<void> _checkInitialLink() async {
+    try {
+      final initialUri = await _appLinks.getInitialLink();
+      if (initialUri != null) {
+        print('🔗 Link inicial detectado: $initialUri');
+        // Aguardar um frame para garantir que o navigator está pronto
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _handleDeepLink(initialUri);
+        });
+      }
+    } catch (e) {
+      print('❌ Erro ao verificar link inicial: $e');
+    }
   }
 
   // Listener nativo para Deep Links (Desktop/Mobile)
