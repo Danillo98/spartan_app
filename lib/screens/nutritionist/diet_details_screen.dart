@@ -574,8 +574,10 @@ class _DietDetailsScreenState extends State<DietDetailsScreen> {
         ),
       ),
       title: Row(
+        mainAxisSize: MainAxisSize.min, // Mantém itens juntos
         children: [
-          Expanded(
+          Flexible(
+            // Permite que o texto quebre se muito longo, mas não expande infinitamente
             child: Text(
               day['day_name'] ?? 'Dia sem nome',
               style: GoogleFonts.lato(
@@ -584,14 +586,29 @@ class _DietDetailsScreenState extends State<DietDetailsScreen> {
               ),
             ),
           ),
-          const SizedBox(width: 8),
-          _buildMacroChip('Cal', '$totalCalories', const Color(0xFFFF6B6B)),
-          const SizedBox(width: 4),
-          _buildMacroChip('P', '${totalProtein}g', const Color(0xFF4CAF50)),
-          const SizedBox(width: 4),
-          _buildMacroChip('C', '${totalCarbs}g', const Color(0xFF2196F3)),
-          const SizedBox(width: 4),
-          _buildMacroChip('G', '${totalFats}g', const Color(0xFFFFA726)),
+          const SizedBox(width: 12), // Espaço entre nome e chips
+          // Usar Wrap para evitar overflow em telas pequenas
+          Flexible(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildMacroChip(
+                      'Cal', '$totalCalories', const Color(0xFFFF6B6B)),
+                  const SizedBox(width: 4),
+                  _buildMacroChip(
+                      'P', '${totalProtein}g', const Color(0xFF4CAF50)),
+                  const SizedBox(width: 4),
+                  _buildMacroChip(
+                      'C', '${totalCarbs}g', const Color(0xFF2196F3)),
+                  const SizedBox(width: 4),
+                  _buildMacroChip(
+                      'G', '${totalFats}g', const Color(0xFFFFA726)),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
       subtitle: Text(
