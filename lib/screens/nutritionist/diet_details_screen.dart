@@ -573,43 +573,12 @@ class _DietDetailsScreenState extends State<DietDetailsScreen> {
           ),
         ),
       ),
-      title: Row(
-        mainAxisSize: MainAxisSize.min, // Mantém itens juntos
-        children: [
-          Flexible(
-            // Permite que o texto quebre se muito longo, mas não expande infinitamente
-            child: Text(
-              day['day_name'] ?? 'Dia sem nome',
-              style: GoogleFonts.lato(
-                fontWeight: FontWeight.bold,
-                color: AppTheme.primaryText,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12), // Espaço entre nome e chips
-          // Usar Wrap para evitar overflow em telas pequenas
-          Flexible(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildMacroChip(
-                      'Cal', '$totalCalories', const Color(0xFFFF6B6B)),
-                  const SizedBox(width: 4),
-                  _buildMacroChip(
-                      'P', '${totalProtein}g', const Color(0xFF4CAF50)),
-                  const SizedBox(width: 4),
-                  _buildMacroChip(
-                      'C', '${totalCarbs}g', const Color(0xFF2196F3)),
-                  const SizedBox(width: 4),
-                  _buildMacroChip(
-                      'G', '${totalFats}g', const Color(0xFFFFA726)),
-                ],
-              ),
-            ),
-          ),
-        ],
+      title: Text(
+        day['day_name'] ?? 'Dia sem nome',
+        style: GoogleFonts.lato(
+          fontWeight: FontWeight.bold,
+          color: AppTheme.primaryText,
+        ),
       ),
       subtitle: Text(
         '${meals.length} ${meals.length == 1 ? 'refeição' : 'refeições'}',
@@ -631,6 +600,12 @@ class _DietDetailsScreenState extends State<DietDetailsScreen> {
         ],
       ),
       children: [
+        if (meals.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: _buildDayTotals(
+                totalCalories, totalProtein, totalCarbs, totalFats),
+          ),
         if (meals.isEmpty)
           Padding(
             padding: const EdgeInsets.all(20),
@@ -685,6 +660,73 @@ class _DietDetailsScreenState extends State<DietDetailsScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDayTotals(int cal, int prot, int carb, int fat) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.lightGrey),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Text(
+            'TOTAL:',
+            style: GoogleFonts.lato(
+              fontWeight: FontWeight.bold,
+              color: nutritionistPrimary,
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildTotalItem('Cal', '$cal', const Color(0xFFFF6B6B)),
+                _buildTotalItem('P', '${prot}g', const Color(0xFF4CAF50)),
+                _buildTotalItem('C', '${carb}g', const Color(0xFF2196F3)),
+                _buildTotalItem('G', '${fat}g', const Color(0xFFFFA726)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTotalItem(String label, String value, Color color) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.lato(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          value,
+          style: GoogleFonts.lato(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: AppTheme.primaryText,
           ),
         ),
       ],
