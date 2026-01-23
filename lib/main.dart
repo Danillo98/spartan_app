@@ -8,6 +8,7 @@ import 'screens/reset_password_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/nutritionist/diets_list_screen.dart';
 import 'services/supabase_service.dart';
+import 'services/cache_manager.dart';
 // import 'services/notification_service.dart';
 import 'config/app_theme.dart';
 import 'package:app_links/app_links.dart';
@@ -43,6 +44,14 @@ void main(List<String> args) async {
 
   // Inicializa o Supabase
   await SupabaseService.initialize();
+
+  // Inicializa o Cache Manager
+  try {
+    await CacheManager().init();
+    print("✅ Cache Manager inicializado com sucesso");
+  } catch (e) {
+    print("❌ Erro ao inicializar Cache Manager: $e");
+  }
 
   // Inicializar Notificações (OneSignal)
   try {

@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
 import 'notification_service.dart';
+import 'cache_manager.dart';
 
 class DietService {
   static final SupabaseClient _client = SupabaseService.client;
@@ -10,6 +11,13 @@ class DietService {
     final user = _client.auth.currentUser;
     if (user == null) throw Exception('Usuário não autenticado');
 
+    // Tentar recuperar do cache
+    final cacheKey = CacheKeys.userContext(user.id);
+    final cached = await CacheManager().get<Map<String, dynamic>>(cacheKey);
+    if (cached != null) return cached;
+
+    Map<String, dynamic>? contextData;
+
     // Tentar como Nutricionista
     final nutri = await _client
         .from('users_nutricionista')
@@ -17,27 +25,34 @@ class DietService {
         .eq('id', user.id)
         .maybeSingle();
     if (nutri != null) {
-      return {
+      contextData = {
         'admin_id': nutri['created_by_admin_id'],
         'cnpj': nutri['cnpj_academia'],
         'academia': nutri['academia'],
-        'id_academia': nutri['id_academia'], // Add id_academia
+        'id_academia': nutri['id_academia'],
       };
+    } else {
+      // Tentar como Admin
+      final admin = await _client
+          .from('users_adm')
+          .select()
+          .eq('id', user.id)
+          .maybeSingle();
+      if (admin != null) {
+        contextData = {
+          'admin_id': admin['id'],
+          'cnpj': admin['cnpj_academia'],
+          'academia': admin['academia'],
+          'id_academia': admin['id'],
+        };
+      }
     }
 
-    // Tentar como Admin
-    final admin = await _client
-        .from('users_adm')
-        .select()
-        .eq('id', user.id)
-        .maybeSingle();
-    if (admin != null) {
-      return {
-        'admin_id': admin['id'],
-        'cnpj': admin['cnpj_academia'],
-        'academia': admin['academia'],
-        'id_academia': admin['id'], // Admin ID is id_academia
-      };
+    if (contextData != null) {
+      // Salvar no cache por 10 minutos
+      await CacheManager()
+          .set(cacheKey, contextData, customTTL: const Duration(minutes: 10));
+      return contextData;
     }
 
     throw Exception('Usuário sem permissão para gerenciar dietas');
@@ -47,13 +62,27 @@ class DietService {
   static Future<List<Map<String, dynamic>>> getAllDiets() async {
     try {
       final context = await _getContext();
+      final idAcademia = context['id_academia'];
+
+      // Cache Key
+      final cacheKey = CacheKeys.allDiets(idAcademia);
+      final cached = await CacheManager().get<List<dynamic>>(cacheKey);
+      if (cached != null) {
+        return List<Map<String, dynamic>>.from(cached);
+      }
+
       final response = await _client
           .from('diets')
           .select()
-          .eq('id_academia', context['id_academia']) // Use id_academia filter
+          .eq('id_academia', idAcademia)
           .order('created_at', ascending: false);
 
-      return await _populateUsers(response);
+      final populated = await _populateUsers(response);
+
+      // Salvar no cache
+      await CacheManager().set(cacheKey, populated);
+
+      return populated;
     } catch (e) {
       print('Erro ao buscar todas dietas: $e');
       return [];
@@ -148,6 +177,10 @@ class DietService {
       }
       // --------------------
 
+      // Invalidar caches relacionados
+      await CacheManager().invalidatePattern('diets_*');
+      await CacheManager().invalidatePattern('students_*');
+
       return {
         'success': true,
         'diet': dietData,
@@ -191,6 +224,10 @@ class DietService {
           .select()
           .single();
 
+      // Invalidar caches relacionados
+      await CacheManager().invalidatePattern('diets_*');
+      await CacheManager().invalidatePattern('diet_detail_$dietId');
+
       return {
         'success': true,
         'diet': response,
@@ -208,6 +245,11 @@ class DietService {
   static Future<Map<String, dynamic>> deleteDiet(String dietId) async {
     try {
       await _client.from('diets').delete().eq('id', dietId);
+
+      // Invalidar caches relacionados
+      await CacheManager().invalidatePattern('diets_*');
+      await CacheManager().invalidatePattern('diet_detail_$dietId');
+
       return {'success': true, 'message': 'Dieta excluída com sucesso!'};
     } catch (e) {
       return {'success': false, 'message': 'Erro ao excluir dieta: $e'};
@@ -274,13 +316,25 @@ class DietService {
   static Future<List<Map<String, dynamic>>> getDietsByNutritionist(
       String nutritionistId) async {
     try {
+      // Cache Key
+      final cacheKey = CacheKeys.dietsByNutritionist(nutritionistId);
+      final cached = await CacheManager().get<List<dynamic>>(cacheKey);
+      if (cached != null) {
+        return List<Map<String, dynamic>>.from(cached);
+      }
+
       final response = await _client
           .from('diets')
           .select()
           .eq('nutritionist_id', nutritionistId)
           .order('created_at', ascending: false);
 
-      return await _populateUsers(response);
+      final populated = await _populateUsers(response);
+
+      // Salvar no cache
+      await CacheManager().set(cacheKey, populated);
+
+      return populated;
     } catch (e) {
       print('Erro ao buscar dietas: $e');
       return [];
@@ -291,13 +345,25 @@ class DietService {
   static Future<List<Map<String, dynamic>>> getDietsByStudent(
       String studentId) async {
     try {
+      // Cache Key
+      final cacheKey = CacheKeys.dietsByStudent(studentId);
+      final cached = await CacheManager().get<List<dynamic>>(cacheKey);
+      if (cached != null) {
+        return List<Map<String, dynamic>>.from(cached);
+      }
+
       final response = await _client
           .from('diets')
           .select()
           .eq('student_id', studentId)
           .order('created_at', ascending: false);
 
-      return await _populateUsers(response);
+      final populated = await _populateUsers(response);
+
+      // Salvar no cache
+      await CacheManager().set(cacheKey, populated);
+
+      return populated;
     } catch (e) {
       print('Erro ao buscar dietas aluno: $e');
       return [];
@@ -307,6 +373,11 @@ class DietService {
   // Buscar dieta por ID
   static Future<Map<String, dynamic>?> getDietById(String dietId) async {
     try {
+      // Cache Key
+      final cacheKey = CacheKeys.dietDetail(dietId);
+      final cached = await CacheManager().get<Map<String, dynamic>>(cacheKey);
+      if (cached != null) return cached;
+
       // Buscar dieta
       final response =
           await _client.from('diets').select().eq('id', dietId).maybeSingle();
@@ -314,40 +385,49 @@ class DietService {
       if (response == null) return null;
 
       // Buscar dias da dieta
-      print('DEBUG: Buscando dias para diet_id: $dietId'); // Debug
       final dietDays = await _client
           .from('diet_days')
           .select()
           .eq('diet_id', dietId)
           .order('day_number');
 
-      print('DEBUG: Dias encontrados: ${dietDays.length}'); // Debug
-      print('DEBUG: Dias data: $dietDays'); // Debug
+      // OTIMIZAÇÃO: Buscar todas as refeições de uma vez (Batch Query)
+      if (dietDays.isNotEmpty) {
+        final dayIds = dietDays.map((d) => d['id']).toList();
+        final allMeals = await _client
+            .from('meals')
+            .select()
+            .inFilter('diet_day_id', dayIds);
 
-      // Para cada dia, buscar as refeições
-      for (var day in dietDays) {
-        print('DEBUG: Buscando refeições para day_id: ${day['id']}'); // Debug
-        final meals =
-            await _client.from('meals').select().eq('diet_day_id', day['id']);
+        final allMealsList = List<Map<String, dynamic>>.from(allMeals);
 
-        print('DEBUG: Refeições encontradas: ${meals.length}'); // Debug
+        // Distribuir refeições para os dias
+        for (var day in dietDays) {
+          final dayMeals =
+              allMealsList.where((m) => m['diet_day_id'] == day['id']).toList();
 
-        // Ordenar refeições por horário (convertendo para minutos)
-        final mealsList = List<Map<String, dynamic>>.from(meals);
-        mealsList.sort((a, b) {
-          final timeA = _parseTimeToMinutes(a['meal_time']);
-          final timeB = _parseTimeToMinutes(b['meal_time']);
-          return timeA.compareTo(timeB);
-        });
+          // Ordenar refeições
+          dayMeals.sort((a, b) {
+            final timeA = _parseTimeToMinutes(a['meal_time']);
+            final timeB = _parseTimeToMinutes(b['meal_time']);
+            return timeA.compareTo(timeB);
+          });
 
-        day['meals'] = mealsList;
+          day['meals'] = dayMeals;
+        }
       }
 
       // Adicionar dias à dieta
       response['diet_days'] = dietDays;
 
       final populated = await _populateUsers([response]);
-      return populated.first;
+      final result = populated.first;
+
+      // Salvar no cache (Detalhes duram mais tempo, mas invalidam em write)
+      await CacheManager()
+          .set(cacheKey, result, customTTL: const Duration(minutes: 10));
+
+      return result;
     } catch (e) {
       print('Erro ao buscar dieta: $e');
       return null;
@@ -390,6 +470,10 @@ class DietService {
           })
           .select()
           .single();
+
+      // Invalidar cache de detalhes da dieta
+      await CacheManager().invalidatePattern('diet_detail_$dietId');
+
       return {'success': true, 'day': dayData, 'message': 'Dia adicionado!'};
     } catch (e) {
       return {'success': false, 'message': 'Erro: $e'};
@@ -424,6 +508,13 @@ class DietService {
           })
           .select()
           .single();
+
+      // Invalidar cache de detalhes da dieta (precisamos saber o dietId, mas dietDayId nos dá indiretamente.
+      // Como não temos dietId direto aqui, podemos invalidar TODOS os diet_details ou buscar o ID antes.
+      // Para performance, ideal seria invalidar tudo de dietas ou aceitar que o detalhe expire.
+      // Vamos tentar invalidar via pattern global por segurança agora.
+      await CacheManager().invalidatePattern('diet_detail_*');
+
       return {
         'success': true,
         'meal': mealData,
@@ -463,6 +554,9 @@ class DietService {
           .eq('id', mealId)
           .select()
           .single();
+
+      await CacheManager().invalidatePattern('diet_detail_*');
+
       return {
         'success': true,
         'meal': response,
@@ -477,6 +571,8 @@ class DietService {
   static Future<Map<String, dynamic>> deleteMeal(String mealId) async {
     try {
       await _client.from('meals').delete().eq('id', mealId);
+
+      await CacheManager().invalidatePattern('diet_detail_*');
 
       return {
         'success': true,
@@ -494,6 +590,8 @@ class DietService {
   static Future<Map<String, dynamic>> deleteDietDay(String dietDayId) async {
     try {
       await _client.from('diet_days').delete().eq('id', dietDayId);
+
+      await CacheManager().invalidatePattern('diet_detail_*');
 
       return {
         'success': true,
@@ -540,6 +638,13 @@ class DietService {
 
       if (idAcademia == null) return [];
 
+      // Cache Key
+      final cacheKey = CacheKeys.myStudents(idAcademia);
+      final cached = await CacheManager().get<List<dynamic>>(cacheKey);
+      if (cached != null) {
+        return List<Map<String, dynamic>>.from(cached);
+      }
+
       // 1. Buscar todos os alunos da academia
       final students = await _client
           .from('users_alunos')
@@ -565,6 +670,9 @@ class DietService {
           'diet_count': dietCount,
         };
       }).toList();
+
+      // Salvar no cache
+      await CacheManager().set(cacheKey, studentsWithCount);
 
       return studentsWithCount;
     } catch (e) {

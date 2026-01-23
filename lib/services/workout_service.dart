@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'notification_service.dart';
+import 'cache_manager.dart';
 
 class WorkoutService {
   static final _client = Supabase.instance.client;
@@ -7,10 +8,19 @@ class WorkoutService {
   // Buscar alunos do personal que têm fichas
   // Buscar TODOS os alunos da academia do personal
   // Buscar TODOS os alunos da academia do personal
+  // Buscar alunos do personal que têm fichas
+  // Buscar TODOS os alunos da academia do personal
   static Future<List<Map<String, dynamic>>> getMyStudents() async {
     try {
       final user = _client.auth.currentUser;
       if (user == null) return [];
+
+      // Cache Key
+      final cacheKey = CacheKeys.myStudents(user.id);
+      final cached = await CacheManager().get<List<dynamic>>(cacheKey);
+      if (cached != null) {
+        return List<Map<String, dynamic>>.from(cached);
+      }
 
       // 1. Buscar id_academia do personal logado
       final personalData = await _client
@@ -49,6 +59,9 @@ class WorkoutService {
           'workout_count': workoutCount,
         };
       }).toList();
+
+      // Salvar no cache
+      await CacheManager().set(cacheKey, studentsWithCount);
 
       return studentsWithCount;
     } catch (e) {
@@ -111,6 +124,12 @@ class WorkoutService {
       }
       // --------------------
 
+      // --------------------
+
+      // Invalidar caches
+      await CacheManager().invalidatePattern('workouts_*');
+      await CacheManager().invalidatePattern('students_${user.id}');
+
       return {'success': true, 'workout': workoutData};
     } catch (e) {
       return {'success': false, 'message': 'Erro ao criar treino: $e'};
@@ -148,6 +167,10 @@ class WorkoutService {
 
       await _client.from('workouts').update(updates).eq('id', workoutId);
 
+      // Invalidar caches
+      await CacheManager().invalidatePattern('workouts_*');
+      await CacheManager().invalidatePattern('workout_detail_$workoutId');
+
       return {'success': true, 'message': 'Ficha atualizada com sucesso!'};
     } catch (e) {
       return {'success': false, 'message': 'Erro ao atualizar ficha: $e'};
@@ -160,6 +183,13 @@ class WorkoutService {
       final user = _client.auth.currentUser;
       if (user == null) return [];
 
+      // Cache Key
+      final cacheKey = CacheKeys.workoutsByPersonal(user.id);
+      final cached = await CacheManager().get<List<dynamic>>(cacheKey);
+      if (cached != null) {
+        return List<Map<String, dynamic>>.from(cached);
+      }
+
       final response = await _client
           .from('workouts')
           // Join correto com users_alunos
@@ -170,7 +200,7 @@ class WorkoutService {
           .order('created_at', ascending: false);
 
       // Adaptar resposta para UI
-      return response.map((w) {
+      final result = response.map((w) {
         final studentData = w['student'] as Map<String, dynamic>?;
         // Criar um objeto student compatível com a UI que espera 'name'
         final adaptedStudent = studentData != null
@@ -181,6 +211,11 @@ class WorkoutService {
         newMap['student'] = adaptedStudent;
         return newMap;
       }).toList();
+
+      // Salvar no cache
+      await CacheManager().set(cacheKey, result);
+
+      return result;
     } catch (e) {
       print('Erro ao buscar treinos: $e');
       return [];
@@ -191,6 +226,15 @@ class WorkoutService {
   static Future<List<Map<String, dynamic>>> getWorkoutsByStudent(
       String studentId) async {
     try {
+      // Cache Key
+      final cacheKey = CacheKeys.workoutsByStudent(studentId);
+      final cached = await CacheManager().get<List<dynamic>>(cacheKey);
+      // Aqui precisamos reconstruir os objetos internos se necessário,
+      // mas como o cache guarda JSON serializavel, deve estar ok.
+      if (cached != null) {
+        return List<Map<String, dynamic>>.from(cached);
+      }
+
       final response = await _client
           .from('workouts')
           .select()
@@ -221,7 +265,12 @@ class WorkoutService {
         }
       }
 
-      return List<Map<String, dynamic>>.from(response);
+      final result = List<Map<String, dynamic>>.from(response);
+
+      // Salvar no cache
+      await CacheManager().set(cacheKey, result);
+
+      return result;
     } catch (e) {
       print('Erro ao buscar treinos do aluno: $e');
       return [];
@@ -231,6 +280,11 @@ class WorkoutService {
   // Obter Detalhes do Treino (com dias e exercícios)
   static Future<Map<String, dynamic>?> getWorkoutById(String workoutId) async {
     try {
+      // Cache Key
+      final cacheKey = CacheKeys.workoutDetail(workoutId);
+      final cached = await CacheManager().get<Map<String, dynamic>>(cacheKey);
+      if (cached != null) return cached;
+
       print('Fetching workout details for ID: $workoutId');
 
       // 1. Fetch basic workout data
@@ -279,20 +333,32 @@ class WorkoutService {
 
       print('Days fetched: ${days.length}');
 
-      // 4. For each day, fetch exercises
-      for (var day in days) {
-        final exercises = await _client
+      // 4. Optimization: Fetch all exercises at once (Batch Query)
+      if (days.isNotEmpty) {
+        final dayIds = days.map((d) => d['id']).toList();
+        final allExercises = await _client
             .from('workout_exercises')
             .select('*')
-            .eq('day_id', day['id']);
+            .inFilter('day_id', dayIds);
 
-        day['exercises'] = exercises;
-        print('Day ${day['day_name']}: ${exercises.length} exercises');
+        final allExercisesList = List<Map<String, dynamic>>.from(allExercises);
+
+        for (var day in days) {
+          final dayExercises =
+              allExercisesList.where((e) => e['day_id'] == day['id']).toList();
+
+          day['exercises'] = dayExercises;
+        }
       }
 
       workout['days'] = days;
 
       print('Complete workout data assembled successfully');
+
+      // Salvar no cache (custom TTL 10min)
+      await CacheManager()
+          .set(cacheKey, workout, customTTL: const Duration(minutes: 10));
+
       return workout;
     } catch (e) {
       print('ERRO FATAL ao buscar detalhes do treino ($workoutId): $e');
@@ -304,6 +370,11 @@ class WorkoutService {
   static Future<Map<String, dynamic>> deleteWorkout(String workoutId) async {
     try {
       await _client.from('workouts').delete().eq('id', workoutId);
+
+      // Invalidar caches
+      await CacheManager().invalidatePattern('workouts_*');
+      await CacheManager().invalidatePattern('workout_detail_$workoutId');
+
       return {'success': true, 'message': 'Treino excluído com sucesso'};
     } catch (e) {
       return {'success': false, 'message': 'Erro ao excluir treino: $e'};
@@ -330,6 +401,11 @@ class WorkoutService {
           })
           .select()
           .single();
+
+      // Invalidar cache de detalhes
+      await CacheManager().invalidatePattern(
+          'workout_detail_*'); // Generalizado para simplificar
+
       return {'success': true, 'day': dayData, 'message': 'Dia adicionado!'};
     } catch (e) {
       return {'success': false, 'message': 'Erro: $e'};
@@ -355,6 +431,9 @@ class WorkoutService {
   static Future<Map<String, dynamic>> deleteWorkoutDay(String dayId) async {
     try {
       await _client.from('workout_days').delete().eq('id', dayId);
+
+      await CacheManager().invalidatePattern('workout_detail_*');
+
       return {'success': true, 'message': 'Dia excluído com sucesso!'};
     } catch (e) {
       return {'success': false, 'message': 'Erro ao deletar dia: $e'};
@@ -376,6 +455,8 @@ class WorkoutService {
       if (description != null) updates['description'] = description;
 
       await _client.from('workout_days').update(updates).eq('id', dayId);
+
+      await CacheManager().invalidatePattern('workout_detail_*');
 
       return {'success': true, 'message': 'Dia atualizado com sucesso!'};
     } catch (e) {
@@ -407,6 +488,9 @@ class WorkoutService {
           })
           .select()
           .single();
+
+      await CacheManager().invalidatePattern('workout_detail_*');
+
       return {
         'success': true,
         'exercise': exerciseData,
@@ -448,6 +532,8 @@ class WorkoutService {
           .update(updates)
           .eq('id', exerciseId);
 
+      await CacheManager().invalidatePattern('workout_detail_*');
+
       return {'success': true, 'message': 'Exercício atualizado!'};
     } catch (e) {
       return {'success': false, 'message': 'Erro: $e'};
@@ -458,6 +544,7 @@ class WorkoutService {
   static Future<void> deleteExercise(String exerciseId) async {
     try {
       await _client.from('workout_exercises').delete().eq('id', exerciseId);
+      await CacheManager().invalidatePattern('workout_detail_*');
     } catch (e) {
       print('Erro ao deletar exercício: $e');
       throw e;
