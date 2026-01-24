@@ -25,6 +25,7 @@ dependencies:
   app_links: ^6.3.2
   shared_preferences: ^2.2.2
   windows_single_instance: any
+  qr_flutter: ^4.1.0
 
 dev_dependencies:
   flutter_test:

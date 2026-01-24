@@ -1,8 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
-
 import '../models/user_role.dart';
-import '../config/supabase_config.dart';
 
 class UserService {
   static final SupabaseClient _client = SupabaseService.client;
@@ -36,6 +34,7 @@ class UserService {
     String? birthDate,
     int? paymentDueDay, // Dia de vencimento (1-31, apenas para alunos)
     bool isPaidCurrentMonth = false, // Se já pagou o mês atual
+    double? initialPaymentAmount, // Valor do pagamento inicial
   }) async {
     try {
       // 1. Obter dados do admin (Contexto da Academia)
@@ -45,61 +44,63 @@ class UserService {
       final adminId = adminDetails['id']; // ID do admin = ID da academia
       final roleString = role.toString().split('.').last;
 
-      // 3. URL de confirmação (Página de sucesso/confirmação)
-      // O Supabase anexará automaticamente o token de acesso (hash) ou code (query) a esta URL.
-      const confirmationUrl = 'https://spartan-app-f8a98.web.app/confirm.html';
-
       print(
-          '🔐 Cadastrando $roleString na academia $academia (Via Supabase Nativo)');
+          '🔐 Cadastrando $roleString na academia $academia (Via RPC Direta)');
 
-      // 4. Enviar email de confirmação via Supabase (SignUp Nativo)
-      // Utiliza cliente temporário para não deslogar o admin
-      final tempClient = SupabaseClient(
-        SupabaseConfig.supabaseUrl,
-        SupabaseConfig.supabaseAnonKey,
-        authOptions: const AuthClientOptions(
-          authFlowType: AuthFlowType.implicit,
-        ),
-      );
+      // 4. Criar usuário via RPC (Direto no Banco)
+      // Isso evita o envio de email automático do Supabase e já confirma o usuário
+      // A Trigger do banco cuidará das tabelas públicas
+      final response = await _client.rpc('create_user_v3', params: {
+        'p_email': email.trim(),
+        'p_password': password,
+        'p_metadata': {
+          'role': roleString,
+          'name': name.trim(),
+          'phone': phone.trim(),
+          'academia': academia,
+          'cnpj_academia': cnpjAcademia,
+          'created_by_admin_id': adminId,
+          if (paymentDueDay != null) 'paymentDueDay': paymentDueDay,
+          if (isPaidCurrentMonth) 'isPaidCurrentMonth': true,
+        }
+      });
 
-      try {
-        await tempClient.auth.signUp(
-          email: email.trim(),
-          password: password,
-          emailRedirectTo: confirmationUrl,
-          data: {
-            'role': roleString,
-            'name': name.trim(),
-            'phone': phone.trim(),
-            'academia': academia,
-            'cnpj_academia': cnpjAcademia, // Mantém para RLS
-            'created_by_admin_id': adminId,
-            if (paymentDueDay != null) 'paymentDueDay': paymentDueDay,
-            if (isPaidCurrentMonth) 'isPaidCurrentMonth': true,
-          },
-        );
-
-        print('✅ Usuário criado via Supabase Auth (Email nativo disparado)');
-
-        return {
-          'success': true,
-          'message':
-              'Usuário cadastrado! O Supabase enviou um email de confirmação.',
-          'requiresVerification': true,
-        };
-      } catch (e) {
-        print('❌ Erro no cadastro nativo: $e');
-        return {
-          'success': false,
-          'message': 'Erro ao cadastrar: ${e.toString()}',
-        };
+      if (response['success'] != true) {
+        throw Exception(response['message'] ?? 'Erro desconhecido na RPC');
       }
-    } on AuthException catch (e) {
+
+      // Se marcou como "Pago este mês", criar transação para liberar acesso imediatamente
+      if (isPaidCurrentMonth && role == UserRole.student) {
+        try {
+          final newUserId = response['user_id'];
+          final amount = initialPaymentAmount ?? 0.0;
+
+          await _client.from('financial_transactions').insert({
+            'id_academia': adminId,
+            'description':
+                'Mensalidade Inicial - $name', // Incluindo nome do aluno
+            'amount': amount,
+            'type': 'income',
+            'category': 'Mensalidade',
+            'transaction_date': DateTime.now().toIso8601String().split('T')[0],
+            'related_user_id': newUserId,
+            'related_user_role': 'student',
+          });
+          print('💰 Transação inicial registrada: R\$ $amount - Aluno: $name');
+        } catch (e) {
+          print('⚠️ Erro ao registrar pagamento inicial: $e');
+        }
+      }
+
+      print('✅ Usuário criado via RPC (Sem email disparado)');
+
       return {
-        'success': false,
-        'message': _getAuthErrorMessage(e.message),
+        'success': true,
+        'message': 'Usuário cadastrado com sucesso! Acesso liberado.',
+        'requiresVerification': false,
       };
     } catch (e) {
+      print('❌ Erro no cadastro RPC: $e');
       return {
         'success': false,
         'message': 'Erro ao cadastrar: ${e.toString()}',
@@ -457,19 +458,6 @@ class UserService {
         'success': false,
         'message': 'Erro ao alterar status: ${e.toString()}'
       };
-    }
-  }
-
-  // Mensagens de erro
-  static String _getAuthErrorMessage(String error) {
-    if (error.contains('User already registered')) {
-      return 'Este email já está cadastrado';
-    } else if (error.contains('Password should be at least 6 characters')) {
-      return 'A senha deve ter no mínimo 6 caracteres';
-    } else if (error.contains('Invalid email')) {
-      return 'Email inválido';
-    } else {
-      return 'Erro: $error';
     }
   }
 }

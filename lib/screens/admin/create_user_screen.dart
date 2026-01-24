@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../../models/user_role.dart';
 import '../../services/user_service.dart';
 import '../../config/app_theme.dart';
@@ -21,6 +22,7 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _birthDateController = TextEditingController();
+  final _initialPaymentController = TextEditingController(); // Novo controller
 
   DateTime? _selectedBirthDate;
   UserRole _selectedRole = UserRole.student;
@@ -38,6 +40,7 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _birthDateController.dispose();
+    _initialPaymentController.dispose(); // Dispose novo controller
     super.dispose();
   }
 
@@ -60,11 +63,17 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
             _selectedRole == UserRole.student ? _selectedPaymentDay : null,
         isPaidCurrentMonth:
             _selectedRole == UserRole.student ? _isPaidCurrentMonth : false,
+        initialPaymentAmount:
+            _selectedRole == UserRole.student && _isPaidCurrentMonth
+                ? double.tryParse(
+                    _initialPaymentController.text.replaceAll(',', '.'))
+                : null,
       );
 
       if (!mounted) return;
 
       if (result['success'] == true) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -390,6 +399,26 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
                           setState(() => _isPaidCurrentMonth = val),
                     ),
                   ),
+
+                  // Campo de Valor (Se pago)
+                  if (_isPaidCurrentMonth) ...[
+                    const SizedBox(height: 16),
+                    _buildTextField(
+                      controller: _initialPaymentController,
+                      label: 'Valor Pago (R\$)',
+                      hint: '0.00',
+                      icon: Icons.attach_money_rounded,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      validator: (value) {
+                        if (!_isPaidCurrentMonth) return null;
+                        if (value == null || value.isEmpty) {
+                          return 'Informe o valor pago';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
                 ],
 
                 const SizedBox(height: 16),
@@ -453,6 +482,94 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
                     }
                     return null;
                   },
+                ),
+
+                const SizedBox(height: 30),
+
+                // Seção QR Code e Download (Sempre visível)
+
+                // Seção QR Code e Download (Sempre visível)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppTheme.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppTheme.borderGrey),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        'Sistema Pronto para Uso!',
+                        style: GoogleFonts.cinzel(
+                          color: AppTheme.primaryText,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: QrImageView(
+                          data:
+                              'https://spartan-app-f8a98.web.app/landing.html',
+                          version: QrVersions.auto,
+                          errorCorrectionLevel: QrErrorCorrectLevel.H,
+                          size: 250.0,
+                          backgroundColor: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: AppTheme.lightGrey,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'https://spartan-app-f8a98.web.app/landing.html',
+                                style: TextStyle(
+                                  fontFamily: 'Courier',
+                                  fontSize: 12,
+                                  color: AppTheme.secondaryText,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.copy_rounded, size: 20),
+                              color: AppTheme.primaryText,
+                              onPressed: () {
+                                Clipboard.setData(const ClipboardData(
+                                    text:
+                                        'https://spartan-app-f8a98.web.app/landing.html'));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                        'Link copiado para a área de transferência!'),
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
 
                 const SizedBox(height: 30),
