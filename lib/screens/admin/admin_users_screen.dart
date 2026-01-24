@@ -135,16 +135,28 @@ class _AdminUsersScreenState extends State<AdminUsersScreen>
 
     if (confirm == true && mounted) {
       try {
-        await UserService.deleteUser(userId);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Usuário excluído com sucesso!',
-                style: TextStyle(color: Colors.white)),
-            backgroundColor: AppTheme.success,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        _loadUsers();
+        final result = await UserService.deleteUser(userId);
+
+        if (result['success'] == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Usuário excluído com sucesso!',
+                  style: TextStyle(color: Colors.white)),
+              backgroundColor: AppTheme.success,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          _loadUsers();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Erro ao excluir: ${result['message']}',
+                  style: const TextStyle(color: Colors.white)),
+              backgroundColor: AppTheme.accentRed,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

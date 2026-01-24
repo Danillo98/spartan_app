@@ -468,6 +468,7 @@ class _FinancialDashboardScreenState extends State<FinancialDashboardScreen> {
         category: t['category'],
         relatedUserId: t['related_user_id'],
         relatedUserRole: t['related_user_role'],
+        dueDate: t['due_date'] != null ? DateTime.parse(t['due_date']) : null,
       );
 
       if (mounted) {
@@ -542,7 +543,7 @@ class _FinancialDashboardScreenState extends State<FinancialDashboardScreen> {
                   t['description'],
                   style: GoogleFonts.lato(
                     fontWeight: FontWeight.bold,
-                    fontSize: 15,
+                    fontSize: 16,
                     color: AppTheme.primaryText,
                   ),
                 ),
@@ -550,49 +551,62 @@ class _FinancialDashboardScreenState extends State<FinancialDashboardScreen> {
                 Wrap(
                   spacing: 4,
                   runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Text(
-                      DateFormat('dd/MM').format(date),
-                      style: GoogleFonts.lato(
-                        fontSize: 12,
-                        color: AppTheme.secondaryText,
-                        height: 1.5, // Alinhar verticalmente com chips
-                      ),
-                    ),
+                    // Tipo (Fixo / Variável)
                     if (category != null && !isIncome)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[200],
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          category == 'fixed' ? 'Fixo' : 'Variável',
-                          style: GoogleFonts.lato(
-                            fontSize: 10,
-                            color: Colors.black54,
-                          ),
+                      Text(
+                        category == 'fixed' ? 'FIXO' : 'VARIÁVEL',
+                        style: GoogleFonts.lato(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.grey[600],
                         ),
                       ),
-                    if (userRoleLabel != null)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.blue[50],
-                          borderRadius: BorderRadius.circular(4),
-                          border:
-                              Border.all(color: Colors.blue[100]!, width: 0.5),
-                        ),
-                        child: Text(
-                          userRoleLabel,
-                          style: GoogleFonts.lato(
-                            fontSize: 10,
-                            color: Colors.blue[800],
-                          ),
+
+                    // Vencimento
+                    if (t['due_date'] != null) ...[
+                      Text(' • ', style: TextStyle(color: Colors.grey[400])),
+                      Text(
+                        'Venc: ${DateFormat('dd/MM').format(DateTime.parse(t['due_date']))}',
+                        style: GoogleFonts.lato(
+                          fontSize: 12,
+                          color: (t['is_projected'] == true &&
+                                  DateTime.parse(t['due_date']).isBefore(
+                                      DateTime.now()
+                                          .subtract(const Duration(days: 1))))
+                              ? Colors.red[800]
+                              : Colors.orange[800],
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
+                    ],
+
+                    // Pagamento (Só mostra se não for projeção)
+                    if (t['is_projected'] != true) ...[
+                      Text(' • ', style: TextStyle(color: Colors.grey[400])),
+                      Text(
+                        'PAGO ${DateFormat('dd/MM').format(date)}',
+                        style: GoogleFonts.lato(
+                          fontSize: 12,
+                          color: const Color(0xFF2E7D32),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+
+                    // Label de Usuário (se houver)
+                    if (userRoleLabel != null) ...[
+                      Text(' • ', style: TextStyle(color: Colors.grey[400])),
+                      Text(
+                        userRoleLabel.toUpperCase(),
+                        style: GoogleFonts.lato(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue[700],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ],

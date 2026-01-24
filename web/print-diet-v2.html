@@ -301,6 +301,16 @@
             transition: all 0.3s;
         }
 
+        @media screen and (max-width: 600px) {
+            .print-button {
+                top: 85px;
+                /* Move para baixo no mobile */
+                right: 10px;
+                padding: 10px 16px;
+                font-size: 12px;
+            }
+        }
+
         .print-button:hover {
             transform: translateY(-2px);
             box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
@@ -342,7 +352,7 @@
 </head>
 
 <body>
-    <button class="print-button" onclick="window.print()">🖨️ Imprimir / Salvar PDF</button>
+    <button class="print-button" onclick="window.print()">🖨️ Imprimir</button>
 
     <div id="loading" class="loading">
         Carregando dieta...

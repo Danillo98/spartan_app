@@ -24,6 +24,7 @@ class FinancialService {
     String? category, // 'fixed', 'variable' for expenses
     String? relatedUserId,
     String? relatedUserRole,
+    DateTime? dueDate,
   }) async {
     final idAcademia = await _getAcademyId();
 
@@ -35,6 +36,7 @@ class FinancialService {
       'type': type,
       'category': category,
       'transaction_date': date.toIso8601String().split('T')[0],
+      'due_date': dueDate?.toIso8601String().split('T')[0],
       'related_user_id': relatedUserId,
       'related_user_role': relatedUserRole,
     });
@@ -106,6 +108,17 @@ class FinancialService {
 
       final projected = Map<String, dynamic>.from(f);
       projected['transaction_date'] = newDate.toIso8601String().split('T')[0];
+
+      // Projetar due_date também, se existir
+      if (f['due_date'] != null) {
+        final originalDueDate = DateTime.parse(f['due_date']);
+        int dueDay = originalDueDate.day;
+        if (dueDay > daysInTargetMonth) dueDay = daysInTargetMonth;
+        projected['due_date'] = DateTime(targetYear, targetMonth, dueDay)
+            .toIso8601String()
+            .split('T')[0];
+      }
+
       projected['is_projected'] = true; // Flag para identificar projeção
       projected['id'] =
           'proj_${f['id']}'; // ID fictício para não dar conflito de Key
@@ -283,6 +296,7 @@ class FinancialService {
     String? category, // 'fixed', 'variable'
     String? relatedUserId,
     String? relatedUserRole,
+    DateTime? dueDate,
   }) async {
     await _client.from('financial_transactions').update({
       'description': description,
@@ -290,6 +304,7 @@ class FinancialService {
       'type': type,
       'category': category,
       'transaction_date': date.toIso8601String().split('T')[0],
+      'due_date': dueDate?.toIso8601String().split('T')[0],
       'related_user_id': relatedUserId,
       'related_user_role': relatedUserRole,
     }).eq('id', id);

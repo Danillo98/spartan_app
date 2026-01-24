@@ -24,6 +24,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   String _type = 'expense'; // 'income' or 'expense'
   String _category = 'variable'; // 'fixed' or 'variable' (only for expense)
   DateTime _selectedDate = DateTime.now();
+  DateTime _dueDate = DateTime.now();
   bool _isLoading = false;
 
   // Campos para vínculo com usuário
@@ -49,6 +50,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     _type = t['type'];
     _category = t['category'] ?? 'variable';
     _selectedDate = DateTime.parse(t['transaction_date']);
+    if (t['due_date'] != null) {
+      _dueDate = DateTime.parse(t['due_date']);
+    } else {
+      _dueDate = _selectedDate;
+    }
 
     if (t['related_user_id'] != null) {
       _linkUser = true;
@@ -134,6 +140,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           category: _type == 'expense' ? _category : 'income_other',
           relatedUserId: _linkUser ? _selectedUserId : null,
           relatedUserRole: _linkUser ? _selectedUserRoleStr : null,
+          dueDate: _type == 'expense' ? _dueDate : null,
         );
       } else {
         await FinancialService.addTransaction(
@@ -144,6 +151,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           category: _type == 'expense' ? _category : 'income_other',
           relatedUserId: _linkUser ? _selectedUserId : null,
           relatedUserRole: _linkUser ? _selectedUserRoleStr : null,
+          dueDate: _type == 'expense' ? _dueDate : null,
         );
       }
 
@@ -261,10 +269,45 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 },
               ),
               const SizedBox(height: 16),
+              // Data de Vencimento (Apenas para Saída)
+              if (isExpense) ...[
+                Text('Data de Vencimento',
+                    style: GoogleFonts.lato(
+                        fontSize: 14, color: AppTheme.secondaryText)),
+                const SizedBox(height: 8),
+                InkWell(
+                  onTap: () => _pickDate(isDueDate: true),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 16),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.event_note_rounded,
+                            color: Colors.grey),
+                        const SizedBox(width: 12),
+                        Text(
+                          DateFormat('dd/MM/yyyy').format(_dueDate),
+                          style: GoogleFonts.lato(fontSize: 16),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
 
-              // Data
+              // Data de Pagamento
+              Text(isExpense ? 'Data de Pagamento' : 'Data',
+                  style: GoogleFonts.lato(
+                      fontSize: 14, color: AppTheme.secondaryText)),
+              const SizedBox(height: 8),
               InkWell(
-                onTap: _pickDate,
+                onTap: () => _pickDate(isDueDate: false),
                 borderRadius: BorderRadius.circular(12),
                 child: Container(
                   padding:
@@ -438,10 +481,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     );
   }
 
-  Future<void> _pickDate() async {
+  Future<void> _pickDate({bool isDueDate = false}) async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: _selectedDate,
+      initialDate: isDueDate ? _dueDate : _selectedDate,
       firstDate: DateTime(2020),
       lastDate: DateTime(2030),
       builder: (context, child) {
@@ -456,7 +499,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       },
     );
     if (picked != null) {
-      setState(() => _selectedDate = picked);
+      setState(() {
+        if (isDueDate) {
+          _dueDate = picked;
+        } else {
+          _selectedDate = picked;
+        }
+      });
     }
   }
 
