@@ -112,8 +112,8 @@ class UserService {
         return {
           'success': true,
           'message':
-              'Usuário cadastrado! Se o email não chegar, peça para verificar a pasta SPAM ou Lixo Eletrônico.',
-          'requiresVerification': true,
+              'Usuário cadastrado com sucesso! O acesso já foi liberado.',
+          'requiresVerification': false,
         };
       } catch (e) {
         print('❌ Erro ao enviar email: $e');

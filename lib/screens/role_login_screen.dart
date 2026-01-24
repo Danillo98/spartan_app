@@ -429,30 +429,32 @@ class _RoleLoginScreenState extends State<RoleLoginScreen>
                           },
                         ),
 
-                        // Esqueci minha senha (para todos)
-                        const SizedBox(height: 8),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const ForgotPasswordScreen(),
+                        // Esqueci minha senha (apenas para admin)
+                        if (widget.role == UserRole.admin) ...[
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const ForgotPasswordScreen(),
+                                  ),
+                                );
+                              },
+                              child: Text(
+                                'Esqueci minha senha',
+                                style: GoogleFonts.lato(
+                                  fontSize: 13,
+                                  color: roleColor,
+                                  fontWeight: FontWeight.w600,
                                 ),
-                              );
-                            },
-                            child: Text(
-                              'Esqueci minha senha',
-                              style: GoogleFonts.lato(
-                                fontSize: 13,
-                                color: roleColor,
-                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
-                        ),
+                        ],
 
                         const SizedBox(height: 40),
 
