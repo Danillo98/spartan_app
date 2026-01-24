@@ -95,18 +95,24 @@ class UserService {
           email: email,
           password: password,
           emailRedirectTo: confirmationUrl,
+          data: {
+            'role': roleString,
+            'name': name,
+            'phone': phone,
+            'academia': academia,
+            'cnpj_academia': cnpjAcademia,
+            'created_by_admin_id': adminId,
+            if (paymentDueDay != null) 'paymentDueDay': paymentDueDay,
+            if (isPaidCurrentMonth) 'isPaidCurrentMonth': true,
+          },
         );
 
         print('✅ Email enviado para: $email (Admin continua logado)');
 
-        // Não é necessário fazer signOut no tempClient e nem no principal.
-        // tempClient não persiste sessão por padrão no Flutter se não passar localStorage,
-        // mas garante isolamento. Não precisamos fazer signOut no principal.
-
         return {
           'success': true,
           'message':
-              'Usuário cadastrado! Um email de confirmação foi enviado para $email',
+              'Usuário cadastrado! Se o email não chegar, peça para verificar a pasta SPAM ou Lixo Eletrônico.',
           'requiresVerification': true,
         };
       } catch (e) {
