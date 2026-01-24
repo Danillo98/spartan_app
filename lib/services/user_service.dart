@@ -1,6 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
-import 'registration_token_service.dart';
+
 import '../models/user_role.dart';
 import '../config/supabase_config.dart';
 
@@ -43,45 +43,17 @@ class UserService {
       final cnpjAcademia = adminDetails['cnpj_academia']; // Manter para o token
       final academia = adminDetails['academia'];
       final adminId = adminDetails['id']; // ID do admin = ID da academia
-
-      // 2. Criar token com dados do usuário usando RegistrationTokenService
-      // Mapping:
-      // cnpj -> cnpjAcademia
-      // cpf -> academia
-      // address -> role|created_by_admin_id
       final roleString = role.toString().split('.').last;
 
-      final Map<String, dynamic> extraData = {};
-      if (paymentDueDay != null) {
-        extraData['paymentDueDay'] = paymentDueDay;
-      }
-      if (isPaidCurrentMonth) {
-        extraData['isPaidCurrentMonth'] = true;
-      }
+      // 3. URL de confirmação (Página de sucesso/confirmação)
+      // O Supabase anexará automaticamente o token de acesso (hash) ou code (query) a esta URL.
+      const confirmationUrl = 'https://spartan-app-f8a98.web.app/confirm.html';
 
-      final tokenData = RegistrationTokenService.createToken(
-        name: name,
-        email: email,
-        password: password,
-        phone: phone,
-        cnpj: cnpjAcademia, // Usar cnpj para armazenar CNPJ da Academia
-        cpf: academia, // Usar cpf para armazenar Nome da Academia
-        address: '$roleString|$adminId', // Role e Admin ID packeados no address
-        birthDate: birthDate, // Data de nascimento
-        extraData: extraData,
-      );
+      print(
+          '🔐 Cadastrando $roleString na academia $academia (Via Supabase Nativo)');
 
-      final token = tokenData['token'] as String;
-
-      // 3. URL de confirmação com deep link
-      final confirmationUrl =
-          'https://spartan-app-f8a98.web.app/confirm.html?token=$token';
-
-      print('🔐 Token criado para $roleString na academia $academia');
-      print('🔗 URL: $confirmationUrl');
-
-      // 4. Enviar email de confirmação via Supabase
-      // IMPORTANTE: Usar um cliente temporário para NÃO alterar a sessão do Admin atual
+      // 4. Enviar email de confirmação via Supabase (SignUp Nativo)
+      // Utiliza cliente temporário para não deslogar o admin
       final tempClient = SupabaseClient(
         SupabaseConfig.supabaseUrl,
         SupabaseConfig.supabaseAnonKey,
@@ -92,34 +64,34 @@ class UserService {
 
       try {
         await tempClient.auth.signUp(
-          email: email,
+          email: email.trim(),
           password: password,
           emailRedirectTo: confirmationUrl,
           data: {
             'role': roleString,
-            'name': name,
-            'phone': phone,
+            'name': name.trim(),
+            'phone': phone.trim(),
             'academia': academia,
-            'cnpj_academia': cnpjAcademia,
+            'cnpj_academia': cnpjAcademia, // Mantém para RLS
             'created_by_admin_id': adminId,
             if (paymentDueDay != null) 'paymentDueDay': paymentDueDay,
             if (isPaidCurrentMonth) 'isPaidCurrentMonth': true,
           },
         );
 
-        print('✅ Email enviado para: $email (Admin continua logado)');
+        print('✅ Usuário criado via Supabase Auth (Email nativo disparado)');
 
         return {
           'success': true,
           'message':
-              'Usuário cadastrado com sucesso! O acesso já foi liberado.',
-          'requiresVerification': false,
+              'Usuário cadastrado! O Supabase enviou um email de confirmação.',
+          'requiresVerification': true,
         };
       } catch (e) {
-        print('❌ Erro ao enviar email: $e');
+        print('❌ Erro no cadastro nativo: $e');
         return {
           'success': false,
-          'message': 'Erro ao enviar email: ${e.toString()}',
+          'message': 'Erro ao cadastrar: ${e.toString()}',
         };
       }
     } on AuthException catch (e) {
