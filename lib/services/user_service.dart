@@ -35,6 +35,7 @@ class UserService {
     required UserRole role,
     String? birthDate,
     int? paymentDueDay, // Dia de vencimento (1-31, apenas para alunos)
+    bool isPaidCurrentMonth = false, // Se já pagou o mês atual
   }) async {
     try {
       // 1. Obter dados do admin (Contexto da Academia)
@@ -53,6 +54,9 @@ class UserService {
       final Map<String, dynamic> extraData = {};
       if (paymentDueDay != null) {
         extraData['paymentDueDay'] = paymentDueDay;
+      }
+      if (isPaidCurrentMonth) {
+        extraData['isPaidCurrentMonth'] = true;
       }
 
       final tokenData = RegistrationTokenService.createToken(
@@ -317,21 +321,20 @@ class UserService {
     }
   }
 
-  // Deletar usuário
+  // Deletar usuário (Via RPC Segura)
   static Future<Map<String, dynamic>> deleteUser(String userId) async {
     try {
-      // Usar RPC segura para deletar do Auth e das tabelas públicas
-      // Requer que o script CRIAR_RPC_DELETE_USER_COMPLETE.sql tenha sido executado no Supabase
+      print('🗑️ Excluindo usuário via RPC direto: $userId');
+
+      // A função delete_user_complete tem 'security definer',
+      // então ela consegue deletar de auth.users mesmo chamada pelo app.
       await _client
           .rpc('delete_user_complete', params: {'target_user_id': userId});
 
-      return {'success': true, 'message': 'Usuário excluído com sucesso'};
+      return {'success': true, 'message': 'Usuário excluído com sucesso!'};
     } catch (e) {
-      print('Erro ao deletar usuário: $e');
-      return {
-        'success': false,
-        'message': 'Erro ao excluir usuário: ${e.toString()}'
-      };
+      print('❌ Erro ao deletar usuário: $e');
+      return {'success': false, 'message': 'Erro ao excluir: ${e.toString()}'};
     }
   }
 

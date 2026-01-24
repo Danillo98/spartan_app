@@ -1,3 +1,6 @@
+import 'dart:convert';
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/workout_service.dart';
@@ -314,6 +317,7 @@ class _WorkoutDetailsStudentScreenState
     extends State<WorkoutDetailsStudentScreen> {
   Map<String, dynamic>? _workout;
   bool _isLoading = true;
+  bool _isPrinting = false;
   final Set<String> _completedExercises = {};
 
   @override
@@ -506,11 +510,79 @@ class _WorkoutDetailsStudentScreenState
     }
   }
 
+  Future<void> _openPrintPage() async {
+    if (_workout == null) return;
+    setState(() => _isPrinting = true);
+
+    try {
+      final printData = {
+        'name': _workout!['name'] ?? 'Treino',
+        'description': _workout!['description'],
+        'student_name': _workout!['student']?['name'],
+        'personal_name': _workout!['personal']?['name'] ?? 'N/A',
+        'goal': _workout!['goal'],
+        'difficulty_level': _workout!['difficulty_level'],
+        'start_date': _workout!['start_date'],
+        'end_date': _workout!['end_date'],
+        'days': _workout!['days'],
+      };
+
+      final jsonData = jsonEncode(printData);
+      final blob = html.Blob([jsonData], 'application/json');
+      final url = html.Url.createObjectUrlFromBlob(blob);
+
+      final baseUrl = html.window.location.origin;
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final printUrl = '$baseUrl/print-workout.html?v=$timestamp&dataUrl=$url';
+
+      if (mounted) setState(() => _isPrinting = false);
+
+      html.window.open(printUrl, '_blank');
+
+      Future.delayed(const Duration(seconds: 20), () {
+        html.Url.revokeObjectUrl(url);
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isPrinting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao abrir impressão: $e'),
+            backgroundColor: AppTheme.accentRed,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.lightGrey,
-      body: _isLoading ? _buildLoading() : _buildBody(),
+    return Stack(
+      children: [
+        Scaffold(
+          backgroundColor: AppTheme.lightGrey,
+          body: _isLoading ? _buildLoading() : _buildBody(),
+        ),
+        if (_isPrinting)
+          Container(
+            color: Colors.black.withOpacity(0.3),
+            child: const Center(
+              child: Card(
+                child: Padding(
+                  padding: EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(color: AppTheme.primaryRed),
+                      SizedBox(height: 16),
+                      Text('Gerando PDF...'),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 
@@ -572,12 +644,38 @@ class _WorkoutDetailsStudentScreenState
                   ),
                   const SizedBox(height: 8),
                   _buildStatusBadge(isActive),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.person_pin_rounded,
+                        size: 16,
+                        color: Colors.white.withOpacity(0.9),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Personal: ${_workout!['personal']?['name'] ?? 'Não atribuído'}',
+                        style: GoogleFonts.lato(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.9),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
           ),
         ),
       ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.print_rounded, color: Colors.white),
+          onPressed: _openPrintPage,
+          tooltip: 'Imprimir Treino',
+        ),
+        const SizedBox(width: 8),
+      ],
     );
   }
 

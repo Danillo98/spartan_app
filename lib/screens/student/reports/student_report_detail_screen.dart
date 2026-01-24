@@ -1,3 +1,6 @@
+import 'dart:convert';
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -5,7 +8,7 @@ import '../../../config/app_theme.dart';
 import 'dart:math';
 import 'dart:ui' as ui;
 
-class StudentReportDetailScreen extends StatelessWidget {
+class StudentReportDetailScreen extends StatefulWidget {
   final Map<String, dynamic> report;
   final List<Map<String, dynamic>> allReports;
 
@@ -16,7 +19,77 @@ class StudentReportDetailScreen extends StatelessWidget {
   });
 
   @override
+  State<StudentReportDetailScreen> createState() =>
+      _StudentReportDetailScreenState();
+}
+
+class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
+  bool _isLoading = false;
+  bool _isPrinting = false;
+
+  Future<void> _openPrintPage() async {
+    setState(() => _isPrinting = true);
+    try {
+      final studentName = widget.report['users_alunos']?['nome'] ??
+          widget.report['student']?['name'] ??
+          'Aluno';
+
+      final nutritionistName =
+          widget.report['users_nutricionista']?['nome'] ?? 'Nutricionista';
+
+      final printData = {
+        'student_name': studentName,
+        'nutritionist_name': nutritionistName,
+        'assessment_date': widget.report['assessment_date'],
+        'weight': widget.report['weight'],
+        'height': widget.report['height'],
+        'body_fat': widget.report['body_fat'],
+        'muscle_mass': widget.report['muscle_mass'],
+        'neck': widget.report['neck'],
+        'chest': widget.report['chest'],
+        'waist': widget.report['waist'],
+        'abdomen': widget.report['abdomen'],
+        'hips': widget.report['hips'],
+        'right_arm': widget.report['right_arm'],
+        'left_arm': widget.report['left_arm'],
+        'right_thigh': widget.report['right_thigh'],
+        'left_thigh': widget.report['left_thigh'],
+        'right_calf': widget.report['right_calf'],
+        'left_calf': widget.report['left_calf'],
+        'notes': widget.report['notes'],
+      };
+
+      final jsonData = jsonEncode(printData);
+      final blob = html.Blob([jsonData], 'application/json');
+      final url = html.Url.createObjectUrlFromBlob(blob);
+
+      final baseUrl = html.window.location.origin;
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final printUrl =
+          '$baseUrl/print-evolution.html?v=$timestamp&dataUrl=$url';
+
+      if (mounted) setState(() => _isPrinting = false);
+
+      html.window.open(printUrl, '_blank');
+
+      Future.delayed(const Duration(seconds: 20), () {
+        html.Url.revokeObjectUrl(url);
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isPrinting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao abrir impressão: $e')),
+        );
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final report = widget.report;
+    final allReports = widget.allReports;
+
     final date = DateTime.parse(report['assessment_date']);
     final nutritionist =
         report['users_nutricionista']?['nome'] ?? 'Nutricionista';
@@ -44,116 +117,149 @@ class StudentReportDetailScreen extends StatelessWidget {
               color: AppTheme.secondaryText),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.print_rounded, color: AppTheme.primaryText),
+            onPressed: (_isLoading || _isPrinting) ? null : _openPrintPage,
+            tooltip: 'Imprimir Avaliação',
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header Info
-            _buildHeaderCard(date, nutritionist),
-            const SizedBox(height: 24),
-
-            Text(
-              'Resumo Principal',
-              style: GoogleFonts.lato(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: AppTheme.primaryText,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: _buildMetricCard(
-                    title: 'Peso (kg)',
-                    value: weight.toStringAsFixed(1),
-                    icon: Icons.monitor_weight_outlined,
-                    color: const Color(0xFF457B9D),
+                // Header Info
+                _buildHeaderCard(date, nutritionist),
+                const SizedBox(height: 24),
+
+                Text(
+                  'Resumo Principal',
+                  style: GoogleFonts.lato(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.primaryText,
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildMetricCard(
-                    title: '% Gordura',
-                    value: '$bodyFat%',
-                    icon: Icons.opacity_rounded,
-                    color: AppTheme.primaryRed,
-                  ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildMetricCard(
+                        title: 'Peso (kg)',
+                        value: weight.toStringAsFixed(1),
+                        icon: Icons.monitor_weight_outlined,
+                        color: const Color(0xFF457B9D),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildMetricCard(
+                        title: '% Gordura',
+                        value: '$bodyFat%',
+                        icon: Icons.opacity_rounded,
+                        color: AppTheme.primaryRed,
+                      ),
+                    ),
+                    if (muscleMass > 0) ...[
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildMetricCard(
+                          title: 'Massa Musc.',
+                          value: '$muscleMass%',
+                          icon: Icons.fitness_center_rounded,
+                          color: const Color(0xFF2A9D8F),
+                        ),
+                      ),
+                    ] else
+                      const Spacer(), // Mantém proporção de 2 colunas se não tiver massa
+                  ],
                 ),
-                if (muscleMass > 0) ...[
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildMetricCard(
-                      title: 'Massa Musc.',
-                      value: '$muscleMass%',
-                      icon: Icons.fitness_center_rounded,
-                      color: const Color(0xFF2A9D8F),
+
+                // Charts Section
+                if (allReports.length > 1) ...[
+                  const SizedBox(height: 32),
+                  Text(
+                    'Sua Evolução',
+                    style: GoogleFonts.lato(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.primaryText,
                     ),
                   ),
-                ] else
-                  const Spacer(), // Mantém proporção de 2 colunas se não tiver massa
+                  const SizedBox(height: 16),
+                  _buildChartSection(allReports),
+                ],
+
+                const SizedBox(height: 32),
+                Text(
+                  'Medidas Detalhadas',
+                  style: GoogleFonts.lato(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.primaryText,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _buildMeasurementsGrid(report),
+
+                if (report['notes'] != null &&
+                    report['notes'].toString().isNotEmpty) ...[
+                  const SizedBox(height: 32),
+                  Text(
+                    'Observações',
+                    style: GoogleFonts.lato(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.primaryText,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppTheme.borderGrey),
+                    ),
+                    child: Text(
+                      report['notes'],
+                      style: GoogleFonts.lato(
+                          fontSize: 15,
+                          color: AppTheme.secondaryText,
+                          height: 1.5),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 40),
               ],
             ),
-
-            // Charts Section
-            if (allReports.length > 1) ...[
-              const SizedBox(height: 32),
-              Text(
-                'Sua Evolução',
-                style: GoogleFonts.lato(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.primaryText,
+          ),
+          if (_isPrinting)
+            Container(
+              color: Colors.black.withOpacity(0.3),
+              child: const Center(
+                child: Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(24.0),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircularProgressIndicator(color: AppTheme.primaryRed),
+                        SizedBox(height: 16),
+                        Text('Gerando PDF...'),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              _buildChartSection(),
-            ],
-
-            const SizedBox(height: 32),
-            Text(
-              'Medidas Detalhadas',
-              style: GoogleFonts.lato(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: AppTheme.primaryText,
               ),
             ),
-            const SizedBox(height: 16),
-            _buildMeasurementsGrid(),
-
-            if (report['notes'] != null &&
-                report['notes'].toString().isNotEmpty) ...[
-              const SizedBox(height: 32),
-              Text(
-                'Observações',
-                style: GoogleFonts.lato(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.primaryText,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppTheme.borderGrey),
-                ),
-                child: Text(
-                  report['notes'],
-                  style: GoogleFonts.lato(
-                      fontSize: 15, color: AppTheme.secondaryText, height: 1.5),
-                ),
-              ),
-            ],
-            const SizedBox(height: 40),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -258,7 +364,7 @@ class StudentReportDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildChartSection() {
+  Widget _buildChartSection(List<Map<String, dynamic>> allReports) {
     // Extract history sorted by date ascending
     final history = List<Map<String, dynamic>>.from(allReports);
     history.sort((a, b) => DateTime.parse(a['assessment_date'])
@@ -310,7 +416,7 @@ class StudentReportDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildMeasurementsGrid() {
+  Widget _buildMeasurementsGrid(Map<String, dynamic> report) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(

@@ -301,7 +301,7 @@ class WorkoutService {
 
       print('Workout fetched: ${workout['name']}');
 
-      // 2. Fetch student info if exists
+      // 2. Fetch student info
       final studentId = workout['student_id'];
       if (studentId != null) {
         try {
@@ -317,10 +317,31 @@ class WorkoutService {
               'name': studentView['nome'],
               'email': studentView['email']
             };
-            print('Student fetched: ${studentView['nome']}');
           }
         } catch (e) {
           print('Warning: Failed to fetch student: $e');
+        }
+      }
+
+      // 2b. Fetch personal trainer info
+      final personalId = workout['personal_id'];
+      if (personalId != null) {
+        try {
+          final personalView = await _client
+              .from('users_personal')
+              .select('id, nome, email')
+              .eq('id', personalId)
+              .maybeSingle();
+
+          if (personalView != null) {
+            workout['personal'] = {
+              'id': personalView['id'],
+              'name': personalView['nome'],
+              'email': personalView['email']
+            };
+          }
+        } catch (e) {
+          print('Warning: Failed to fetch personal: $e');
         }
       }
 

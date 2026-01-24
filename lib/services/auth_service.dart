@@ -3,6 +3,7 @@ import 'supabase_service.dart';
 import 'registration_token_service.dart';
 import '../models/user_role.dart';
 import 'notification_service.dart';
+import 'financial_service.dart';
 
 class AuthService {
   static final SupabaseClient _client = SupabaseService.client;
@@ -237,6 +238,24 @@ class AuthService {
             }
 
             await _client.from(tableName).insert(insertData);
+
+            // REGISTRAR PAGAMENTO SE HOUVER FLAG
+            if (role == 'student' && data['isPaidCurrentMonth'] == true) {
+              try {
+                await FinancialService.addTransaction(
+                  description: 'Mensalidade (Cadastro)',
+                  amount: 0.0, // Valor simbólico pois já foi pago externamente
+                  type: 'income',
+                  date: DateTime.now(),
+                  category: 'Mensalidade',
+                  relatedUserId: loginTest.user!.id,
+                  relatedUserRole: 'student',
+                );
+                print('💰 Pagamento inicial registrado!');
+              } catch (e) {
+                print('⚠️ Erro ao registrar pagamento inicial: $e');
+              }
+            }
           }
 
           print('✅ Usuário criado na tabela $role!');
@@ -331,6 +350,24 @@ class AuthService {
         }
 
         await _client.from(tableName).insert(insertData);
+
+        // REGISTRAR PAGAMENTO SE HOUVER FLAG
+        if (role == 'student' && data['isPaidCurrentMonth'] == true) {
+          try {
+            await FinancialService.addTransaction(
+              description: 'Mensalidade (Cadastro)',
+              amount: 0.0, // Valor simbólico
+              type: 'income',
+              date: DateTime.now(),
+              category: 'Mensalidade',
+              relatedUserId: authResponse.user!.id,
+              relatedUserRole: 'student',
+            );
+            print('💰 Pagamento inicial registrado!');
+          } catch (e) {
+            print('⚠️ Erro ao registrar pagamento inicial: $e');
+          }
+        }
       }
 
       print('✅ Usuário criado na tabela $role com sucesso!');

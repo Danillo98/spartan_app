@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'dart:convert';
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
 import '../../../config/app_theme.dart';
 import '../../../services/financial_service.dart';
 import 'add_transaction_screen.dart';
@@ -16,6 +19,7 @@ class FinancialDashboardScreen extends StatefulWidget {
 
 class _FinancialDashboardScreenState extends State<FinancialDashboardScreen> {
   bool _isLoading = true;
+  bool _isPrinting = false;
   List<Map<String, dynamic>> _transactions = [];
   Map<String, double> _summary = {
     'income': 0.0,
@@ -133,229 +137,262 @@ class _FinancialDashboardScreenState extends State<FinancialDashboardScreen> {
         ? const Color(0xFF2E7D32)
         : const Color(0xFFC62828);
 
-    return Scaffold(
-      backgroundColor: AppTheme.lightGrey,
-      appBar: AppBar(
-        backgroundColor: AppTheme.white,
-        elevation: 0,
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded,
-              color: AppTheme.secondaryText),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          'Controle Financeiro',
-          style: GoogleFonts.cinzel(
-            color: AppTheme.primaryText,
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
+    return Stack(
+      children: [
+        Scaffold(
+          backgroundColor: AppTheme.lightGrey,
+          appBar: AppBar(
+            backgroundColor: AppTheme.white,
+            elevation: 0,
+            centerTitle: true,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_ios_rounded,
+                  color: AppTheme.secondaryText),
+              onPressed: () => Navigator.pop(context),
+            ),
+            title: Text(
+              'Controle Financeiro',
+              style: GoogleFonts.cinzel(
+                color: AppTheme.primaryText,
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+              ),
+            ),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.print_rounded,
+                    color: AppTheme.primaryText),
+                onPressed: _openPrintPage,
+                tooltip: 'Imprimir Relatório Mensal',
+              ),
+              const SizedBox(width: 8),
+            ],
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(1.0),
+              child: Container(color: AppTheme.borderGrey, height: 1.0),
+            ),
           ),
-        ),
-        actions: [],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1.0),
-          child: Container(color: AppTheme.borderGrey, height: 1.0),
-        ),
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Colors.black))
-          : RefreshIndicator(
-              onRefresh: _loadUncut,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    // Seletor de Mês
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          body: _isLoading
+              ? const Center(
+                  child: CircularProgressIndicator(color: Colors.black))
+              : RefreshIndicator(
+                  onRefresh: _loadUncut,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
                       children: [
-                        IconButton(
-                          icon: const Icon(Icons.chevron_left_rounded),
-                          onPressed: () => _changeMonth(-1),
-                        ),
-                        Text(
-                          DateFormat('MMMM yyyy', 'pt_BR')
-                              .format(_currentDate)
-                              .toUpperCase(),
-                          style: GoogleFonts.lato(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.primaryText,
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.chevron_right_rounded),
-                          onPressed: () => _changeMonth(1),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Card Saldo
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: AppTheme.white,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: AppTheme.cardShadow,
-                      ),
-                      child: Column(
-                        children: [
-                          Text(
-                            'Saldo em Caixa',
-                            style: GoogleFonts.lato(
-                              fontSize: 14,
-                              color: AppTheme.secondaryText,
+                        // Seletor de Mês
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.chevron_left_rounded),
+                              onPressed: () => _changeMonth(-1),
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            _formatCurrency(_summary['balance']!),
-                            style: GoogleFonts.lato(
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold,
-                              color: balanceColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Resumo Entradas / Saídas
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildSummaryCard(
-                            'Entradas',
-                            _summary['income']!,
-                            const Color(0xFF2E7D32),
-                            Icons.arrow_upward_rounded,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _buildSummaryCard(
-                            'Saídas',
-                            _summary['expense']!,
-                            const Color(0xFFC62828),
-                            Icons.arrow_downward_rounded,
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Filtros (Chips)
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          _buildFilterChip('Todos', 'all'),
-                          const SizedBox(width: 8),
-                          _buildFilterChip('Entradas', 'income'),
-                          const SizedBox(width: 8),
-                          _buildFilterChip('Fixos', 'fixed'),
-                          const SizedBox(width: 8),
-                          _buildFilterChip('Variáveis', 'variable'),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Lista de Transações (Header)
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Histórico',
-                          style: GoogleFonts.lato(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.primaryText,
-                          ),
-                        ),
-                        InkWell(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) =>
-                                      const AnnualSummaryScreen()),
-                            );
-                          },
-                          borderRadius: BorderRadius.circular(8),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.grey.shade300),
-                            ),
-                            child: Text(
-                              'Resumo Anual',
+                            Text(
+                              DateFormat('MMMM yyyy', 'pt_BR')
+                                  .format(_currentDate)
+                                  .toUpperCase(),
                               style: GoogleFonts.lato(
-                                color: AppTheme.primaryText,
-                                fontSize: 12,
+                                fontSize: 16,
                                 fontWeight: FontWeight.bold,
+                                color: AppTheme.primaryText,
                               ),
                             ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-
-                    if (_filteredTransactions.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 40),
-                        child: Column(
-                          children: [
-                            Icon(Icons.receipt_long_rounded,
-                                size: 48, color: Colors.grey[400]),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Nenhuma transação encontrada',
-                              style: TextStyle(color: Colors.grey[600]),
+                            IconButton(
+                              icon: const Icon(Icons.chevron_right_rounded),
+                              onPressed: () => _changeMonth(1),
                             ),
                           ],
                         ),
-                      )
-                    else
-                      ListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: _filteredTransactions.length,
-                        itemBuilder: (context, index) {
-                          final t = _filteredTransactions[index];
-                          return _buildTransactionItem(t);
-                        },
-                      ),
-                  ],
+                        const SizedBox(height: 20),
+
+                        // Card Saldo
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: AppTheme.white,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: AppTheme.cardShadow,
+                          ),
+                          child: Column(
+                            children: [
+                              Text(
+                                'Saldo em Caixa',
+                                style: GoogleFonts.lato(
+                                  fontSize: 14,
+                                  color: AppTheme.secondaryText,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                _formatCurrency(_summary['balance']!),
+                                style: GoogleFonts.lato(
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.bold,
+                                  color: balanceColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Resumo Entradas / Saídas
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildSummaryCard(
+                                'Entradas',
+                                _summary['income']!,
+                                const Color(0xFF2E7D32),
+                                Icons.arrow_upward_rounded,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: _buildSummaryCard(
+                                'Saídas',
+                                _summary['expense']!,
+                                const Color(0xFFC62828),
+                                Icons.arrow_downward_rounded,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        // Filtros (Chips)
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: [
+                              _buildFilterChip('Todos', 'all'),
+                              const SizedBox(width: 8),
+                              _buildFilterChip('Entradas', 'income'),
+                              const SizedBox(width: 8),
+                              _buildFilterChip('Fixos', 'fixed'),
+                              const SizedBox(width: 8),
+                              _buildFilterChip('Variáveis', 'variable'),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        // Lista de Transações (Header)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Histórico',
+                              style: GoogleFonts.lato(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.primaryText,
+                              ),
+                            ),
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (context) =>
+                                          const AnnualSummaryScreen()),
+                                );
+                              },
+                              icon: const Icon(Icons.calendar_today_rounded,
+                                  size: 14, color: AppTheme.primaryText),
+                              label: Text(
+                                'Resumo Anual',
+                                style: GoogleFonts.lato(
+                                  color: AppTheme.primaryText,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                side: BorderSide(color: Colors.grey.shade300),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 8),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+
+                        if (_filteredTransactions.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 40),
+                            child: Column(
+                              children: [
+                                Icon(Icons.receipt_long_rounded,
+                                    size: 48, color: Colors.grey[400]),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'Nenhuma transação encontrada',
+                                  style: TextStyle(color: Colors.grey[600]),
+                                ),
+                              ],
+                            ),
+                          )
+                        else
+                          ListView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: _filteredTransactions.length,
+                            itemBuilder: (context, index) {
+                              final t = _filteredTransactions[index];
+                              return _buildTransactionItem(t);
+                            },
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+          floatingActionButton: FloatingActionButton.extended(
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const AddTransactionScreen()),
+              );
+              if (result == true) {
+                _loadUncut();
+              }
+            },
+            backgroundColor: const Color(0xFF1A1A1A),
+            icon: const Icon(Icons.add_rounded, color: Colors.white),
+            label: const Text('NOVA TRANSAÇÃO',
+                style: TextStyle(color: Colors.white)),
+          ),
+        ),
+        if (_isPrinting)
+          Container(
+            color: Colors.black.withOpacity(0.3),
+            child: const Center(
+              child: Card(
+                child: Padding(
+                  padding: EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(color: Colors.black),
+                      SizedBox(height: 16),
+                      Text('Gerando Relatório...'),
+                    ],
+                  ),
                 ),
               ),
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(
-                builder: (context) => const AddTransactionScreen()),
-          );
-          if (result == true) {
-            _loadUncut();
-          }
-        },
-        backgroundColor: const Color(0xFF1A1A1A),
-        icon: const Icon(Icons.add_rounded, color: Colors.white),
-        label:
-            const Text('NOVA TRANSAÇÃO', style: TextStyle(color: Colors.white)),
-      ),
+          ),
+      ],
     );
   }
 
@@ -705,5 +742,46 @@ class _FinancialDashboardScreenState extends State<FinancialDashboardScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _openPrintPage() async {
+    if (_transactions.isEmpty) return;
+    setState(() => _isPrinting = true);
+
+    try {
+      final printData = {
+        'month_name': DateFormat('MMMM', 'pt_BR').format(_currentDate),
+        'year': _currentDate.year,
+        'summary': _summary,
+        'transactions': _transactions,
+      };
+
+      final jsonData = jsonEncode(printData);
+      final blob = html.Blob([jsonData], 'application/json');
+      final url = html.Url.createObjectUrlFromBlob(blob);
+
+      final baseUrl = html.window.location.origin;
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final printUrl =
+          '$baseUrl/print-financial-monthly.html?v=$timestamp&dataUrl=$url';
+
+      // Libera a UI antes mesmo de abrir a aba, para evitar qualquer atraso do navegador
+      if (mounted) {
+        setState(() => _isPrinting = false);
+      }
+
+      html.window.open(printUrl, '_blank');
+
+      Future.delayed(const Duration(seconds: 20), () {
+        html.Url.revokeObjectUrl(url);
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isPrinting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao abrir impressão: $e')),
+        );
+      }
+    }
   }
 }

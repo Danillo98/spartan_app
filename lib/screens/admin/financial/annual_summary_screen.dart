@@ -1,3 +1,6 @@
+import 'dart:convert';
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -14,6 +17,7 @@ class AnnualSummaryScreen extends StatefulWidget {
 class _AnnualSummaryScreenState extends State<AnnualSummaryScreen> {
   int _year = DateTime.now().year;
   bool _isLoading = true;
+  bool _isPrinting = false;
   Map<String, dynamic>? _data;
 
   @override
@@ -42,173 +46,220 @@ class _AnnualSummaryScreenState extends State<AnnualSummaryScreen> {
     }
   }
 
-  void _changeYear(int delta) {
-    setState(() => _year += delta);
-    _loadData();
-  }
-
   String _formatCurrency(double value) {
     return NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$').format(value);
   }
 
   String _getMonthName(int month) {
-    return DateFormat('MMMM', 'pt_BR').format(DateTime(2024, month, 1));
+    final months = [
+      'Janeiro',
+      'Fevereiro',
+      'Março',
+      'Abril',
+      'Maio',
+      'Junho',
+      'Julho',
+      'Agosto',
+      'Setembro',
+      'Outubro',
+      'Novembro',
+      'Dezembro'
+    ];
+    return months[month - 1];
   }
 
   @override
   Widget build(BuildContext context) {
-    final double totalBalance = _data?['total_balance'] ?? 0.0;
-    final balanceColor =
-        totalBalance >= 0 ? const Color(0xFF2E7D32) : const Color(0xFFC62828);
+    final balanceColor = (_data?['total_balance'] ?? 0) >= 0
+        ? const Color(0xFF2E7D32)
+        : const Color(0xFFC62828);
 
-    return Scaffold(
-      backgroundColor: AppTheme.lightGrey,
-      appBar: AppBar(
-        backgroundColor: AppTheme.white,
-        elevation: 0,
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded,
-              color: AppTheme.secondaryText),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          'Resumo Anual',
-          style: GoogleFonts.cinzel(
-            color: AppTheme.primaryText,
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
-          ),
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1.0),
-          child: Container(color: AppTheme.borderGrey, height: 1.0),
-        ),
-      ),
-      body: Column(
-        children: [
-          // Seletor de Ano
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-            color: AppTheme.white,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.chevron_left_rounded),
-                  onPressed: () => _changeYear(-1),
-                ),
-                Text(
-                  '$_year',
-                  style: GoogleFonts.lato(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.primaryText,
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.chevron_right_rounded),
-                  onPressed: () => _changeYear(1),
-                ),
-              ],
+    return Stack(
+      children: [
+        Scaffold(
+          backgroundColor: AppTheme.lightGrey,
+          appBar: AppBar(
+            backgroundColor: AppTheme.white,
+            elevation: 0,
+            centerTitle: true,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_ios_rounded,
+                  color: AppTheme.secondaryText),
+              onPressed: () => Navigator.pop(context),
+            ),
+            title: Text(
+              'Resumo Anual',
+              style: GoogleFonts.cinzel(
+                color: AppTheme.primaryText,
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+              ),
+            ),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.print_rounded,
+                    color: AppTheme.primaryText),
+                onPressed: _openPrintPage,
+                tooltip: 'Imprimir Resumo Anual',
+              ),
+              const SizedBox(width: 8),
+            ],
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(1.0),
+              child: Container(color: AppTheme.borderGrey, height: 1.0),
             ),
           ),
-
-          if (_isLoading)
-            const Expanded(
-              child:
-                  Center(child: CircularProgressIndicator(color: Colors.black)),
-            )
-          else
-            Expanded(
-              child: SingleChildScrollView(
+          body: Column(
+            children: [
+              // Seletor de Ano
+              Padding(
                 padding: const EdgeInsets.all(20),
-                child: Column(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Card Total Anual
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: AppTheme.white,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: AppTheme.cardShadow,
-                      ),
-                      child: Column(
-                        children: [
-                          Text(
-                            'Resultado do Ano $_year',
-                            style: GoogleFonts.lato(
-                              fontSize: 14,
-                              color: AppTheme.secondaryText,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            _formatCurrency(totalBalance),
-                            style: GoogleFonts.lato(
-                              fontSize: 36,
-                              fontWeight: FontWeight.bold,
-                              color: balanceColor,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              _buildMiniSummary(
-                                'Entradas',
-                                _data?['total_income'] ?? 0.0,
-                                Colors.green[700]!,
-                              ),
-                              Container(
-                                height: 20,
-                                width: 1,
-                                color: Colors.grey[300],
-                                margin:
-                                    const EdgeInsets.symmetric(horizontal: 20),
-                              ),
-                              _buildMiniSummary(
-                                'Saídas',
-                                _data?['total_expense'] ?? 0.0,
-                                Colors.red[700]!,
-                              ),
-                            ],
-                          )
-                        ],
+                    IconButton(
+                      icon: const Icon(Icons.chevron_left_rounded),
+                      onPressed: () {
+                        setState(() => _year--);
+                        _loadData();
+                      },
+                    ),
+                    Text(
+                      _year.toString(),
+                      style: GoogleFonts.cinzel(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.primaryText,
                       ),
                     ),
-                    const SizedBox(height: 24),
-
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Detalhamento Mensal',
-                        style: GoogleFonts.lato(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.primaryText,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Lista de Meses
-                    ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: _data?['months']?.length ?? 0,
-                      itemBuilder: (context, index) {
-                        final m = _data!['months'][index];
-                        return _buildMonthItem(m);
+                    IconButton(
+                      icon: const Icon(Icons.chevron_right_rounded),
+                      onPressed: () {
+                        setState(() => _year++);
+                        _loadData();
                       },
                     ),
                   ],
                 ),
               ),
+
+              if (_isLoading)
+                const Expanded(
+                  child: Center(
+                    child: CircularProgressIndicator(color: Colors.black),
+                  ),
+                )
+              else if (_data == null)
+                const Expanded(
+                  child: Center(child: Text('Nenhum dado encontrado')),
+                )
+              else
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Column(
+                      children: [
+                        // Card Resumo Grande
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: AppTheme.white,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: AppTheme.cardShadow,
+                          ),
+                          child: Column(
+                            children: [
+                              Text(
+                                'Resultado do Exercício',
+                                style: GoogleFonts.lato(
+                                  fontSize: 14,
+                                  color: AppTheme.secondaryText,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                _formatCurrency(_data!['total_balance']),
+                                style: GoogleFonts.lato(
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.bold,
+                                  color: balanceColor,
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              const Divider(),
+                              const SizedBox(height: 20),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceAround,
+                                children: [
+                                  _buildMiniSummary(
+                                    'Total Entradas',
+                                    _data!['total_income'],
+                                    const Color(0xFF2E7D32),
+                                  ),
+                                  _buildMiniSummary(
+                                    'Total Saídas',
+                                    _data!['total_expense'],
+                                    const Color(0xFFC62828),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Detalhamento Mensal',
+                            style: GoogleFonts.cinzel(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.primaryText,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Lista de Meses
+                        ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: _data?['months']?.length ?? 0,
+                          itemBuilder: (context, index) {
+                            final m = _data!['months'][index];
+                            return _buildMonthItem(m);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (_isPrinting)
+          Container(
+            color: Colors.black.withOpacity(0.3),
+            child: const Center(
+              child: Card(
+                child: Padding(
+                  padding: EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(color: Colors.black),
+                      SizedBox(height: 16),
+                      Text('Gerando Resumo Anual...'),
+                    ],
+                  ),
+                ),
+              ),
             ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 
@@ -286,7 +337,7 @@ class _AnnualSummaryScreenState extends State<AnnualSummaryScreen> {
                       _formatCurrency(income),
                       style: GoogleFonts.lato(
                         fontSize: 12,
-                        color: Colors.grey[700],
+                        color: Colors.grey[600],
                       ),
                     ),
                   ],
@@ -303,7 +354,7 @@ class _AnnualSummaryScreenState extends State<AnnualSummaryScreen> {
                       _formatCurrency(expense),
                       style: GoogleFonts.lato(
                         fontSize: 12,
-                        color: Colors.grey[700],
+                        color: Colors.grey[600],
                       ),
                     ),
                   ],
@@ -314,5 +365,44 @@ class _AnnualSummaryScreenState extends State<AnnualSummaryScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _openPrintPage() async {
+    if (_data == null) return;
+    setState(() => _isPrinting = true);
+
+    try {
+      final printData = {
+        'year': _year,
+        'total_balance': _data!['total_balance'],
+        'total_income': _data!['total_income'],
+        'total_expense': _data!['total_expense'],
+        'months': _data!['months'],
+      };
+
+      final jsonData = jsonEncode(printData);
+      final blob = html.Blob([jsonData], 'application/json');
+      final url = html.Url.createObjectUrlFromBlob(blob);
+
+      final baseUrl = html.window.location.origin;
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final printUrl =
+          '$baseUrl/print-financial-annual.html?v=$timestamp&dataUrl=$url';
+
+      if (mounted) setState(() => _isPrinting = false);
+
+      html.window.open(printUrl, '_blank');
+
+      Future.delayed(const Duration(seconds: 20), () {
+        html.Url.revokeObjectUrl(url);
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isPrinting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao abrir impressão: $e')),
+        );
+      }
+    }
   }
 }

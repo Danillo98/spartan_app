@@ -1,7 +1,8 @@
 import 'dart:convert';
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html show window;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/diet_service.dart';
 import '../../config/app_theme.dart';
@@ -175,94 +176,6 @@ class _DietDetailsScreenState extends State<DietDetailsScreen> {
           ),
         ),
       ),
-      actions: [
-        PopupMenuButton(
-          icon: const Icon(Icons.more_vert_rounded),
-          itemBuilder: (context) => [
-            PopupMenuItem(
-              child: Row(
-                children: [
-                  const Icon(Icons.edit_rounded, size: 20),
-                  const SizedBox(width: 12),
-                  Text('Editar', style: GoogleFonts.lato()),
-                ],
-              ),
-              onTap: () async {
-                // Aguardar um frame para fechar o menu antes de navegar
-                await Future.delayed(const Duration(milliseconds: 100));
-                if (mounted) {
-                  final result = await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => EditDietScreen(diet: _diet!),
-                    ),
-                  );
-                  if (result == true) {
-                    _loadDiet(); // Recarregar dieta após edição
-                  }
-                }
-              },
-            ),
-            PopupMenuItem(
-              child: Row(
-                children: [
-                  const Icon(Icons.picture_as_pdf_rounded, size: 20),
-                  const SizedBox(width: 12),
-                  Text('Baixar PDF', style: GoogleFonts.lato()),
-                ],
-              ),
-              onTap: () async {
-                await Future.delayed(const Duration(milliseconds: 100));
-                if (mounted) {
-                  _openPrintPage();
-                }
-              },
-            ),
-            PopupMenuItem(
-              child: Row(
-                children: [
-                  Icon(
-                    _diet!['status'] == 'active'
-                        ? Icons.pause_circle_rounded
-                        : Icons.play_circle_rounded,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    _diet!['status'] == 'active' ? 'Pausar' : 'Ativar',
-                    style: GoogleFonts.lato(),
-                  ),
-                ],
-              ),
-              onTap: () => _toggleStatus(),
-            ),
-            PopupMenuItem(
-              child: Row(
-                children: [
-                  const Icon(Icons.check_circle_outline_rounded, size: 20),
-                  const SizedBox(width: 12),
-                  Text('Concluído', style: GoogleFonts.lato()),
-                ],
-              ),
-              onTap: () => _markAsCompleted(),
-            ),
-            PopupMenuItem(
-              child: Row(
-                children: [
-                  const Icon(Icons.delete_rounded,
-                      size: 20, color: AppTheme.accentRed),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Excluir',
-                    style: GoogleFonts.lato(color: AppTheme.accentRed),
-                  ),
-                ],
-              ),
-              onTap: () => _confirmDelete(),
-            ),
-          ],
-        ),
-      ],
     );
   }
 
@@ -338,6 +251,58 @@ class _DietDetailsScreenState extends State<DietDetailsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline_rounded,
+                        color: nutritionistPrimary, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Visão Geral',
+                      style: GoogleFonts.lato(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.primaryText,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined,
+                          size: 18, color: Colors.blueGrey),
+                      onPressed: () async {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => EditDietScreen(diet: _diet!),
+                          ),
+                        );
+                        if (result == true) {
+                          _loadDiet();
+                        }
+                      },
+                      tooltip: 'Editar Dieta',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
+              ),
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.print_rounded,
+                        size: 20, color: nutritionistPrimary),
+                    onPressed: _openPrintPage,
+                    tooltip: 'Imprimir Dieta',
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
           if (_diet!['description'] != null &&
               _diet!['description'].toString().isNotEmpty) ...[
             Text(
@@ -1000,9 +965,13 @@ class _DietDetailsScreenState extends State<DietDetailsScreen> {
     }
   }
 
-  void _openPrintPage() async {
+  Future<void> _openPrintPage() async {
+    setState(() => _isLoading = true);
     try {
-      // Preparar dados para impressão
+      if (_diet == null) return;
+      await Future.delayed(
+          const Duration(milliseconds: 100)); // Allow loader to render
+
       final printData = {
         'name_diet': _diet!['name_diet'],
         'description': _diet!['description'],
@@ -1015,20 +984,21 @@ class _DietDetailsScreenState extends State<DietDetailsScreen> {
         'diet_days': _diet!['diet_days'],
       };
 
-      // Converter para JSON
-      final jsonData = jsonEncode(printData);
+      // Offload JSON encoding
+      final jsonData = await compute(jsonEncode, printData);
 
-      // Salvar no localStorage (evita limite de URL)
-      // ignore: avoid_web_libraries_in_flutter
-      html.window.localStorage['spartan_diet_print'] = jsonData;
+      final blob = html.Blob([jsonData], 'application/json');
+      final url = html.Url.createObjectUrlFromBlob(blob);
 
-      // Construir URL (v2 + timestamp para evitar cache)
       final baseUrl = Uri.base.origin;
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final printUrl = '$baseUrl/print-diet-v2.html?v=$timestamp';
+      final printUrl = '$baseUrl/print-diet-v2.html?v=$timestamp&dataUrl=$url';
 
-      // Abrir em nova aba
       html.window.open(printUrl, '_blank');
+
+      Future.delayed(const Duration(minutes: 1), () {
+        html.Url.revokeObjectUrl(url);
+      });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1055,136 +1025,8 @@ class _DietDetailsScreenState extends State<DietDetailsScreen> {
           ),
         );
       }
-    }
-  }
-
-  void _toggleStatus() async {
-    final currentStatus = _diet!['status'];
-    final newStatus = currentStatus == 'active' ? 'paused' : 'active';
-
-    final result = await DietService.updateDiet(
-      dietId: widget.dietId,
-      status: newStatus,
-    );
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result['message']),
-          backgroundColor:
-              result['success'] ? nutritionistPrimary : AppTheme.accentRed,
-        ),
-      );
-
-      if (result['success']) {
-        _loadDiet();
-      }
-    }
-  }
-
-  void _markAsCompleted() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          'Concluir Dieta',
-          style: GoogleFonts.lato(fontWeight: FontWeight.bold),
-        ),
-        content: Text(
-          'Deseja marcar esta dieta como concluída?',
-          style: GoogleFonts.lato(),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancelar',
-                style: GoogleFonts.lato(color: AppTheme.secondaryText)),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: nutritionistPrimary,
-            ),
-            child: Text('Concluir', style: GoogleFonts.lato()),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      final result = await DietService.updateDiet(
-        dietId: widget.dietId,
-        status: 'completed',
-      );
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result['message']),
-            backgroundColor:
-                result['success'] ? nutritionistPrimary : AppTheme.accentRed,
-          ),
-        );
-
-        if (result['success']) {
-          _loadDiet();
-        }
-      }
-    }
-  }
-
-  void _confirmDelete() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          'Excluir Dieta',
-          style: GoogleFonts.lato(fontWeight: FontWeight.bold),
-        ),
-        content: Text(
-          'Tem certeza que deseja excluir esta dieta?\n\nEsta ação não pode ser desfeita.',
-          style: GoogleFonts.lato(),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancelar',
-              style: GoogleFonts.lato(color: AppTheme.secondaryText),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _deleteDiet();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.accentRed,
-            ),
-            child: Text(
-              'Excluir',
-              style: GoogleFonts.lato(fontWeight: FontWeight.bold),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _deleteDiet() async {
-    final result = await DietService.deleteDiet(widget.dietId);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result['message']),
-          backgroundColor:
-              result['success'] ? nutritionistPrimary : AppTheme.accentRed,
-        ),
-      );
-
-      if (result['success']) {
-        Navigator.pop(context, true);
-      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 

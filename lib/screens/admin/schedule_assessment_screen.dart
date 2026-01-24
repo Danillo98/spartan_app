@@ -7,6 +7,7 @@ import '../../services/user_service.dart';
 import '../../services/appointment_service.dart';
 import '../../models/user_role.dart';
 import '../../widgets/searchable_selection.dart';
+import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 
 class ScheduleAssessmentScreen extends StatefulWidget {
   final Map<String, dynamic>? appointmentToEdit;
@@ -167,7 +168,7 @@ class _ScheduleAssessmentScreenState extends State<ScheduleAssessmentScreen> {
           visitorName: _isStudent ? null : _visitorNameController.text.trim(),
           visitorPhone: _isStudent ? null : _visitorPhoneController.text.trim(),
           professionalIds: professionalIds,
-          scheduledAt: scheduledAt,
+          scheduledAt: scheduledAt.toUtc(),
           status: _status, // Novo campo
         );
         result = {'success': true, 'message': 'Agendamento atualizado!'};
@@ -181,7 +182,7 @@ class _ScheduleAssessmentScreenState extends State<ScheduleAssessmentScreen> {
         visitorName: _isStudent ? null : _visitorNameController.text.trim(),
         visitorPhone: _isStudent ? null : _visitorPhoneController.text.trim(),
         professionalIds: professionalIds,
-        scheduledAt: scheduledAt,
+        scheduledAt: scheduledAt.toUtc(),
       );
     }
 
@@ -359,11 +360,15 @@ class _ScheduleAssessmentScreenState extends State<ScheduleAssessmentScreen> {
                         controller: _visitorPhoneController,
                         keyboardType: TextInputType.phone,
                         inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                          LengthLimitingTextInputFormatter(11),
+                          MaskTextInputFormatter(
+                            mask: '(##) #####-####',
+                            filter: {"#": RegExp(r'[0-9]')},
+                            type: MaskAutoCompletionType.lazy,
+                          ),
                         ],
                         decoration: InputDecoration(
                           labelText: 'Telefone',
+                          hintText: '(XX) XXXXX-XXXX',
                           border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12)),
                           filled: true,
@@ -371,7 +376,7 @@ class _ScheduleAssessmentScreenState extends State<ScheduleAssessmentScreen> {
                           prefixIcon: const Icon(Icons.phone_outlined),
                         ),
                         validator: (value) =>
-                            value!.length < 10 ? 'Telefone inválido' : null,
+                            value!.length < 14 ? 'Telefone inválido' : null,
                       ),
                     ],
 

@@ -19,27 +19,16 @@
     <style>
         /* Configuração da Página de Impressão */
         @page {
-            size: A4;
-            margin: 1cm;
-            /* Margem menor para caber mais */
+            size: auto;
+            margin: 0mm;
         }
 
-        /* Ocultar cabeçalhos/rodapés automáticos do browser se possível */
         @media print {
             body {
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
-            }
-
-            /* Tenta ocultar data/url automáticos em alguns browsers */
-            @page {
-                margin-top: 0;
-                margin-bottom: 0;
-            }
-
-            body {
-                margin-top: 1cm;
-                margin-bottom: 1cm;
+                padding: 1.5cm;
+                margin: 0;
             }
         }
 
@@ -559,13 +548,29 @@
         }
 
         // Carregar dados ao iniciar
-        window.addEventListener('load', () => {
+        window.addEventListener('load', async () => {
+            const params = new URLSearchParams(window.location.search);
+            const dataUrl = params.get('dataUrl');
+
+            if (dataUrl) {
+                try {
+                    const response = await fetch(dataUrl);
+                    if (response.ok) {
+                        const diet = await response.json();
+                        document.getElementById('loading').style.display = 'none';
+                        renderDiet(diet);
+                        return;
+                    }
+                } catch (e) {
+                    console.error("Error fetching blob:", e);
+                }
+            }
+
             // Tentar ler do localStorage primeiro (método novo)
             let dietData = localStorage.getItem('spartan_diet_print');
 
             // Fallback: tentar ler da URL (método antigo, para compatibilidade)
             if (!dietData) {
-                const params = new URLSearchParams(window.location.search);
                 dietData = params.get('data');
                 if (dietData) {
                     dietData = decodeURIComponent(dietData);

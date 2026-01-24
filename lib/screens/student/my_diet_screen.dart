@@ -1,3 +1,6 @@
+import 'dart:convert';
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/diet_service.dart';
@@ -337,6 +340,7 @@ class DietDetailsStudentScreen extends StatefulWidget {
 class _DietDetailsStudentScreenState extends State<DietDetailsStudentScreen> {
   Map<String, dynamic>? _diet;
   bool _isLoading = true;
+  bool _isPrinting = false;
 
   static const studentPrimary = Color(0xFF2A9D8F);
 
@@ -382,11 +386,79 @@ class _DietDetailsStudentScreenState extends State<DietDetailsStudentScreen> {
     }
   }
 
+  Future<void> _openPrintPage() async {
+    if (_diet == null) return;
+    setState(() => _isPrinting = true);
+
+    try {
+      final printData = {
+        'name_diet': _diet!['name_diet'],
+        'description': _diet!['description'],
+        'student_name': _diet!['student']?['name'],
+        'nutritionist_name': _diet!['nutritionist']?['name'],
+        'objective_diet': _diet!['objective_diet'],
+        'total_calories': _diet!['total_calories'],
+        'start_date': _diet!['start_date'],
+        'end_date': _diet!['end_date'],
+        'diet_days': _diet!['diet_days'],
+      };
+
+      final jsonData = jsonEncode(printData);
+      final blob = html.Blob([jsonData], 'application/json');
+      final url = html.Url.createObjectUrlFromBlob(blob);
+
+      final baseUrl = html.window.location.origin;
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final printUrl = '$baseUrl/print-diet-v2.html?v=$timestamp&dataUrl=$url';
+
+      if (mounted) setState(() => _isPrinting = false);
+
+      html.window.open(printUrl, '_blank');
+
+      Future.delayed(const Duration(seconds: 20), () {
+        html.Url.revokeObjectUrl(url);
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isPrinting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao gerar PDF: $e'),
+            backgroundColor: AppTheme.accentRed,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.lightGrey,
-      body: _isLoading ? _buildLoading() : _buildBody(),
+    return Stack(
+      children: [
+        Scaffold(
+          backgroundColor: AppTheme.lightGrey,
+          body: _isLoading ? _buildLoading() : _buildBody(),
+        ),
+        if (_isPrinting)
+          Container(
+            color: Colors.black.withOpacity(0.3),
+            child: const Center(
+              child: Card(
+                child: Padding(
+                  padding: EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(color: studentPrimary),
+                      SizedBox(height: 16),
+                      Text('Gerando PDF...'),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 
@@ -448,12 +520,38 @@ class _DietDetailsStudentScreenState extends State<DietDetailsStudentScreen> {
                   ),
                   const SizedBox(height: 8),
                   _buildStatusBadge(status),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.person_outline_rounded,
+                        size: 16,
+                        color: Colors.white.withOpacity(0.9),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Nutri: ${_diet!['nutritionist']?['name'] ?? 'Não informado'}',
+                        style: GoogleFonts.lato(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.9),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
           ),
         ),
       ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.print_rounded, color: Colors.white),
+          onPressed: _openPrintPage,
+          tooltip: 'Imprimir Dieta',
+        ),
+        const SizedBox(width: 8),
+      ],
     );
   }
 
@@ -721,13 +819,18 @@ class _DietDetailsStudentScreenState extends State<DietDetailsStudentScreen> {
         ),
       ),
       subtitle: Text(
-        '${meals.length} ${meals.length == 1 ? 'refeição' : 'refeições'} • ${day['total_calories'] ?? 0} kcal',
+        '${meals.length} ${meals.length == 1 ? 'refeição' : 'refeições'}', // Removido calorias daqui, vai pro rodapé
         style: GoogleFonts.lato(
           fontSize: 13,
           color: AppTheme.secondaryText,
         ),
       ),
       children: [
+        if (meals.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: _buildDayTotals(day),
+          ),
         if (meals.isEmpty)
           Padding(
             padding: const EdgeInsets.all(20),
@@ -750,6 +853,90 @@ class _DietDetailsStudentScreenState extends State<DietDetailsStudentScreen> {
           )
         else
           ...meals.map<Widget>((meal) => _buildMealItem(meal)).toList(),
+      ],
+    );
+  }
+
+  Widget _buildDayTotals(Map<String, dynamic> day) {
+    final meals = (day['meals'] as List?) ?? [];
+
+    // Calcular totais do dia
+    int totalCalories = 0;
+    int totalProtein = 0;
+    int totalCarbs = 0;
+    int totalFats = 0;
+
+    for (var meal in meals) {
+      totalCalories += (meal['calories'] as int?) ?? 0;
+      totalProtein += (meal['protein'] as int?) ?? 0;
+      totalCarbs += (meal['carbs'] as int?) ?? 0;
+      totalFats += (meal['fats'] as int?) ?? 0;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.lightGrey),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Text(
+            'TOTAL:',
+            style: GoogleFonts.lato(
+              fontWeight: FontWeight.bold,
+              color: studentPrimary,
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildTotalItem(
+                    'Cal', '$totalCalories', const Color(0xFFFF6B6B)),
+                _buildTotalItem(
+                    'P', '${totalProtein}g', const Color(0xFF4CAF50)),
+                _buildTotalItem('C', '${totalCarbs}g', const Color(0xFF2196F3)),
+                _buildTotalItem('G', '${totalFats}g', const Color(0xFFFFA726)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTotalItem(String label, String value, Color color) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.lato(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          value,
+          style: GoogleFonts.lato(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: AppTheme.primaryText,
+          ),
+        ),
       ],
     );
   }

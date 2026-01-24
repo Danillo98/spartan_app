@@ -158,6 +158,7 @@ class _DietsListScreenState extends State<DietsListScreen> {
                             diet: diet,
                             onTap: () => _navigateToDietDetails(diet),
                             onDelete: () => _confirmDelete(diet),
+                            onStatusToggle: () => _showStatusChangeSheet(diet),
                           ),
                         );
                       },
@@ -490,6 +491,174 @@ class _DietsListScreenState extends State<DietsListScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Erro ao excluir dieta: $e'),
+            backgroundColor: AppTheme.accentRed,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showStatusChangeSheet(Map<String, dynamic> diet) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Alterar Status da Dieta',
+                style: GoogleFonts.lato(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.primaryText,
+                ),
+              ),
+              const SizedBox(height: 24),
+              _buildStatusOption(
+                icon: Icons.check_circle_rounded,
+                label: 'Ativa',
+                description: 'A dieta está em andamento',
+                color: const Color(0xFF4CAF50),
+                isSelected: diet['status'] == 'active',
+                onTap: () {
+                  Navigator.pop(context);
+                  _updateDietStatus(diet, 'active');
+                },
+              ),
+              const SizedBox(height: 12),
+              _buildStatusOption(
+                icon: Icons.pause_circle_rounded,
+                label: 'Pausada',
+                description: 'A dieta está suspensa temporariamente',
+                color: const Color(0xFFFFA726),
+                isSelected: diet['status'] == 'paused',
+                onTap: () {
+                  Navigator.pop(context);
+                  _updateDietStatus(diet, 'paused');
+                },
+              ),
+              const SizedBox(height: 12),
+              _buildStatusOption(
+                icon: Icons.done_all_rounded,
+                label: 'Concluída',
+                description: 'A dieta foi finalizada',
+                color: const Color(0xFF757575),
+                isSelected: diet['status'] == 'completed',
+                onTap: () {
+                  Navigator.pop(context);
+                  _updateDietStatus(diet, 'completed');
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStatusOption({
+    required IconData icon,
+    required String label,
+    required String description,
+    required Color color,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withOpacity(0.1) : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? color : AppTheme.borderGrey,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: GoogleFonts.lato(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.primaryText,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    description,
+                    style: GoogleFonts.lato(
+                      fontSize: 12,
+                      color: AppTheme.secondaryText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected) Icon(Icons.check_circle, color: color, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _updateDietStatus(
+      Map<String, dynamic> diet, String newStatus) async {
+    final currentStatus = diet['status'];
+    if (currentStatus == newStatus) return;
+
+    // Optimistic update
+    final index = _diets.indexWhere((d) => d['id'] == diet['id']);
+    if (index != -1) {
+      setState(() {
+        _diets[index]['status'] = newStatus;
+        _applyFilters();
+      });
+    }
+
+    try {
+      final result = await DietService.updateDiet(
+        dietId: diet['id'],
+        status: newStatus,
+      );
+
+      if (!result['success']) {
+        throw Exception(result['message']);
+      }
+    } catch (e) {
+      // Revert
+      if (index != -1) {
+        setState(() {
+          _diets[index]['status'] = currentStatus;
+          _applyFilters();
+        });
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao atualizar status: $e'),
             backgroundColor: AppTheme.accentRed,
           ),
         );

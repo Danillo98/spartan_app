@@ -6,12 +6,14 @@ class WorkoutCard extends StatelessWidget {
   final Map<String, dynamic> workout;
   final VoidCallback? onTap;
   final VoidCallback? onDelete;
+  final VoidCallback? onStatusToggle;
 
   const WorkoutCard({
     super.key,
     required this.workout,
     this.onTap,
     this.onDelete,
+    this.onStatusToggle,
   });
 
   static const trainerPrimary = AppTheme.primaryRed;
@@ -233,27 +235,31 @@ class WorkoutCard extends StatelessWidget {
         icon = Icons.help_outline_rounded;
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: GoogleFonts.lato(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              color: color,
+    return InkWell(
+      onTap: onStatusToggle,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color.withOpacity(0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: GoogleFonts.lato(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

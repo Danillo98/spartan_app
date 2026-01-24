@@ -25,6 +25,7 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
   DateTime? _selectedBirthDate;
   UserRole _selectedRole = UserRole.student;
   int? _selectedPaymentDay; // Dia de vencimento
+  bool _isPaidCurrentMonth = false; // Pagamento inicial
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
@@ -57,6 +58,8 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
             : null,
         paymentDueDay:
             _selectedRole == UserRole.student ? _selectedPaymentDay : null,
+        isPaidCurrentMonth:
+            _selectedRole == UserRole.student ? _isPaidCurrentMonth : false,
       );
 
       if (!mounted) return;
@@ -355,6 +358,36 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
                           return null;
                         },
                       ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Switch Pagamento Inicial
+                  Container(
+                    decoration: BoxDecoration(
+                      color: AppTheme.lightGrey,
+                      borderRadius: AppTheme.inputRadius,
+                      border: Border.all(color: AppTheme.borderGrey),
+                    ),
+                    child: SwitchListTile(
+                      title: Text(
+                        'Mensalidade deste mês Paga?',
+                        style: GoogleFonts.lato(
+                          fontSize: 16,
+                          color: AppTheme.primaryText,
+                        ),
+                      ),
+                      subtitle: Text(
+                        'Se ativado, o aluno já entra como "Pago"',
+                        style: GoogleFonts.lato(
+                          fontSize: 12,
+                          color: AppTheme.secondaryText,
+                        ),
+                      ),
+                      value: _isPaidCurrentMonth,
+                      activeColor: Colors.green,
+                      onChanged: (val) =>
+                          setState(() => _isPaidCurrentMonth = val),
                     ),
                   ),
                 ],

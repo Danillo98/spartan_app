@@ -230,48 +230,6 @@ class _EditWorkoutScreenState extends State<EditWorkoutScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Status (Ativo/Concluído)
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.withOpacity(0.3)),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      _isActive ? Icons.check_circle : Icons.cancel,
-                      color: _isActive ? Colors.green : Colors.grey,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Status da Ficha',
-                        style: GoogleFonts.lato(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      _isActive ? 'Ativo' : 'Concluído',
-                      style: GoogleFonts.lato(
-                        fontSize: 14,
-                        color: _isActive ? Colors.green : Colors.grey,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Switch(
-                      value: _isActive,
-                      onChanged: (value) => setState(() => _isActive = value),
-                      activeColor: trainerPrimary,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-
               // Datas
               Row(
                 children: [

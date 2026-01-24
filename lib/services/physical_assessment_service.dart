@@ -86,7 +86,7 @@ class PhysicalAssessmentService {
       String studentId) async {
     final response = await _client
         .from('physical_assessments')
-        .select('*, users_nutricionista(nome)')
+        .select('*, users_nutricionista(nome), users_alunos(nome)')
         .eq('student_id', studentId)
         .order('assessment_date', ascending: false);
 

@@ -79,16 +79,21 @@ class FinancialService {
     final fixedPast = List<Map<String, dynamic>>.from(responseFixed);
 
     // 3. Projetar despesas fixas passadas no mês atual
+
+    // Otimização: Criar Set com descrições já pagas para lookup O(1)
+    final paidFixedDescriptions = transactions
+        .where((t) =>
+            t['category'] == 'fixed' &&
+            // Garantir que estamos olhando apenas despesas, embora category usually implies type
+            t['type'] == 'expense')
+        .map((t) => t['description'].toString().toLowerCase().trim())
+        .toSet();
+
     for (var f in fixedPast) {
-      final description = f['description'].toString().toLowerCase();
+      final description = f['description'].toString().toLowerCase().trim();
 
       // Verificar se JÁ EXISTE uma transação real com esta descrição neste mês
-      // Se existir, significa que já foi paga (realizada), então não projetamos
-      final alreadyPaid = transactions.any((t) =>
-          t['description'].toString().toLowerCase() == description &&
-          t['category'] == 'fixed');
-
-      if (alreadyPaid) continue;
+      if (paidFixedDescriptions.contains(description)) continue;
 
       final originalDate = DateTime.parse(f['transaction_date']);
 
@@ -203,44 +208,49 @@ class FinancialService {
         return d.month == m;
       }).toList();
 
-      // Transações FIXAS do passado projetadas
-      // E TAMBÉM as fixas criadas NESTE ANO em meses anteriores a 'm'
-      // Ex: Estou no mês 3 (Março).
-      // PastFixed (ano < year) -> Projeta
-      // YearFixed (ano == year, mês < 3) -> Projeta
+      // Otimização: Criar Set com descrições já pagas neste mês para evitar projeção duplicada
+      final paidDescriptions = monthReal
+          .where((t) => t['category'] == 'fixed' && t['type'] == 'expense')
+          .map((t) => t['description'].toString().toLowerCase().trim())
+          .toSet();
 
-      List<Map<String, dynamic>> projected = [];
-
-      // A) Fixas de anos anteriores
-      projected.addAll(pastFixed);
-
-      // B) Fixas deste ano, de meses anteriores
-      final thisYearFixedBefore = yearTransactions.where((t) {
-        final d = DateTime.parse(t['transaction_date']);
-        return t['type'] == 'expense' &&
-            t['category'] == 'fixed' &&
-            d.month < m;
-      });
-      projected.addAll(thisYearFixedBefore);
-
-      // Somar valores
+      // Somar valores REAIS
       double mIncome = 0;
       double mExpense = 0;
 
-      // Somar reais
       for (var t in monthReal) {
         final val = (t['amount'] as num).toDouble();
-        if (t['type'] == 'income')
+        if (t['type'] == 'income') {
           mIncome += val;
-        else
+        } else {
           mExpense += val;
+        }
       }
 
-      // Somar projetadas
-      for (var p in projected) {
-        // Nenhuma projetada é Income (só Expense Fixed)
-        final val = (p['amount'] as num).toDouble();
-        mExpense += val;
+      // Calcular Projeções (Fixas do passado + Fixas deste ano anteriores)
+      // A) Fixas de anos anteriores
+      for (var p in pastFixed) {
+        final desc = p['description'].toString().toLowerCase().trim();
+        // Se NÃO foi pago neste mês, soma como despesa projetada
+        if (!paidDescriptions.contains(desc)) {
+          mExpense += (p['amount'] as num).toDouble();
+        }
+      }
+
+      // B) Fixas deste ano, criadas em meses anteriores ao atual 'm'
+      // Atenção: Apenas 'expense' 'fixed'
+      final thisYearFixedBefore = yearTransactions.where((t) {
+        final d = DateTime.parse(t['transaction_date']);
+        return t['category'] == 'fixed' &&
+            t['type'] == 'expense' &&
+            d.month < m;
+      });
+
+      for (var p in thisYearFixedBefore) {
+        final desc = p['description'].toString().toLowerCase().trim();
+        if (!paidDescriptions.contains(desc)) {
+          mExpense += (p['amount'] as num).toDouble();
+        }
       }
 
       monthsSummary.add({
@@ -373,35 +383,42 @@ class FinancialService {
   // Verificar se o aluno está inadimplente (Bloqueio de Acesso)
   static Future<bool> isStudentOverdue({
     required String studentId,
-    required String idAcademia, // NOW expects ID
+    required String idAcademia,
     int? paymentDueDay,
   }) async {
-    // Se não tiver dia de vencimento, a rigor não vence (ou assume dia 1, ou 10? Regra de negócio)
-    // Vamos assumir que se não tem dueDay definido, não bloqueia por enquanto.
     if (paymentDueDay == null) return false;
 
     final now = DateTime.now();
 
-    // Se hoje é ANTES do vencimento, está ok (mesmo que não tenha pago ainda)
+    // Se hoje é ANTES ou IGUAL ao vencimento, está ok (Pendente)
     if (now.day <= paymentDueDay) return false;
 
-    // Se passou do dia, precisamos ver se pagou NESTE MÊS/ANO
+    // Se passou do dia, verificamos se existe pagamento neste mês
     final startOfMonth = DateTime(now.year, now.month, 1);
     final endOfMonth = DateTime(now.year, now.month + 1, 0);
 
-    // Buscar pagamento
-    final response = await _client
-        .from('financial_transactions')
-        .select()
-        .eq('id_academia', idAcademia)
-        .eq('related_user_id', studentId)
-        .eq('type', 'income') // Pagamento é entrada
-        .gte('transaction_date', startOfMonth.toIso8601String())
-        .lte('transaction_date', endOfMonth.toIso8601String())
-        .maybeSingle();
+    // Formatar datas como YYYY-MM-DD para garantir compatibilidade com o banco
+    final startStr = startOfMonth.toIso8601String().split('T')[0];
+    final endStr = endOfMonth.toIso8601String().split('T')[0];
 
-    // Se encontrou transação -> Pagou (false overdue)
-    // Se null -> Não pagou (true overdue)
-    return response == null;
+    try {
+      final response = await _client
+          .from('financial_transactions')
+          .select('id')
+          .eq('id_academia', idAcademia)
+          .eq('related_user_id', studentId)
+          .eq('type', 'income')
+          .gte('transaction_date', startStr)
+          .lte('transaction_date', endStr)
+          .maybeSingle();
+
+      // Se encontrou transação (response != null), PAGOU -> Não está vencido (return false)
+      // Se null, NÃO PAGOU e já passou do dia -> Vencido (return true)
+      return response == null;
+    } catch (e) {
+      print('Erro ao verificar status overdue: $e');
+      // Em caso de erro, permitir acesso (fail open) para evitar travar usuários
+      return false;
+    }
   }
 }
