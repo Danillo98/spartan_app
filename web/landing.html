@@ -306,6 +306,9 @@
                 document.getElementById('android-instructions').style.display = 'block';
             } else if (isIOS) {
                 document.getElementById('ios-instructions').style.display = 'block';
+                // iOS: Destacar instruções imediatamente
+                document.querySelector('.instructions').style.background = '#fff8e1';
+                document.querySelector('.instructions').style.border = '2px solid #ffc107';
             } else {
                 document.getElementById('desktop-instructions').style.display = 'block';
             }
@@ -313,7 +316,6 @@
 
         // Variáveis globais
         const APP_URL = window.location.origin;
-        // Deep link genérico para abrir o app
         const deepLink = 'io.supabase.spartanapp://home';
 
         // Suporte para instalação PWA
@@ -323,80 +325,60 @@
             console.log('PWA pode ser instalado');
             e.preventDefault();
             deferredPrompt = e;
+            // Se for Android, podemos até sugerir automaticamente
         });
 
         // Lógica Unificada do Botão "Instalar Aplicativo"
         document.getElementById('accessSystemBtn').addEventListener('click', async (e) => {
+            const userAgent = navigator.userAgent.toLowerCase();
+            const isIOS = /iphone|ipad|ipod/.test(userAgent);
             const msgElement = document.getElementById('system-message');
             msgElement.style.display = 'block';
 
-            // CASO 1: PWA Disponível para Instalação (Prioridade Máxima)
+            // CASO 1: iOS (Tratamento Especial)
+            if (isIOS) {
+                msgElement.innerHTML = '🍎 Para instalar no iPhone/iPad:<br>1. Toque no botão de <strong>Compartilhar</strong> (abaixo)<br>2. Selecione <strong>Toque em "Adicionar à Tela de Início"</strong>';
+                msgElement.style.background = '#e3f2fd';
+                msgElement.style.border = '1px solid #2196f3';
+
+                // Animar as instruções para chamar atenção
+                const instructions = document.querySelector('.instructions');
+                instructions.scrollIntoView({ behavior: 'smooth' });
+                instructions.style.transition = 'transform 0.5s';
+                instructions.style.transform = 'scale(1.05)';
+                setTimeout(() => instructions.style.transform = 'scale(1)', 500);
+
+                return; // Pára aqui no iOS
+            }
+
+            // CASO 2: PWA Disponível (Android/Desktop)
             if (deferredPrompt) {
-                msgElement.innerHTML = '🔄 Iniciando download e instalação...<br>Se solicitado, confirme a instalação na tela.';
-                msgElement.style.background = '#e8f5e9';
-
-                e.preventDefault(); // Impede comportamento padrão se houver
+                msgElement.innerHTML = '🔄 Iniciando... Confirme na tela!';
+                e.preventDefault();
                 deferredPrompt.prompt();
-
                 const { outcome } = await deferredPrompt.userChoice;
-                console.log(`Usuário ${outcome === 'accepted' ? 'aceitou' : 'recusou'} a instalação`);
                 deferredPrompt = null;
 
                 if (outcome === 'accepted') {
-                    msgElement.innerHTML = '✅ Instalação concluída!<br>🚀 Redirecionando para o aplicativo...';
-                    msgElement.style.background = '#e8f5e9';
-                    msgElement.style.borderColor = '#c8e6c9';
-
-                    setTimeout(() => {
-                        // Tenta abrir o app nativo via Deep Link
-                        window.location.href = deepLink;
-                        // Fallback
-                        setTimeout(() => {
-                            window.location.href = '/';
-                        }, 500);
-                    }, 2000);
+                    msgElement.innerHTML = '✅ Instalando...';
                 } else {
-                    msgElement.innerHTML = '⚠️ Instalação cancelada. Abrindo versão web...';
-                    msgElement.style.background = '#fff3cd';
-                    msgElement.style.borderColor = '#ffeeba';
-                    setTimeout(() => {
-                        window.location.href = '/';
-                    }, 1500);
+                    msgElement.innerHTML = '⚠️ Instalação cancelada. Abrindo site...';
+                    setTimeout(() => window.location.href = '/', 1500);
                 }
             }
-            // CASO 2: App já instalado ou Prompt indisponível (iOS/Não suportado)
+            // CASO 3: Fallback (Já instalado ou não suportado)
             else {
-                msgElement.innerHTML = '📱 Abrindo aplicativo...';
-                msgElement.style.background = '#e8f5e9';
-
-                // 1. Tenta Deep Link (Nativo)
+                msgElement.innerHTML = '📱 Abrindo App...';
                 window.location.href = deepLink;
-
-                // 2. Fallback para Web App (se deep link falhar em abrir o app nativo)
-                setTimeout(() => {
-                    window.location.href = '/';
-                }, 1000);
+                setTimeout(() => window.location.href = '/', 1000);
             }
         });
 
-        // Detecta quando o app foi instalado
-        window.addEventListener('appinstalled', () => {
-            console.log('PWA foi instalado com sucesso');
-            const msgElement = document.getElementById('system-message');
-            if (msgElement) {
-                msgElement.style.display = 'block';
-                msgElement.innerHTML = '✅ App instalado! Abrindo...';
-            }
-            setTimeout(() => {
-                window.location.href = '/';
-            }, 1000);
-        });
-
-        // Inicializa a detecção de dispositivo
+        // Inicializa
         detectDevice();
 
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', function () {
+            window.addEventListener('load', () => {
                 navigator.serviceWorker.register('flutter_service_worker.js');
             });
         }
