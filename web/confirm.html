@@ -145,187 +145,118 @@
             <img src="icons/Icon-192.png" alt="Spartan App Logo">
         </div>
 
-        <h1>Spartan App</h1>
-        <p id="message">Redirecionando para o aplicativo...</p>
+        <h1>Confirmação de Conta</h1>
+        <p id="message">Verificando seus dados...</p>
         <div class="spinner" id="spinner"></div>
 
-        <!-- Seção quando o deep link falha -->
-        <div id="manual-section" style="display: none;">
+        <!-- Seção de Sucesso -->
+        <div id="success-section" style="display: none;">
             <div class="success-icon">✅</div>
-            <h1>Email Confirmado!</h1>
-            <p>Seu email foi confirmado com sucesso. Agora você precisa acessar o aplicativo.</p>
+            <h1>Tudo Pronto!</h1>
+            <p>Sua conta foi verificada com sucesso.</p>
+            <p style="font-weight: bold; color: #1a1a1a;">Você já pode voltar para o aplicativo e fazer login.</p>
+            
+            <p style="font-size: 14px; margin-top: 20px; color: #888;">Pode fechar esta janela.</p>
+        </div>
 
-            <!-- Botões de ação -->
-            <div style="display: flex; flex-direction: column; align-items: center; gap: 10px;">
-                <button id="install-app-btn" class="btn" style="display: none;">⬇️ Instalar Aplicativo</button>
-                <button id="verify-account-btn" class="btn btn-secondary" style="display: none;">✅ Verificar
-                    Conta</button>
-            </div>
-            <p id="install-message"
-                style="display:none; color: #1a1a1a; margin-top: 15px; font-weight: bold; font-size: 14px; background: #e8f5e9; padding: 10px; border-radius: 8px; border: 1px solid #c8e6c9;">
-            </p>
+        <!-- Seção de Erro -->
+        <div id="error-section" style="display: none;">
+            <h1 style="color: #d32f2f;">Erro na Verificação</h1>
+            <p id="error-message">Não foi possível verificar sua conta.</p>
+            <button class="btn" onclick="window.location.reload()">Tentar Novamente</button>
         </div>
     </div>
 
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
     <script>
-        // Extrair token e code da URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        // Configuração do Supabase (Mesmas chaves do App)
+        const supabaseUrl = 'https://waczgosbsrorcibwfayv.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhY3pnb3Nic3JvcmNpYndmYXl2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgzOTQzNTgsImV4cCI6MjA4Mzk3MDM1OH0.IkVIseJ0StG6XKmcEpvTVaqCYfSRwVmASOquNQIwz-w';
+        const supabase = supabase.createClient(supabaseUrl, supabaseKey);
 
-        const token = urlParams.get('token') || hashParams.get('access_token');
-        const code = urlParams.get('code');
+        async function verifyAccount() {
+            try {
+                // 1. Extrair Parâmetros
+                const hashParams = new URLSearchParams(window.location.hash.substring(1));
+                const urlParams = new URLSearchParams(window.location.search);
+                
+                // Supabase envia o access_token no hash (Implicit Grant) ou code no Search (PKCE)
+                const accessToken = hashParams.get('access_token');
+                const refreshToken = hashParams.get('refresh_token');
+                const code = urlParams.get('code');
+                
+                // Token Criptografado do App (vem no query param customizado 'token')
+                // O link é .../confirm.html?token=XXX#access_token=YYY...
+                // O supabase mantem o query param 'token' original? Sim.
+                const customToken = urlParams.get('token');
 
-        console.log('Token:', token);
-        console.log('Code:', code);
-
-        // URL base do app
-        const APP_URL = window.location.origin;
-
-        if (token || code) {
-            // Criar deep link para tentar abrir o app instalado
-            const deepLink = `io.supabase.spartanapp://confirm?token=${token || code}`;
-
-            console.log('Tentando abrir deep link:', deepLink);
-
-            // Tentar abrir o app automaticamente
-            window.location.href = deepLink;
-
-            // Após 3 segundos, assumir que o app não está instalado
-            setTimeout(() => {
-                document.getElementById('spinner').style.display = 'none';
-                document.getElementById('manual-section').style.display = 'block';
-
-                // Configurar botões
-                const installBtn = document.getElementById('install-app-btn');
-                installBtn.style.display = 'inline-block';
-
-                const verifyBtn = document.getElementById('verify-account-btn');
-                verifyBtn.style.display = 'inline-block';
-
-                // AUTO-TRIGGER: Se for desktop E tiver prompt disponível, disparar automaticamente
-                const userAgent = navigator.userAgent.toLowerCase();
-                const isDesktop = !(/android|iphone|ipad|ipod/.test(userAgent));
-
-                if (isDesktop && deferredPrompt) {
-                    console.log('Desktop detectado com PWA disponível. Disparando instalação automática...');
-                    setTimeout(() => {
-                        installBtn.click();
-                    }, 1000);
+                if (!customToken) {
+                    throw new Error('Token de cadastro não encontrado. Link inválido.');
                 }
-            }, 3000);
-        } else {
-            // Token não encontrado
-            document.getElementById('spinner').style.display = 'none';
-            document.getElementById('message').textContent = 'Link inválido. Token não encontrado.';
-            document.getElementById('message').style.color = '#d32f2f';
 
-            setTimeout(() => {
-                const container = document.querySelector('.container');
-                const btn = document.createElement('a');
-                btn.href = APP_URL + '/';
-                btn.className = 'btn';
-                btn.textContent = 'Acessar Site';
-                container.appendChild(btn);
-            }, 1000);
-        }
+                let session = null;
 
-        // Suporte para instalação PWA
-        let deferredPrompt;
-
-        window.addEventListener('beforeinstallprompt', (e) => {
-            console.log('PWA pode ser instalado');
-            e.preventDefault();
-            deferredPrompt = e;
-        });
-
-        // Detectar quando o app foi instalado com sucesso
-        window.addEventListener('appinstalled', (evt) => {
-            console.log('PWA foi instalado com sucesso!');
-            const msgElement = document.getElementById('install-message');
-            msgElement.style.display = 'block';
-            msgElement.innerHTML = '✅ Instalado! Abrindo e verificando conta...';
-            msgElement.style.background = '#e8f5e9';
-
-            // Ocultar botão de instalar
-            document.getElementById('install-app-btn').style.display = 'none';
-
-            // Aguardar 1 segundo e então abrir o app com verificação automática
-            setTimeout(() => {
-                const t = token || code;
-                if (t) {
-                    // Tentar abrir via deep link primeiro
-                    const dl = `io.supabase.spartanapp://confirm?token=${t}`;
-                    window.location.href = dl;
-
-                    // Fallback para web app após 2 segundos
-                    setTimeout(() => {
-                        window.location.href = window.location.origin + `/#/confirm?token=${t}`;
-                    }, 2000);
-                }
-            }, 1000);
-        });
-
-        // Lógica do botão Instalar
-        document.getElementById('install-app-btn').addEventListener('click', async (e) => {
-            const msgElement = document.getElementById('install-message');
-
-            if (deferredPrompt) {
-                msgElement.style.display = 'block';
-                msgElement.innerHTML = '🔄 Iniciando instalação...<br>Confirme quando solicitado.';
-
-                e.preventDefault();
-                deferredPrompt.prompt();
-                const { outcome } = await deferredPrompt.userChoice;
-                console.log(`Usuário ${outcome === 'accepted' ? 'aceitou' : 'recusou'} a instalação`);
-                deferredPrompt = null;
-
-                if (outcome === 'accepted') {
-                    msgElement.innerHTML = '✅ Instalado! Clique em "Verificar Conta".';
-                    msgElement.style.background = '#e8f5e9';
-                    document.getElementById('install-app-btn').style.display = 'none';
+                // 2. Autenticar no Supabase (Confirmar Email)
+                if (accessToken) {
+                    // Já temos sessão via hash
+                    const { data, error } = await supabase.auth.setSession({
+                        access_token: accessToken,
+                        refresh_token: refreshToken
+                    });
+                    if (error) throw error;
+                    session = data.session;
+                } else if (code) {
+                    // Trocar código por sessão
+                    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+                    if (error) throw error;
+                    session = data.session;
                 } else {
-                    msgElement.innerHTML = '⚠️ Instalação cancelada.';
+                    // Tentar verificar se já existe sessão ativa
+                     const { data } = await supabase.auth.getSession();
+                     session = data.session;
+                     
+                     if (!session) throw new Error('Link de verificação inválido ou expirado.');
                 }
-            } else {
-                msgElement.style.display = 'block';
-                msgElement.innerHTML = 'ℹ️ Clique em "Verificar Conta" para continuar.';
-                msgElement.style.background = '#e3f2fd';
+
+                console.log('✅ Email confirmado no Auth!');
+
+                // 3. Chamar RPC para completar cadastro (Inserir nas tabelas)
+                // Passamos o token criptografado para o banco verificar e inserir dados
+                const { data: rpcData, error: rpcError } = await supabase
+                    .rpc('confirm_user_registration', { token: customToken });
+
+                if (rpcError) throw rpcError;
+
+                if (rpcData && rpcData.success) {
+                    // SUCESSO!
+                    showSuccess();
+                } else {
+                    throw new Error(rpcData?.message || 'Falha ao processar cadastro.');
+                }
+
+            } catch (error) {
+                console.error('Erro:', error);
+                showError(error.message);
             }
-        });
-
-        // Lógica do botão Verificar Conta
-        document.getElementById('verify-account-btn').addEventListener('click', () => {
-            const t = token || code;
-            if (!t) {
-                alert('Erro: Token de verificação não encontrado.');
-                return;
-            }
-
-            const dl = `io.supabase.spartanapp://confirm?token=${t}`;
-            console.log('Verificando conta via Deep Link:', dl);
-
-            const btn = document.getElementById('verify-account-btn');
-            const originalText = btn.textContent;
-            btn.textContent = '🔄 Abrindo App...';
-
-            // Tenta abrir via Deep Link Nativo
-            window.location.href = dl;
-
-            // Fallback: Se não abrir, vai para web app
-            setTimeout(() => {
-                console.log('Fallback: Abrindo web app...');
-                window.location.href = window.location.origin + `/#/confirm?token=${t}`;
-                btn.textContent = originalText;
-            }, 2500);
-        });
-    </script>
-    <script>
-        // Register Service Worker
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', function () {
-                navigator.serviceWorker.register('flutter_service_worker.js');
-            });
         }
+
+        function showSuccess() {
+            document.getElementById('spinner').style.display = 'none';
+            document.getElementById('message').style.display = 'none';
+            document.getElementById('success-section').style.display = 'block';
+        }
+
+        function showError(msg) {
+            document.getElementById('spinner').style.display = 'none';
+            document.getElementById('message').style.display = 'none';
+            document.getElementById('error-section').style.display = 'block';
+            document.getElementById('error-message').innerText = msg;
+        }
+
+        // Iniciar
+        verifyAccount();
     </script>
 </body>
 
