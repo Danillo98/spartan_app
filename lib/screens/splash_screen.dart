@@ -48,75 +48,146 @@ class _SplashScreenState extends State<SplashScreen>
     _controller.forward();
 
     // Verificação de login após 3 segundos
-    Timer(const Duration(seconds: 3), () async {
-      if (mounted) {
-        // Verificar se é uma sessão de password recovery
-        final currentSession = SupabaseService.client.auth.currentSession;
-        if (currentSession != null) {
-          // Verificar se o access token contém informações de recovery
-          // Quando é recovery, o Supabase não cria registro nas tabelas de usuário
-          try {
-            final userData = await AuthService.getCurrentUserData();
-            if (userData == null && AuthService.isLoggedIn()) {
-              // Usuário logado mas sem dados = sessão de recovery
-              print('⚠️ Sessão de recovery detectada. Não redirecionando.');
-              // Não fazer nada, deixar o AuthListener ou DeepLink handler cuidar
-              return;
-            }
-          } catch (e) {
-            print('⚠️ Erro ao verificar dados do usuário: $e');
-            // Se der erro ao buscar dados, pode ser recovery também
-            if (AuthService.isLoggedIn()) {
-              print('⚠️ Possível sessão de recovery. Não redirecionando.');
-              return;
-            }
+    Future.delayed(const Duration(seconds: 3), _checkLoginStatus);
+  }
+
+  Future<void> _checkLoginStatus() async {
+    if (!mounted) return;
+
+    try {
+      // Verificar se é uma sessão de password recovery
+      final currentSession = SupabaseService.client.auth.currentSession;
+      if (currentSession != null) {
+        // Se temos sessão mas pode ser recovery, vamos tentar ver se é
+        // um link de recuperação checando se temos dados do usuário
+        try {
+          final userData = await AuthService.getCurrentUserData();
+          // Se falhar (network) vai pro catch do bloco principal
+
+          if (userData == null && AuthService.isLoggedIn()) {
+            // Logado mas sem dados no banco = provável recovery ou cadastro incompleto
+            print(
+                '⚠️ Sessão sem dados (possível recovery). Não redirecionando.');
+            return;
           }
-        }
 
-        Widget targetScreen = const LoginScreen();
-
-        if (AuthService.isLoggedIn()) {
-          try {
-            final userData = await AuthService.getCurrentUserData();
-            if (userData != null) {
-              final role = userData['role'];
-              switch (role) {
-                case 'admin':
-                  targetScreen = const AdminDashboard();
-                  break;
-                case 'nutritionist':
-                  targetScreen = const NutritionistDashboard();
-                  break;
-                case 'trainer':
-                  targetScreen = const TrainerDashboard();
-                  break;
-                case 'student':
-                  targetScreen = const StudentDashboard();
-                  break;
-              }
-            }
-          } catch (e) {
-            print('Erro ao recuperar dados do usuário no splash: $e');
-            // Mantém targetScreen como LoginScreen
-          }
-        }
-
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            PageRouteBuilder(
-              pageBuilder: (context, animation, secondaryAnimation) =>
-                  targetScreen,
-              transitionsBuilder:
-                  (context, animation, secondaryAnimation, child) {
-                return FadeTransition(opacity: animation, child: child);
-              },
-              transitionDuration: const Duration(milliseconds: 800),
-            ),
-          );
+          // Se recuperou dados, fluxo normal abaixo
+        } catch (e) {
+          // Se der erro de rede aqui, vamos deixar cair no catch principal para retry
+          rethrow;
         }
       }
-    });
+
+      if (AuthService.isLoggedIn()) {
+        final userData = await AuthService.getCurrentUserData();
+
+        if (userData != null) {
+          _navigateToDashboard(userData);
+        } else {
+          // Usuário existe no Auth mas não nas tabelas => Inconsistência
+          print('❌ Usuário sem registro nas tabelas (e não é recovery).');
+          await AuthService.logout();
+          _navigateToLogin();
+        }
+      } else {
+        _navigateToLogin();
+      }
+    } catch (e) {
+      print('❌ Erro no Splash: $e');
+      // Erro de conexão ou outro erro impeditivo -> Mostrar Retry
+      _showRetryDialog();
+    }
+  }
+
+  void _navigateToDashboard(Map<String, dynamic> userData) {
+    if (!mounted) return;
+
+    Widget targetScreen = const LoginScreen();
+    final role = userData['role'];
+
+    switch (role) {
+      case 'admin':
+        targetScreen = const AdminDashboard();
+        break;
+      case 'nutritionist':
+        targetScreen = const NutritionistDashboard();
+        break;
+      case 'trainer':
+        targetScreen = const TrainerDashboard();
+        break;
+      case 'student':
+        targetScreen = const StudentDashboard();
+        break;
+    }
+
+    Navigator.pushReplacement(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => targetScreen,
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 800),
+      ),
+    );
+  }
+
+  void _navigateToLogin() {
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            const LoginScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 800),
+      ),
+    );
+  }
+
+  void _showRetryDialog() {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Text(
+          'Erro de Conexão',
+          style: TextStyle(
+              color: AppTheme.primaryText, fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          'Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.',
+          style: TextStyle(color: AppTheme.secondaryText),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              SupabaseService.client.auth.signOut();
+              Navigator.pop(context);
+              _navigateToLogin();
+            },
+            child: const Text('Sair da Conta',
+                style: TextStyle(color: Colors.red)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _checkLoginStatus(); // Retry
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryGold,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Tentar Novamente'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override

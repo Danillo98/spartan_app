@@ -15,6 +15,8 @@ class CreateUserScreen extends StatefulWidget {
 }
 
 class _CreateUserScreenState extends State<CreateUserScreen> {
+  static const String _landingUrl =
+      'https://spartan-app-f8a98.web.app/landing.html';
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -489,86 +491,86 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
                 // Seção QR Code e Download (Sempre visível)
 
                 // Seção QR Code e Download (Sempre visível)
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppTheme.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppTheme.borderGrey),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        'Sistema Pronto para Uso!',
-                        style: GoogleFonts.cinzel(
-                          color: AppTheme.primaryText,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
+                RepaintBoundary(
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppTheme.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppTheme.borderGrey),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          'Sistema Pronto para Uso!',
+                          style: GoogleFonts.cinzel(
+                            color: AppTheme.primaryText,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
                         ),
-                        child: QrImageView(
-                          data:
-                              'https://spartan-app-f8a98.web.app/landing.html',
-                          version: QrVersions.auto,
-                          errorCorrectionLevel: QrErrorCorrectLevel.H,
-                          size: 250.0,
-                          backgroundColor: Colors.white,
+                        const SizedBox(height: 16),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: QrImageView(
+                            data: _landingUrl,
+                            version: QrVersions.auto,
+                            errorCorrectionLevel: QrErrorCorrectLevel.H,
+                            size: 250.0,
+                            backgroundColor: Colors.white,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: AppTheme.lightGrey,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          children: [
-                            const Expanded(
-                              child: Text(
-                                'https://spartan-app-f8a98.web.app/landing.html',
-                                style: TextStyle(
-                                  fontFamily: 'Courier',
-                                  fontSize: 12,
-                                  color: AppTheme.secondaryText,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.copy_rounded, size: 20),
-                              color: AppTheme.primaryText,
-                              onPressed: () {
-                                Clipboard.setData(const ClipboardData(
-                                    text:
-                                        'https://spartan-app-f8a98.web.app/landing.html'));
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                        'Link copiado para a área de transferência!'),
-                                    duration: Duration(seconds: 2),
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: AppTheme.lightGrey,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              const Expanded(
+                                child: Text(
+                                  _landingUrl,
+                                  style: TextStyle(
+                                    fontFamily: 'Courier',
+                                    fontSize: 12,
+                                    color: AppTheme.secondaryText,
                                   ),
-                                );
-                              },
-                            ),
-                          ],
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.copy_rounded, size: 20),
+                                color: AppTheme.primaryText,
+                                onPressed: () {
+                                  Clipboard.setData(
+                                      const ClipboardData(text: _landingUrl));
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                          'Link copiado para a área de transferência!'),
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
 

@@ -490,7 +490,7 @@ class AuthService {
       return null;
     } catch (e) {
       print('Erro ao buscar usuário nas tabelas: $e');
-      return null;
+      rethrow;
     }
   }
 
