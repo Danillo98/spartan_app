@@ -437,7 +437,9 @@
         function openInBrowser() {
             // Marca que o usuário escolheu usar o navegador para não mostrar o banner novamente
             sessionStorage.setItem('install_banner_dismissed', 'true');
-            window.location.href = "/"; // Vai para a raiz (Login Screen)
+
+            // Adiciona parâmetro para tentar forçar navegação no browser e evitar deep link exato
+            window.location.assign(window.location.origin + '/?browser_mode=true');
         }
 
         // Service Worker
