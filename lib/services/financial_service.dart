@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
 import 'user_service.dart';
+import 'notification_service.dart'; // Import Notification
 import '../models/user_role.dart';
 
 class FinancialService {
@@ -428,12 +429,63 @@ class FinancialService {
           .maybeSingle();
 
       // Se encontrou transação (response != null), PAGOU -> Não está vencido (return false)
-      // Se null, NÃO PAGOU e já passou do dia -> Vencido (return true)
       return response == null;
     } catch (e) {
       print('Erro ao verificar status overdue: $e');
       // Em caso de erro, permitir acesso (fail open) para evitar travar usuários
       return false;
+    }
+  }
+
+  // --- TRIGGER DE NOTIFICAÇÃO ---
+  // Executar verificação de inadimplência e notificar
+  static Future<Map<String, dynamic>> runOverdueCheckAndNotify() async {
+    try {
+      final now = DateTime.now();
+      final statusList =
+          await getMonthlyPaymentsStatus(month: now.month, year: now.year);
+
+      // Filtra apenas os vencidos (overdue)
+      final overdueStudents =
+          statusList.where((s) => s['status'] == 'overdue').toList();
+
+      if (overdueStudents.isEmpty) {
+        return {
+          'success': true,
+          'message': 'Nenhum aluno inadimplente encontrado.'
+        };
+      }
+
+      // 1. Notificar Alunos Vencidos
+      for (var s in overdueStudents) {
+        final studentId = s['id'].toString();
+        await NotificationService.notifyPaymentOverdue(studentId);
+      }
+
+      // 2. Notificar Admin (Resumo)
+      // Precisamos saber QUEM é o admin atual que chamou a função
+      final currentUser = _client.auth.currentUser;
+      if (currentUser != null) {
+        // Verifica se quem chamou é Admin (segurança visual apenas)
+        // Como o serviço é generico, vamos notificar o usuário LOGADO se ele for admin
+        // Ou buscar TODOS os admins daquela academia?
+        // Simplicidade: Notificar o usuário atual que disparou a ação
+        final studentNames =
+            overdueStudents.map((s) => s['name'].toString()).toList();
+        await NotificationService.notifyAdminOverdueStudents(
+            currentUser.id, studentNames);
+      }
+
+      return {
+        'success': true,
+        'message':
+            'Notificações enviadas para ${overdueStudents.length} alunos e para o Admin.'
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Erro ao processar notificações: $e'
+      };
     }
   }
 }

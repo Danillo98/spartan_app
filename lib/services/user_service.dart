@@ -460,4 +460,23 @@ class UserService {
       };
     }
   }
+
+  // Admin altera senha de um usuário manualmente
+  static Future<Map<String, dynamic>> adminUpdateUserPassword(
+      String userId, String newPassword) async {
+    try {
+      print('🔐 Admin alterando senha do usuário: $userId');
+
+      // Chama RPC para atualizar senha no auth.users sem enviar email
+      await _client.rpc('admin_update_password', params: {
+        'target_user_id': userId,
+        'new_password': newPassword,
+      });
+
+      return {'success': true, 'message': 'Senha alterada com sucesso!'};
+    } catch (e) {
+      print('❌ Erro ao alterar senha: $e');
+      return {'success': false, 'message': 'Erro ao alterar senha: $e'};
+    }
+  }
 }

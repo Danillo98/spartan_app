@@ -1,6 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/intl.dart';
 import 'supabase_service.dart';
 import 'user_service.dart';
+import 'notification_service.dart'; // Import NotificationService
 import '../models/user_role.dart';
 
 class AppointmentService {
@@ -96,6 +98,33 @@ class AppointmentService {
       };
 
       await _client.from('appointments').insert(data);
+
+      // --- CRITICAL: NOTIFICATION ---
+      try {
+        String studentName = visitorName ?? 'Visitante';
+        // If studentId is present, try to fetch name (optional, for better UX)
+        if (studentId != null) {
+          final studentData = await _client
+              .from('users_alunos')
+              .select('nome')
+              .eq('id', studentId)
+              .maybeSingle();
+          if (studentData != null) {
+            studentName = studentData['nome'];
+          }
+        }
+
+        final formattedDate = DateFormat('dd/MM HH:mm').format(scheduledAt);
+
+        await NotificationService.notifyNewAppointment(
+          professionalIds,
+          studentName,
+          formattedDate,
+        );
+      } catch (e) {
+        print('Erro ao enviar notificação de agendamento: $e');
+      }
+      // ------------------------------
 
       return {'success': true, 'message': 'Agendamento realizado com sucesso!'};
     } catch (e) {

@@ -59,7 +59,7 @@ class AuthService {
 
       // URL de confirmação com deep link para abrir o app
       final confirmationUrl =
-          'https://spartan-app-f8a98.web.app/confirm.html?token=$token';
+          'https://spartanapp.com.br/confirm.html?token=$token';
 
       print('🔐 Token criado: ${token.substring(0, 20)}...');
       print('🔗 URL de confirmação: $confirmationUrl');
@@ -651,7 +651,7 @@ class AuthService {
       // Enviar email de recuperação - abre na mesma aba se já estiver aberta
       await _client.auth.resetPasswordForEmail(
         email,
-        redirectTo: 'https://spartan-app-f8a98.web.app/',
+        redirectTo: 'https://spartanapp.com.br/',
       );
 
       print('✅ Email de recuperação enviado com sucesso');

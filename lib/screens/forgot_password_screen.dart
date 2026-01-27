@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // Import Supabase
 import '../services/auth_service.dart';
 import '../config/app_theme.dart';
 
@@ -61,136 +62,140 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     setState(() => _isLoading = true);
 
     try {
-      await AuthService.sendPasswordResetEmail(_emailController.text.trim());
+      final email = _emailController.text.trim();
 
-      if (!mounted) return;
+      // 1. Verificar se é Admin (para economizar e-mails)
+      // Tenta buscar na tabela de admins
+      final adminData = await Supabase.instance.client
+          .from('users_adm')
+          .select('id')
+          .eq('email', email)
+          .maybeSingle();
 
-      // Mostrar mensagem de sucesso
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.green[600], size: 32),
-              const SizedBox(width: 12),
-              Text(
-                'Email Enviado!',
-                style: GoogleFonts.cinzel(
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.primaryText,
-                ),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Enviamos um link de recuperação para:',
-                style: GoogleFonts.lato(
-                  fontSize: 14,
-                  color: AppTheme.secondaryText,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _emailController.text.trim(),
-                style: GoogleFonts.lato(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: AppTheme.primaryText,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.blue[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.blue[200]!),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.info_outline,
-                            color: Colors.blue[700], size: 20),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Verifique sua caixa de entrada e spam.',
-                            style: GoogleFonts.lato(
-                              fontSize: 13,
-                              color: Colors.blue[900],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(Icons.access_time,
-                            color: Colors.orange[700], size: 20),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'O link expira em 1 hora.',
-                            style: GoogleFonts.lato(
-                              fontSize: 13,
-                              color: Colors.orange[900],
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop(); // Fecha dialog
-                Navigator.of(context).pop(); // Volta para login
-              },
-              style: TextButton.styleFrom(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              ),
-              child: Text(
-                'OK, ENTENDI',
-                style: GoogleFonts.lato(
-                  fontWeight: FontWeight.bold,
-                  color: const Color(0xFF1A1A1A),
-                ),
-              ),
+      if (adminData != null) {
+        // É Admin -> Pode enviar e-mail
+        await AuthService.sendPasswordResetEmail(email);
+
+        if (!mounted) return;
+
+        // Mostrar mensagem de sucesso (Link Enviado)
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
             ),
-          ],
-        ),
-      );
+            title: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.green[600], size: 32),
+                const SizedBox(width: 12),
+                Text(
+                  'Email Enviado!',
+                  style: GoogleFonts.cinzel(
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.primaryText,
+                  ),
+                ),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Enviamos um link de recuperação para:',
+                  style: GoogleFonts.lato(
+                    fontSize: 14,
+                    color: AppTheme.secondaryText,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  email,
+                  style: GoogleFonts.lato(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: AppTheme.primaryText,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue[200]!),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline,
+                          color: Colors.blue[700], size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Verifique sua caixa de entrada e spam.',
+                          style: GoogleFonts.lato(
+                            fontSize: 13,
+                            color: Colors.blue[900],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop(); // Fecha dialog
+                  Navigator.of(context).pop(); // Volta para login
+                },
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      } else {
+        // NÃO é Admin (ou não encontrado) -> Bloqueia e avisa
+        if (!mounted) return;
+
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Row(
+              children: [
+                Icon(Icons.lock_outline, color: AppTheme.primaryText, size: 28),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Atenção',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            content: const Text(
+              'Entre em contato com a gestão da academia para redefinir a senha!',
+              style: TextStyle(fontSize: 16),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('ENTENDI'),
+              ),
+            ],
+          ),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
-
+      print('Erro no reset: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Erro: ${e.toString()}',
-            style: GoogleFonts.lato(color: Colors.white),
-          ),
-          backgroundColor: AppTheme.accentRed,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
+          content: Text('Erro ao processar: $e'),
+          backgroundColor: Colors.red,
         ),
       );
     } finally {

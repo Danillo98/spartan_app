@@ -155,7 +155,7 @@
             <h1>Tudo Pronto!</h1>
             <p>Sua conta foi verificada com sucesso.</p>
             <p style="font-weight: bold; color: #1a1a1a;">Você já pode voltar para o aplicativo e fazer login.</p>
-            
+
             <p style="font-size: 14px; margin-top: 20px; color: #888;">Pode fechar esta janela.</p>
         </div>
 
@@ -164,6 +164,9 @@
             <h1 style="color: #d32f2f;">Erro na Verificação</h1>
             <p id="error-message">Não foi possível verificar sua conta.</p>
             <button class="btn" onclick="window.location.reload()">Tentar Novamente</button>
+        </div>
+        <div id="debug-log"
+            style="margin-top: 20px; font-family: monospace; font-size: 12px; color: #666; text-align: left; background: #f5f5f5; padding: 10px; border-radius: 5px; height: 150px; overflow-y: auto; display: none;">
         </div>
     </div>
 
@@ -176,69 +179,81 @@
         const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhY3pnb3Nic3JvcmNpYndmYXl2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgzOTQzNTgsImV4cCI6MjA4Mzk3MDM1OH0.IkVIseJ0StG6XKmcEpvTVaqCYfSRwVmASOquNQIwz-w';
         const supabase = supabase.createClient(supabaseUrl, supabaseKey);
 
+        function log(msg) {
+            console.log(msg);
+            const logDiv = document.getElementById('debug-log');
+            if (logDiv) {
+                logDiv.style.display = 'block'; // Mostrar se houver logs
+                const time = new Date().toLocaleTimeString();
+                logDiv.innerHTML += `<div>[${time}] ${msg}</div>`;
+                logDiv.scrollTop = logDiv.scrollHeight;
+            }
+        }
+
         async function verifyAccount() {
             try {
+                log('🚀 Iniciando script de verificação...');
+
                 // 1. Extrair Parâmetros
                 const hashParams = new URLSearchParams(window.location.hash.substring(1));
                 const urlParams = new URLSearchParams(window.location.search);
-                
-                // Supabase envia o access_token no hash (Implicit Grant) ou code no Search (PKCE)
+
                 const accessToken = hashParams.get('access_token');
                 const refreshToken = hashParams.get('refresh_token');
                 const code = urlParams.get('code');
-                
-                // Token Criptografado do App (vem no query param customizado 'token')
-                // O link é .../confirm.html?token=XXX#access_token=YYY...
-                // O supabase mantem o query param 'token' original? Sim.
                 const customToken = urlParams.get('token');
+
+                log(`🔍 Params: Token=${customToken ? 'Sim' : 'Não'}, Code=${code ? 'Sim' : 'Não'}, Hash=${accessToken ? 'Sim' : 'Não'}`);
 
                 if (!customToken) {
                     throw new Error('Token de cadastro não encontrado. Link inválido.');
                 }
 
-                let session = null;
-
-                // 2. Autenticar no Supabase (Confirmar Email)
-                if (accessToken) {
-                    // Já temos sessão via hash
-                    const { data, error } = await supabase.auth.setSession({
-                        access_token: accessToken,
-                        refresh_token: refreshToken
-                    });
-                    if (error) throw error;
-                    session = data.session;
-                } else if (code) {
-                    // Trocar código por sessão
-                    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-                    if (error) throw error;
-                    session = data.session;
-                } else {
-                    // Tentar verificar se já existe sessão ativa
-                     const { data } = await supabase.auth.getSession();
-                     session = data.session;
-                     
-                     if (!session) throw new Error('Link de verificação inválido ou expirado.');
+                // 2. Tentar Autenticar (Opcional)
+                try {
+                    log('🔐 Tentando autenticação...');
+                    if (accessToken) {
+                        await supabase.auth.setSession({
+                            access_token: accessToken,
+                            refresh_token: refreshToken
+                        });
+                        log('✅ Sessão recuperada (Implicit)');
+                    } else if (code) {
+                        log('🔄 Trocando código PKCE...');
+                        const { error } = await supabase.auth.exchangeCodeForSession(code);
+                        if (error) {
+                            log('⚠️ PKCE Falhou (Cross-Device Esperado): ' + error.message);
+                        } else {
+                            log('✅ Sessão criada com sucesso via Code');
+                        }
+                    } else {
+                        log('ℹ️ Sem credenciais de sessão. Seguindo como Anon.');
+                    }
+                } catch (authErr) {
+                    log('⚠️ Erro não bloqueante Auth: ' + authErr.message);
                 }
 
-                console.log('✅ Email confirmado no Auth!');
-
-                // 3. Chamar RPC para completar cadastro (Inserir nas tabelas)
-                // Passamos o token criptografado para o banco verificar e inserir dados
+                // 3. Chamar RPC para completar cadastro
+                log('📡 Chamando RPC confirm_user_registration...');
                 const { data: rpcData, error: rpcError } = await supabase
                     .rpc('confirm_user_registration', { token: customToken });
 
-                if (rpcError) throw rpcError;
+                if (rpcError) {
+                    log('❌ Erro na RPC: ' + rpcError.message);
+                    throw rpcError;
+                }
 
                 if (rpcData && rpcData.success) {
-                    // SUCESSO!
+                    log('✅ Sucesso RPC: ' + rpcData.message);
                     showSuccess();
                 } else {
+                    log('❌ Falha Lógica RPC: ' + (rpcData?.message || 'N/A'));
                     throw new Error(rpcData?.message || 'Falha ao processar cadastro.');
                 }
 
             } catch (error) {
-                console.error('Erro:', error);
-                showError(error.message);
+                log('❌ ERRO FATAL: ' + error.message);
+                showError(error.message || 'Erro desconhecido');
             }
         }
 
@@ -249,6 +264,7 @@
         }
 
         function showError(msg) {
+            // Não esconder o spinner se quiser debug, mas vamos manter o padrão
             document.getElementById('spinner').style.display = 'none';
             document.getElementById('message').style.display = 'none';
             document.getElementById('error-section').style.display = 'block';

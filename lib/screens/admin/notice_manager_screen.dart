@@ -400,36 +400,24 @@ class _NoticeFormModalState extends State<_NoticeFormModal> {
       // --- SEND NOTIFICATION ---
       // Send push notification after creating/updating notice
       try {
-        await NotificationService.notifyNotice(
-            _titleController.text.trim(), roleAuthorLabel,
-            targetStudentId: _selectedStudentId,
-            // Se for admin e não tiver target, pode querer mandar para todos (necessita CNPJ)
-            // Vamos assumir que NotificationService lida com isso se passarmos o CNPJ
-            academyCnpj: _isAdmin && _selectedStudentId == null
-                ? 'CURRENT_CNPJ_PLACEHOLDER'
-                : null
-            // Note: NoticeService gets CNPJ internally. We might need to fetch it to pass here
-            // or move notification logic INTO NoticeService to avoid double fetching.
-            // For now, let's just use the targetStudentId logic. Broadcast via CNPJ requires fetching CNPJ first.
-            );
+        String? targetCnpj;
 
-        // Se for broadcast (Admin sem user selecionado), precisamos do CNPJ
+        // Se for Admin e não selecionou ninguém -> Broadcast (Todos recebem)
         if (_isAdmin && _selectedStudentId == null) {
-          // Fetch CNPJ inside NotificationService logic or here.
-          // Simplest: Let NoticeService handle the notification?
-          // Or just fetch basic info.
-          // Let's rely on NoticeService returning/using context.
-          // Actually, best practice: Move notification call to NoticeService to ensure atomic op logic
-          // but here is fine for UI feedback.
-
-          // Fetch current user details to get CNPJ for broadcast
           final adminData = await AuthService.getCurrentUserData();
-          if (adminData != null) {
-            await NotificationService.notifyNotice(
-                _titleController.text.trim(), roleAuthorLabel,
-                academyCnpj: adminData['cnpj_academia']);
-          }
+          // Garante que pegamos o CNPJ correto do admin logado
+          targetCnpj = adminData?['cnpj_academia'];
         }
+
+        // A lógica do serviço já decide:
+        // - Se tiver targetStudentId -> Manda só para ele.
+        // - Se não tiver aluno, mas tiver academyCnpj -> Manda para o tópico (todos).
+        await NotificationService.notifyNotice(
+          _titleController.text.trim(),
+          roleAuthorLabel,
+          targetStudentId: _selectedStudentId,
+          academyCnpj: targetCnpj,
+        );
       } catch (e) {
         print("Erro ao enviar push: $e");
       }

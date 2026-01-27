@@ -137,6 +137,9 @@ class NotificationService {
 
   // --- USE CASES ---
 
+  // --- USE CASES ---
+
+  // 1. Treino (Já existe)
   static Future<void> notifyNewWorkout(
       String studentId, String personalName) async {
     await sendPush(
@@ -147,6 +150,7 @@ class NotificationService {
     );
   }
 
+  // 2. Dieta (Já existe)
   static Future<void> notifyNewDiet(String studentId, String nutriName) async {
     await sendPush(
       title: "Nova Dieta!",
@@ -156,10 +160,10 @@ class NotificationService {
     );
   }
 
+  // 3. Avisos (Já existe)
   static Future<void> notifyNotice(String title, String authorRole,
       {String? targetStudentId, String? academyCnpj}) async {
     if (targetStudentId != null) {
-      // Specific Student
       await sendPush(
         title: "Novo Aviso 📌",
         content: title,
@@ -167,7 +171,6 @@ class NotificationService {
         data: {"type": "notice"},
       );
     } else if (academyCnpj != null) {
-      // Academy Wide via Topic
       final topic =
           'academy_${academyCnpj.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '')}';
       await sendPush(
@@ -177,5 +180,78 @@ class NotificationService {
         data: {"type": "notice"},
       );
     }
+  }
+
+  // 4. Avaliação Física (NOVO)
+  static Future<void> notifyNewAssessment(String studentId) async {
+    await sendPush(
+      title: "Nova Avaliação Física 📏",
+      content: "Confira seus novos resultados e evolução no App!",
+      targetPlayerIds: [studentId],
+      data: {"type": "new_assessment"},
+    );
+  }
+
+  // 5. Agendamento (NOVO)
+  static Future<void> notifyNewAppointment(
+      List<String> professionalIds, String studentName, String dateStr) async {
+    await sendPush(
+      title: "Novo Agendamento 📅",
+      content:
+          "$studentName agendou um horário dia $dateStr. Confira sua agenda!",
+      targetPlayerIds: professionalIds,
+      data: {"type": "new_appointment"},
+    );
+  }
+
+  static Future<void> notifyAppointmentReminder(
+      String userId, String timeStr) async {
+    await sendPush(
+      title: "Lembrete de Agendamento ⏰",
+      content: "Você tem um compromisso hoje às $timeStr. Não se atrase!",
+      targetPlayerIds: [userId],
+      data: {"type": "appointment_reminder"},
+    );
+  }
+
+  // 6. Financeiro - Aluno (NOVO)
+  static Future<void> notifyPaymentDue(String studentId) async {
+    await sendPush(
+      title: "Mensalidade Vencendo 📅",
+      content: "Sua mensalidade vence hoje. Evite bloqueios renovando agora!",
+      targetPlayerIds: [studentId],
+      data: {"type": "payment_due"},
+    );
+  }
+
+  static Future<void> notifyPaymentOverdue(String studentId) async {
+    await sendPush(
+      title: "Mensalidade em Atraso ⚠️",
+      content:
+          "Consta uma pendência financeira. Regularize para acessar o app.",
+      targetPlayerIds: [studentId],
+      data: {"type": "payment_overdue"},
+    );
+  }
+
+  // 7. Financeiro - Admin (NOVO)
+  // Notifica o Admin sobre alunos vencidos
+  static Future<void> notifyAdminOverdueStudents(
+      String adminId, List<String> studentNames) async {
+    if (studentNames.isEmpty) return;
+
+    String content;
+    if (studentNames.length == 1) {
+      content = "O aluno ${studentNames.first} está com a mensalidade VENCIDA!";
+    } else {
+      content = "No momento existem alunos com as mensalidades VENCIDAS!";
+    }
+
+    await sendPush(
+      title: "Alerta Financeiro 💰",
+      content: content,
+      targetPlayerIds: [adminId],
+      data: {"type": "admin_financial_alert"},
+    );
   }
 }

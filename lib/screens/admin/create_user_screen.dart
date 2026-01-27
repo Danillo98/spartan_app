@@ -15,8 +15,7 @@ class CreateUserScreen extends StatefulWidget {
 }
 
 class _CreateUserScreenState extends State<CreateUserScreen> {
-  static const String _landingUrl =
-      'https://spartan-app-f8a98.web.app/landing.html';
+  static const String _landingUrl = 'https://spartanapp.com.br/landing.html';
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();

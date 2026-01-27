@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
+import 'notification_service.dart'; // Import Notification
 
 /*
   SQL REQUIRED FOR THIS SERVICE:

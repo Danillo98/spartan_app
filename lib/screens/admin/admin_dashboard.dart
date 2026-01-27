@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // Import SP
+import '../../services/financial_service.dart'; // Import Service
 import '../../services/auth_service.dart';
 import '../../config/app_theme.dart';
 import '../login_screen.dart';
@@ -73,11 +75,47 @@ class _AdminDashboardState extends State<AdminDashboard>
           _userData = data;
           _isLoading = false;
         });
+
+        // Após carregar usuário, checar notificações diárias
+        _checkDailyNotifications();
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  // Verificar se precisa rodar notificações automáticas (1x por dia)
+  Future<void> _checkDailyNotifications() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lastRunDate = prefs.getString('last_overdue_check_date');
+      final todayDate = DateTime.now().toIso8601String().split('T')[0];
+
+      // Se ainda não rodou hoje (ou nunca rodou)
+      if (lastRunDate != todayDate) {
+        debugPrint(
+            "📅 Executando verificação diária de inadimplência($todayDate)...");
+
+        // Usar o serviço Financeiro para checar e notificar
+        final result = await FinancialService.runOverdueCheckAndNotify();
+
+        if (result['success'] == true) {
+          debugPrint("✅ Verificação diária concluída: ${result['message']}");
+          // Salvar data de hoje para não rodar de novo
+          await prefs.setString('last_overdue_check_date', todayDate);
+        } else {
+          debugPrint("⚠️ Falha na verificação diária: ${result['message']}");
+          // Opcional: Não salvar data para tentar de novo no próximo load?
+          // Melhor salvar para não ficar tentando infinito se der erro persistente,
+          // mas por segurança aqui só salvamos se sucesso.
+        }
+      } else {
+        debugPrint("✅ Verificação diária já foi executada hoje.");
+      }
+    } catch (e) {
+      debugPrint("❌ Erro no check diário: $e");
     }
   }
 

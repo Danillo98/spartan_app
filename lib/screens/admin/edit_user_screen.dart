@@ -349,6 +349,34 @@ class _EditUserScreenState extends State<EditUserScreen> {
                   ),
                 ),
 
+                const SizedBox(height: 16),
+
+                // Botão Alterar Senha (Acesso rápido admin)
+                SizedBox(
+                  height: 56,
+                  child: OutlinedButton.icon(
+                    onPressed: _showChangePasswordDialog,
+                    icon: const Icon(Icons.lock_reset_rounded,
+                        color: Color(0xFF1A1A1A)),
+                    label: Text(
+                      'REDEFINIR SENHA',
+                      style: GoogleFonts.lato(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF1A1A1A),
+                        letterSpacing: 1,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(
+                          color: Color(0xFF1A1A1A), width: 1.5),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: AppTheme.buttonRadius,
+                      ),
+                    ),
+                  ),
+                ),
+
                 const SizedBox(height: 30),
               ],
             ),
@@ -455,6 +483,110 @@ class _EditUserScreenState extends State<EditUserScreen> {
         ),
         validator: validator,
       ),
+    );
+  }
+
+  void _showChangePasswordDialog() {
+    final passwordController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    bool obscureText = true;
+    bool isSaving = false;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: const Text('Redefinir Senha'),
+              content: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                        'Digite a nova senha para o usuário. Esta ação é imediata e não envia email.'),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: passwordController,
+                      obscureText: obscureText,
+                      decoration: InputDecoration(
+                        labelText: 'Nova Senha',
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          icon: Icon(obscureText
+                              ? Icons.visibility_off
+                              : Icons.visibility),
+                          onPressed: () {
+                            setStateDialog(() => obscureText = !obscureText);
+                          },
+                        ),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.length < 6) {
+                          return 'Mínimo de 6 caracteres';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSaving ? null : () => Navigator.pop(context),
+                  child: const Text('Cancelar'),
+                ),
+                ElevatedButton(
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          if (!formKey.currentState!.validate()) return;
+
+                          setStateDialog(() => isSaving = true);
+
+                          final result =
+                              await UserService.adminUpdateUserPassword(
+                            widget.user['id'],
+                            passwordController.text,
+                          );
+
+                          if (!context.mounted) return;
+                          Navigator.pop(context); // Close dialog
+
+                          if (result['success'] == true) {
+                            ScaffoldMessenger.of(this.context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Senha alterada com sucesso!'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          } else {
+                            ScaffoldMessenger.of(this.context).showSnackBar(
+                              SnackBar(
+                                content: Text(result['message']),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1A1A1A),
+                  ),
+                  child: isSaving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2))
+                      : const Text('Salvar Senha',
+                          style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

@@ -19,7 +19,7 @@ DECLARE
     calc_sig bytea;
     calc_sig_b64 text;
     payload_json jsonb;
-    current_user_id uuid;
+    v_user_id uuid;
     
     -- Variáveis de dados
     v_name text;
@@ -32,13 +32,7 @@ DECLARE
     
     v_address_parts text[];
 BEGIN
-    -- 1. Verificar autenticação
-    current_user_id := auth.uid();
-    IF current_user_id IS NULL THEN
-        RETURN jsonb_build_object('success', false, 'message', 'Usuário não autenticado. Faça login primeiro.');
-    END IF;
-
-    -- 2. Parse do Token (Formato: payload.signature)
+    -- 1. Parse do Token (Formato: payload.signature)
     parts := string_to_array(token, '.');
     IF array_length(parts, 1) != 2 THEN
         RETURN jsonb_build_object('success', false, 'message', 'Formato de token inválido.');
@@ -47,16 +41,12 @@ BEGIN
     payload_b64 := parts[1];
     signature_b64 := parts[2];
 
-    -- 3. Verificar Assinatura (HMAC SHA256)
+    -- 2. Verificar Assinatura (HMAC SHA256)
     -- Recalcula: sha256( payload_b64 + '.' + secret_key )
-    -- Nota: O Dart usa sha256.convert(utf8.encode('$base64Data.$_secretKey'))
-    -- Portanto é um HASH simples da string concatenada, não um HMAC padrão.
-    
     calc_sig := digest(payload_b64 || '.' || secret_key, 'sha256');
     calc_sig_b64 := encode(calc_sig, 'base64');
     
     -- Converter base64 padrão (Postgres) para UrlSafe (Dart)
-    -- + para -, / para _, remover =
     calc_sig_b64 := replace(replace(calc_sig_b64, '+', '-'), '/', '_');
     calc_sig_b64 := rtrim(calc_sig_b64, '=');
     
@@ -64,33 +54,43 @@ BEGIN
          RETURN jsonb_build_object('success', false, 'message', 'Assinatura do token inválida.');
     END IF;
 
-    -- 4. Decodificar Payload
-    -- Postgres precisa de base64 padrão (+ e /)
+    -- 3. Decodificar Payload
     payload_b64 := replace(replace(payload_b64, '-', '+'), '_', '/');
     
-    -- Adicionar padding se necessário (simplesmente tentar decodificar)
     BEGIN
         payload_json := convert_from(decode(payload_b64, 'base64'), 'UTF8')::jsonb;
     EXCEPTION WHEN OTHERS THEN
         RETURN jsonb_build_object('success', false, 'message', 'Erro ao decodificar payload JSON.');
     END;
 
-    -- 5. Extrair Dados
-    v_name := payload_json->>'name';
+    -- 4. Extrair e Validar Usuário
     v_email := payload_json->>'email';
-     -- password ignorado
+    
+    -- Buscar ID do usuário no Auth (sem depender da sessão atual)
+    SELECT id INTO v_user_id FROM auth.users WHERE email = v_email;
+    
+    IF v_user_id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'message', 'Usuário não encontrado. Cadastre-se novamente.');
+    END IF;
+
+    -- 5. Extrair Restante dos Dados
+    v_name := payload_json->>'name';
     v_phone := payload_json->>'phone';
     v_cnpj := payload_json->>'cnpj'; -- ID/CNPJ Academia
     v_cpf := payload_json->>'cpf';   -- Nome Academia
     v_address := payload_json->>'address';
     
-    -- 6. Inserir na Tabela Correta
-    -- Parse do address para pegar o role: role|...
+    -- 6. Confirmar Email Manualmente (Bypass PKCE Confirm)
+    UPDATE auth.users 
+    SET email_confirmed_at = NOW(),
+        updated_at = NOW()
+    WHERE id = v_user_id;
+
+    -- 7. Inserir na Tabela Correta
     v_address_parts := string_to_array(v_address, '|');
     v_role := v_address_parts[1]; 
     
     IF v_role = 'admin' THEN
-         -- Inserir Admin
          INSERT INTO public.users_adm (
             id, 
             nome, 
@@ -103,21 +103,20 @@ BEGIN
             email_verified
          )
          VALUES (
-            current_user_id, 
+            v_user_id, 
             v_name, 
             v_email, 
             v_phone, 
             v_cnpj, 
             v_cpf, 
-            CASE WHEN array_length(v_address_parts, 1) >= 3 THEN v_address_parts[3] ELSE '' END, -- CPF pessoal
-            CASE WHEN array_length(v_address_parts, 1) >= 4 THEN v_address_parts[4] ELSE '' END, -- Endereço
+            CASE WHEN array_length(v_address_parts, 1) >= 3 THEN v_address_parts[3] ELSE '' END, 
+            CASE WHEN array_length(v_address_parts, 1) >= 4 THEN v_address_parts[4] ELSE '' END, 
             true
          )
          ON CONFLICT (id) DO UPDATE SET email_verified = true;
          
          RETURN jsonb_build_object('success', true, 'message', 'Administrador confirmado com sucesso!');
     ELSE
-         -- Outros roles (apenas segurança)
          RETURN jsonb_build_object('success', false, 'message', 'Role não suportado por esta função.');
     END IF;
 
@@ -125,3 +124,6 @@ EXCEPTION WHEN OTHERS THEN
     RETURN jsonb_build_object('success', false, 'message', 'Erro interno no banco: ' || SQLERRM);
 END;
 $$;
+
+-- 3. Permitir que Anon e Authenticated executem a função
+GRANT EXECUTE ON FUNCTION public.confirm_user_registration(text) TO anon, authenticated, service_role;
