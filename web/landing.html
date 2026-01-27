@@ -244,6 +244,14 @@
             ⬇️ Instalar Aplicativo
         </button>
 
+        <!-- Aviso sobre Chrome -->
+        <p
+            style="font-size: 13px; color: #666; margin-top: 8px; max-width: 400px; margin-left: auto; margin-right: auto; line-height: 1.4;">
+            * A instalação automática é otimizada para <strong>Google Chrome</strong> e <strong>Edge</strong>.<br>
+            Em outros navegadores (Firefox, Safari, Opera), utilize a opção <strong>"Adicionar à Tela Inicial"</strong>
+            ou <strong>"Instalar App"</strong> no menu.
+        </p>
+
         <!-- Mensagem de Status -->
         <p id="system-message"
             style="display:none; color: #1a1a1a; margin-top: 15px; font-weight: bold; font-size: 14px; background: #e8f5e9; padding: 10px; border-radius: 8px; border: 1px solid #c8e6c9;">
@@ -427,6 +435,8 @@
         }
 
         function openInBrowser() {
+            // Marca que o usuário escolheu usar o navegador para não mostrar o banner novamente
+            sessionStorage.setItem('install_banner_dismissed', 'true');
             window.location.href = "/"; // Vai para a raiz (Login Screen)
         }
 
