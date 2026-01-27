@@ -41,6 +41,65 @@
 </head>
 
 <body>
+    <!-- PWA Install Prompt Banner -->
+    <div id="install-banner" s
+        style="display: none; position: fixed; bottom: 0; left: 0; width: 100%; background: #1a1a1a; color: white; padding: 16px; box-shadow: 0 -4px 10px rgba(0,0,0,0.3); z-index: 9999; font-family: sans-serif; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <div
+                style="background: #ffd700; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 20px;">
+                💪</div>
+            <div>
+                <div style="font-weight: bold; font-size: 14px;">Instale o Spartan App</div>
+                <div style="font-size: 12px; opacity: 0.8;">Melhor experiência e acesso rápido</div>
+            </div>
+        </div>
+        <div style="display: flex; items-center; gap: 10px;">
+            <button onclick="goToLanding()"
+                style="background: #ffd700; color: #1a1a1a; border: none; padding: 8px 16px; border-radius: 20px; font-weight: bold; font-size: 12px; cursor: pointer;">
+                BAIXAR
+            </button>
+            <button onclick="dismissInstall()"
+                style="background: transparent; color: white; border: none; font-size: 20px; cursor: pointer; padding: 0 8px;">
+                &times;
+            </button>
+        </div>
+    </div>
+
+    <script>
+        function goToLanding() {
+            window.location.href = 'landing.html';
+        }
+
+        function dismissInstall() {
+            document.getElementById('install-banner').style.display = 'none';
+            sessionStorage.setItem('install_banner_dismissed', 'true');
+        }
+
+        // Logic to show banner
+        window.addEventListener('load', function () {
+            // 1. Check if running as PWA (Standalone)
+            const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+            // 2. Check if user already dismissed in this session
+            const isDismissed = sessionStorage.getItem('install_banner_dismissed') === 'true';
+
+            // 3. Show if NOT standalone and NOT dismissed
+            if (!isStandalone && !isDismissed) {
+                // Check for PWA installability (Optional: Only show if installable)
+                // But user wants to promote download generally (even for desktop exe)
+
+                // Delay slightly to not jar user
+                setTimeout(() => {
+                    const banner = document.getElementById('install-banner');
+                    banner.style.display = 'flex';
+                    // Fade in animation
+                    banner.style.opacity = '0';
+                    banner.style.transition = 'opacity 0.5s';
+                    setTimeout(() => banner.style.opacity = '1', 50);
+                }, 2000);
+            }
+        });
+    </script>
 </body>
 
 </html>
