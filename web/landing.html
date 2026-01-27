@@ -295,93 +295,154 @@
         </div>
     </div>
 
-    <script>
-        // Detecta o tipo de dispositivo e mostra instruções apropriadas
-        function detectDevice() {
-            const userAgent = navigator.userAgent.toLowerCase();
-            const isAndroid = /android/.test(userAgent);
-            const isIOS = /iphone|ipad|ipod/.test(userAgent);
+    <!-- Overlay de Instalação (Barra de Progresso) -->
+    <div id="installOverlay"
+        style="display:none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
+        <div style="color: white; font-size: 24px; font-weight: bold; margin-bottom: 20px;">Instalando Spartan App...
+        </div>
+        <div style="width: 300px; height: 10px; background: #333; border-radius: 5px; overflow: hidden;">
+            <div id="installProgress"
+                style="width: 0%; height: 100%; background: #ffd700; transition: width 0.1s linear;"></div>
+        </div>
+        <div id="installStatus" style="color: #ccc; margin-top: 10px; font-size: 14px;">Preparando arquivos...</div>
+    </div>
 
-            if (isAndroid) {
-                document.getElementById('android-instructions').style.display = 'block';
-            } else if (isIOS) {
-                document.getElementById('ios-instructions').style.display = 'block';
-                // iOS: Destacar instruções imediatamente
-                document.querySelector('.instructions').style.background = '#fff8e1';
-                document.querySelector('.instructions').style.border = '2px solid #ffc107';
-            } else {
-                document.getElementById('desktop-instructions').style.display = 'block';
+    <!-- Modal de Decisão Pós-Instalação -->
+    <div id="postInstallModal"
+        style="display:none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center;">
+        <div
+            style="background: white; padding: 30px; border-radius: 20px; width: 90%; max-width: 450px; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.3); animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
+            <div style="font-size: 50px; margin-bottom: 20px;">🎉</div>
+            <h2 style="color: #1a1a1a; margin-bottom: 10px;">Instalação Concluída!</h2>
+            <p style="color: #666; margin-bottom: 30px; font-size: 16px;">Como você deseja acessar o Spartan App agora?
+            </p>
+
+            <div style="display: flex; flex-direction: column; gap: 15px;">
+                <button onclick="openDesktopApp()" class="install-button"
+                    style="margin: 0; background: #1a1a1a; padding: 15px;">
+                    🖥️ Abrir Aplicativo Desktop
+                </button>
+                <button onclick="openInBrowser()" class="install-button"
+                    style="margin: 0; background: #f0f0f0; color: #333; padding: 15px; border: 1px solid #ddd;">
+                    🌐 Continuar no Navegador
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        @keyframes popIn {
+            from {
+                transform: scale(0.8);
+                opacity: 0;
+            }
+
+            to {
+                transform: scale(1);
+                opacity: 1;
             }
         }
+    </style>
 
+    <script>
         // Variáveis globais
-        const APP_URL = window.location.origin;
-        const deepLink = 'io.supabase.spartanapp://home';
-
-        // Suporte para instalação PWA
         let deferredPrompt;
+        const installOverlay = document.getElementById('installOverlay');
+        const progressBar = document.getElementById('installProgress');
+        const statusText = document.getElementById('installStatus');
+        const modal = document.getElementById('postInstallModal');
 
+        // Captura evento PWA
         window.addEventListener('beforeinstallprompt', (e) => {
-            console.log('PWA pode ser instalado');
             e.preventDefault();
             deferredPrompt = e;
-            // Se for Android, podemos até sugerir automaticamente
+            console.log("PWA Ready");
         });
 
-        // Lógica Unificada do Botão "Instalar Aplicativo"
-        document.getElementById('accessSystemBtn').addEventListener('click', async (e) => {
-            const userAgent = navigator.userAgent.toLowerCase();
-            const isIOS = /iphone|ipad|ipod/.test(userAgent);
-            const msgElement = document.getElementById('system-message');
-            msgElement.style.display = 'block';
+        // Simula barra de progresso
+        function simulateProgress(callback) {
+            installOverlay.style.display = 'flex';
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += Math.random() * 15;
+                if (progress > 100) progress = 100;
 
-            // CASO 1: iOS (Tratamento Especial)
-            if (isIOS) {
-                msgElement.innerHTML = '🍎 Para instalar no iPhone/iPad:<br>1. Toque no botão de <strong>Compartilhar</strong> (abaixo)<br>2. Selecione <strong>Toque em "Adicionar à Tela de Início"</strong>';
-                msgElement.style.background = '#e3f2fd';
-                msgElement.style.border = '1px solid #2196f3';
+                progressBar.style.width = `${progress}%`;
 
-                // Animar as instruções para chamar atenção
-                const instructions = document.querySelector('.instructions');
-                instructions.scrollIntoView({ behavior: 'smooth' });
-                instructions.style.transition = 'transform 0.5s';
-                instructions.style.transform = 'scale(1.05)';
-                setTimeout(() => instructions.style.transform = 'scale(1)', 500);
+                if (progress < 30) statusText.innerText = "Baixando pacotes...";
+                else if (progress < 70) statusText.innerText = "Configurando ambiente...";
+                else statusText.innerText = "Finalizando instalação...";
 
-                return; // Pára aqui no iOS
-            }
+                if (progress === 100) {
+                    clearInterval(interval);
+                    setTimeout(() => {
+                        installOverlay.style.display = 'none';
+                        if (callback) callback();
+                    }, 500);
+                }
+            }, 200);
+        }
 
-            // CASO 2: PWA Disponível (Android/Desktop)
+        // Ação do Botão Principal
+        document.getElementById('accessSystemBtn').addEventListener('click', async () => {
+            // 1. Tentar Prompt PWA (Se disponível)
             if (deferredPrompt) {
-                msgElement.innerHTML = '🔄 Iniciando... Confirme na tela!';
-                e.preventDefault();
                 deferredPrompt.prompt();
                 const { outcome } = await deferredPrompt.userChoice;
                 deferredPrompt = null;
 
                 if (outcome === 'accepted') {
-                    msgElement.innerHTML = '✅ Instalando...';
+                    // Se aceitou, mostra progresso fake para dar sensação de "Instalando"
+                    simulateProgress(() => {
+                        modal.style.display = 'flex';
+                    });
                 } else {
-                    msgElement.innerHTML = '⚠️ Instalação cancelada. Abrindo site...';
-                    setTimeout(() => window.location.href = '/', 1500);
+                    // Se cancelou, apenas avisa
+                    alert("Instalação cancelada pelo usuário.");
                 }
-            }
-            // CASO 3: Fallback (Já instalado ou não suportado)
-            else {
-                msgElement.innerHTML = '📱 Abrindo App...';
-                window.location.href = deepLink;
-                setTimeout(() => window.location.href = '/', 1000);
+            } else {
+                // Se não suporta PWA ou já instalado (ou PC Desktop sem suporte PWA direto via botão)
+                // Apenas simula a instalação (Fluxo Desktop EXE)
+                simulateProgress(() => {
+                    modal.style.display = 'flex';
+                });
             }
         });
 
-        // Inicializa
-        detectDevice();
+        // Funções do Modal
+        function openDesktopApp() {
+            // Tenta abrir via Deep Link (se configurado) ou redireciona para login (WebApp atua como Desktop)
+            // Como é um PWA, "Abrir Desktop" muitas vezes significa abrir a janela PWA instalada.
+            // O navegador cuida disso se o usuário instalou.
+            // Se for exe nativo, precisaria de protocolo customizado.
 
+            // Tenta abrir protocolo customizado (se existir)
+            window.location.href = "spartan://open";
+
+            // Fallback visual
+            setTimeout(() => {
+                alert("Se o app não abrir, verifique se foi instalado corretamente ou use a versão Web.");
+                window.location.href = "/"; // Vai para tela de login do PWA
+            }, 1000);
+        }
+
+        function openInBrowser() {
+            window.location.href = "/"; // Vai para a raiz (Login Screen)
+        }
+
+        // Service Worker
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('flutter_service_worker.js');
             });
         }
+
+        // Detecta dispositivo (Apenas Visual)
+        const userAgent = navigator.userAgent.toLowerCase();
+        if (/android/.test(userAgent)) document.getElementById('android-instructions').style.display = 'block';
+        else if (/iphone|ipad|ipod/.test(userAgent)) document.getElementById('ios-instructions').style.display = 'block';
+        else document.getElementById('desktop-instructions').style.display = 'block';
+
     </script>
 </body>
 
