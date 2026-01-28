@@ -634,17 +634,36 @@ class AuthService {
     try {
       print('📧 Enviando email de recuperação para: $email');
 
-      // Enviar email de recuperação diretamente (sem verificação adicional de RPC)
-      // O próprio botão só aparece para administradores no App
-      print('📧 Enviando email de recuperação...');
+      // Enviar email de recuperação usando sistema customizado
+      print('📧 Gerando token de recuperação...');
 
-      // Enviar email de recuperação - abre na mesma aba se já estiver aberta
-      await _client.auth.resetPasswordForEmail(
-        email,
-        redirectTo: 'https://spartanapp.com.br/reset-password.html',
-      );
+      // 1. Gerar token via RPC
+      final response = await _client.rpc('request_password_reset', params: {
+        'user_email': email,
+      });
 
-      print('✅ Email de recuperação enviado com sucesso');
+      if (response == null || response['success'] != true) {
+        throw AuthException(response?['message'] ?? 'Erro ao gerar token');
+      }
+
+      final resetUrl = response['reset_url'] as String?;
+
+      if (resetUrl == null) {
+        throw AuthException('URL de reset não foi gerada');
+      }
+
+      print('✅ Token gerado: ${response['message']}');
+      print('🔗 URL de reset: $resetUrl');
+
+      // 2. Enviar email usando Supabase Auth com o link customizado
+      // Usamos resetPasswordForEmail mas o usuário vai ignorar o link do Supabase
+      // e usar nosso link customizado que enviamos por outro meio
+      // Por enquanto, vamos apenas retornar sucesso pois o token foi gerado
+
+      print('✅ Link de recuperação gerado com sucesso');
+
+      // TODO: Implementar envio de email customizado via serviço externo
+      // Por enquanto, o admin pode copiar o link do console e enviar manualmente
     } on AuthException catch (e) {
       print('❌ Erro ao enviar email: ${e.message}');
       throw Exception(_getAuthErrorMessage(e.message));
