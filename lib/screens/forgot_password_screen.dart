@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart'; // Import Supabase
+
 import '../services/auth_service.dart';
 import '../config/app_theme.dart';
 
