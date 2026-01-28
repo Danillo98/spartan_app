@@ -184,14 +184,17 @@
         const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
         function log(msg) {
+            // Apenas log no console (invisível para o usuário)
             console.log(msg);
-            const logDiv = document.getElementById('debug-log');
-            if (logDiv) {
-                logDiv.style.display = 'block'; // Mostrar se houver logs
-                const time = new Date().toLocaleTimeString();
-                logDiv.innerHTML += `<div>[${time}] ${msg}</div>`;
-                logDiv.scrollTop = logDiv.scrollHeight;
-            }
+
+            // Debug visual desabilitado em produção
+            // const logDiv = document.getElementById('debug-log');
+            // if (logDiv) {
+            //     logDiv.style.display = 'block';
+            //     const time = new Date().toLocaleTimeString();
+            //     logDiv.innerHTML += `<div>[${time}] ${msg}</div>`;
+            //     logDiv.scrollTop = logDiv.scrollHeight;
+            // }
         }
 
         async function verifyAccount() {
