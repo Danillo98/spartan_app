@@ -634,25 +634,14 @@ class AuthService {
     try {
       print('📧 Enviando email de recuperação para: $email');
 
-      // Verificar se o email existe na tabela users
-      // Verificar se o email existe via RPC segura (bypassa RLS)
-      print('🔍 Buscando email: $email via RPC check_admin_email_exists...');
-
-      final bool isAdmin = await _client
-          .rpc('check_admin_email_exists', params: {'email_input': email});
-
-      if (!isAdmin) {
-        print('⚠️ Abortando envio: Email não é de um administrador.');
-        throw AuthException(
-            'Este email não possui permissão de administrador ou não existe.');
-      }
-
-      print('✅ Email de administrador confirmado via RPC.');
+      // Enviar email de recuperação diretamente (sem verificação adicional de RPC)
+      // O próprio botão só aparece para administradores no App
+      print('📧 Enviando email de recuperação...');
 
       // Enviar email de recuperação - abre na mesma aba se já estiver aberta
       await _client.auth.resetPasswordForEmail(
         email,
-        redirectTo: 'https://spartanapp.com.br/',
+        redirectTo: 'https://spartanapp.com.br/reset-password.html',
       );
 
       print('✅ Email de recuperação enviado com sucesso');
