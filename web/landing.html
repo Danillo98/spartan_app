@@ -321,18 +321,19 @@
         <div
             style="background: white; padding: 30px; border-radius: 20px; width: 90%; max-width: 450px; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.3); animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
             <div style="font-size: 50px; margin-bottom: 20px;">🎉</div>
-            <h2 style="color: #1a1a1a; margin-bottom: 10px;">Instalação Concluída!</h2>
-            <p style="color: #666; margin-bottom: 30px; font-size: 16px;">Como você deseja acessar o Spartan App agora?
-            </p>
+            <h2 style="color: #1a1a1a; margin-bottom: 10px; font-size: 20px;">Verifique se seu dispositivo concluiu a
+                instalação automática!</h2>
+            <p style="color: #666; margin-bottom: 30px; font-size: 15px;">Caso não tenha instalado, siga as instruções
+                para adicionar a Tela Inicial!</p>
 
             <div style="display: flex; flex-direction: column; gap: 15px;">
                 <button onclick="openDesktopApp()" class="install-button"
                     style="margin: 0; background: #1a1a1a; padding: 15px;">
-                    🖥️ Abrir Aplicativo Desktop
+                    🚀 Acessar Agora
                 </button>
                 <button onclick="openInBrowser()" class="install-button"
                     style="margin: 0; background: #f0f0f0; color: #333; padding: 15px; border: 1px solid #ddd;">
-                    🌐 Continuar no Navegador
+                    📖 Ver instruções
                 </button>
             </div>
         </div>
@@ -399,15 +400,11 @@
                 const { outcome } = await deferredPrompt.userChoice;
                 deferredPrompt = null;
 
-                if (outcome === 'accepted') {
-                    // Se aceitou, mostra progresso fake para dar sensação de "Instalando"
-                    simulateProgress(() => {
-                        modal.style.display = 'flex';
-                    });
-                } else {
-                    // Se cancelou, apenas avisa
-                    alert("Instalação cancelada pelo usuário.");
-                }
+                // Em ambos os casos (aceitou ou ignorou), mostra o modal de verificação
+                // O usuário pode ter ignorado por engano ou o browser pode ter bloqueado
+                simulateProgress(() => {
+                    modal.style.display = 'flex';
+                });
             } else {
                 // Se não suporta PWA ou já instalado (ou PC Desktop sem suporte PWA direto via botão)
                 // Apenas simula a instalação (Fluxo Desktop EXE)
@@ -429,17 +426,20 @@
 
             // Fallback visual
             setTimeout(() => {
-                alert("Se o app não abrir, verifique se foi instalado corretamente ou use a versão Web.");
-                window.location.href = "/"; // Vai para tela de login do PWA
-            }, 1000);
+                // Se o deep link falhar, vai para a home do PWA
+                window.location.href = "/";
+            }, 500);
         }
 
         function openInBrowser() {
-            // Marca que o usuário escolheu usar o navegador para não mostrar o banner novamente
-            sessionStorage.setItem('install_banner_dismissed', 'true');
+            // Fecha o modal
+            modal.style.display = 'none';
 
-            // Adiciona parâmetro para tentar forçar navegação no browser e evitar deep link exato
-            window.location.assign(window.location.origin + '/?browser_mode=true');
+            // Focan nas instruções
+            document.querySelector('.instructions').scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
         }
 
         // Service Worker
