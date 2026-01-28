@@ -64,131 +64,90 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     try {
       final email = _emailController.text.trim();
 
-      // 1. Verificar se é Admin (para economizar e-mails)
-      // Tenta buscar na tabela de admins
-      final adminData = await Supabase.instance.client
-          .from('users_adm')
-          .select('id')
-          .eq('email', email)
-          .maybeSingle();
+      // Envia o email diretamente
+      await AuthService.sendPasswordResetEmail(email);
 
-      if (adminData != null) {
-        // É Admin -> Pode enviar e-mail
-        await AuthService.sendPasswordResetEmail(email);
+      if (!mounted) return;
 
-        if (!mounted) return;
-
-        // Mostrar mensagem de sucesso (Link Enviado)
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            title: Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.green[600], size: 32),
-                const SizedBox(width: 12),
-                Text(
-                  'Email Enviado!',
-                  style: GoogleFonts.cinzel(
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.primaryText,
-                  ),
+      // Mostrar mensagem de sucesso (Link Enviado)
+      // Mostramos sucesso mesmo se o email não existir (Segurança)
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.green[600], size: 32),
+              const SizedBox(width: 12),
+              Text(
+                'Email Enviado!',
+                style: GoogleFonts.cinzel(
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.primaryText,
                 ),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Enviamos um link de recuperação para:',
-                  style: GoogleFonts.lato(
-                    fontSize: 14,
-                    color: AppTheme.secondaryText,
-                  ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Se o email estiver cadastrado, você receberá um link em:',
+                style: GoogleFonts.lato(
+                  fontSize: 14,
+                  color: AppTheme.secondaryText,
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  email,
-                  style: GoogleFonts.lato(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: AppTheme.primaryText,
-                  ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                email,
+                style: GoogleFonts.lato(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: AppTheme.primaryText,
                 ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.blue[50],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.blue[200]!),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline,
-                          color: Colors.blue[700], size: 20),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Verifique sua caixa de entrada e spam.',
-                          style: GoogleFonts.lato(
-                            fontSize: 13,
-                            color: Colors.blue[900],
-                          ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Verifique sua caixa de entrada e spam.',
+                        style: GoogleFonts.lato(
+                          fontSize: 13,
+                          color: Colors.blue[900],
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop(); // Fecha dialog
-                  Navigator.of(context).pop(); // Volta para login
-                },
-                child: const Text('OK'),
               ),
             ],
           ),
-        );
-      } else {
-        // NÃO é Admin (ou não encontrado) -> Bloqueia e avisa
-        if (!mounted) return;
-
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Row(
-              children: [
-                Icon(Icons.lock_outline, color: AppTheme.primaryText, size: 28),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Text(
-                    'Atenção',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Fecha dialog
+                Navigator.of(context).pop(); // Volta para login
+              },
+              child: const Text('OK'),
             ),
-            content: const Text(
-              'Entre em contato com a gestão da academia para redefinir a senha!',
-              style: TextStyle(fontSize: 16),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('ENTENDI'),
-              ),
-            ],
-          ),
-        );
-      }
+          ],
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       print('Erro no reset: $e');
