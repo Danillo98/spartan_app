@@ -20,15 +20,18 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseKey)
 
-    // Gerar link de recuperação
-    const { data, error } = await supabase.auth.admin.generateLink({
-      type: 'recovery',
-      email: email,
+    // Chamar RPC para gerar token customizado
+    const { data: rpcData, error: rpcError } = await supabase.rpc('request_password_reset', {
+      user_email: email
     })
 
-    if (error) throw error
+    if (rpcError) throw rpcError
+    
+    if (!rpcData || !rpcData.success) {
+      throw new Error(rpcData?.message || 'Erro ao gerar token')
+    }
 
-    const resetLink = data.properties?.action_link || ''
+    const resetLink = rpcData.reset_url
 
     // Template HTML do email em português
     const htmlContent = `
@@ -128,45 +131,37 @@ serve(async (req) => {
 </html>
     `
 
-    // Enviar email usando Resend (se configurado) ou retornar link
+    // Enviar email usando Resend
     const resendApiKey = Deno.env.get('RESEND_API_KEY')
 
-    if (resendApiKey) {
-      const res = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${resendApiKey}`,
-        },
-        body: JSON.stringify({
-          from: 'Spartan App <noreply@spartanapp.com>',
-          to: [email],
-          subject: '🔐 Recuperação de Senha - Spartan App',
-          html: htmlContent,
-        }),
-      })
-
-      const resendData = await res.json()
-
-      if (!res.ok) {
-        throw new Error(`Erro ao enviar email: ${JSON.stringify(resendData)}`)
-      }
-
-      return new Response(
-        JSON.stringify({ success: true, message: 'Email enviado com sucesso!' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    } else {
-      // Se não tiver Resend configurado, retornar o link
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: 'Link gerado com sucesso!',
-          resetLink: resetLink 
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    if (!resendApiKey) {
+      throw new Error('RESEND_API_KEY não configurada')
     }
+
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${resendApiKey}`,
+      },
+      body: JSON.stringify({
+        from: 'Spartan App <noreply@spartanapp.com>',
+        to: [email],
+        subject: '🔐 Recuperação de Senha - Spartan App',
+        html: htmlContent,
+      }),
+    })
+
+    const resendData = await res.json()
+
+    if (!res.ok) {
+      throw new Error(`Erro ao enviar email: ${JSON.stringify(resendData)}`)
+    }
+
+    return new Response(
+      JSON.stringify({ success: true, message: 'Email enviado com sucesso!' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
 
   } catch (error) {
     return new Response(
