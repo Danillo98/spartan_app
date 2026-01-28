@@ -179,7 +179,9 @@
         // Configuração do Supabase (Mesmas chaves do App)
         const supabaseUrl = 'https://waczgosbsrorcibwfayv.supabase.co';
         const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhY3pnb3Nic3JvcmNpYndmYXl2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgzOTQzNTgsImV4cCI6MjA4Mzk3MDM1OH0.IkVIseJ0StG6XKmcEpvTVaqCYfSRwVmASOquNQIwz-w';
-        const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
+        // CORREÇÃO: Usar nome diferente para evitar conflito com a lib global 'supabase'
+        const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
         function log(msg) {
             console.log(msg);
@@ -215,14 +217,14 @@
                 try {
                     log('🔐 Tentando autenticação...');
                     if (accessToken) {
-                        await supabase.auth.setSession({
+                        await supabaseClient.auth.setSession({
                             access_token: accessToken,
                             refresh_token: refreshToken
                         });
                         log('✅ Sessão recuperada (Implicit)');
                     } else if (code) {
                         log('🔄 Trocando código PKCE...');
-                        const { error } = await supabase.auth.exchangeCodeForSession(code);
+                        const { error } = await supabaseClient.auth.exchangeCodeForSession(code);
                         if (error) {
                             log('⚠️ PKCE Falhou (Cross-Device Esperado): ' + error.message);
                         } else {
@@ -237,7 +239,7 @@
 
                 // 3. Chamar RPC para completar cadastro
                 log('📡 Chamando RPC confirm_user_registration...');
-                const { data: rpcData, error: rpcError } = await supabase
+                const { data: rpcData, error: rpcError } = await supabaseClient
                     .rpc('confirm_user_registration', { token: customToken });
 
                 if (rpcError) {
@@ -272,6 +274,13 @@
             document.getElementById('error-section').style.display = 'block';
             document.getElementById('error-message').innerText = msg;
         }
+
+        // Global Error Handler
+        window.onerror = function (msg, url, line, col, error) {
+            log(`❌ ERRO GLOBAL: ${msg}`);
+            showError(`Erro inesperado: ${msg}`);
+            return false;
+        };
 
         // Iniciar
         verifyAccount();
