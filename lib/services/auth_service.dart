@@ -525,7 +525,11 @@ class AuthService {
         };
       }
 
-      // Verificar bloqueio
+      // ===============================================
+      // VERIFICAÇÃO DE BLOQUEIO E ACESSO FINANCEIRO
+      // ===============================================
+
+      // 1. Bloqueio Manual (is_blocked = true) tem prioridade absoluta
       if (userData['is_blocked'] == true) {
         await _client.auth.signOut();
         return {
@@ -533,6 +537,32 @@ class AuthService {
           'message':
               'Conta bloqueada. Entre em contato com a administração da academia.',
         };
+      }
+
+      // 2. Bloqueio Financeiro (Apenas para Alunos)
+      // Se não pagou no mês atual e já passou da data de vencimento -> BLOQUEIA
+      if (userData['role'] == 'student') {
+        final paymentDueDay = userData['payment_due_day'] as int?;
+        // Tentar obter id_academia de várias formas possíveis (id_academia ou created_by_admin_id)
+        final idAcademia = userData['id_academia'] as String? ??
+            userData['created_by_admin_id'] as String?;
+
+        if (idAcademia != null && paymentDueDay != null) {
+          final isOverdue = await FinancialService.isStudentOverdue(
+            studentId: userData['id'],
+            idAcademia: idAcademia,
+            paymentDueDay: paymentDueDay,
+          );
+
+          if (isOverdue) {
+            await _client.auth.signOut();
+            return {
+              'success': false,
+              'message':
+                  'Mensalidade vencida. Realize o pagamento para restaurar o acesso.',
+            };
+          }
+        }
       }
 
       // 🔔 Configurar Notificações (Tópico da Academia)
