@@ -595,11 +595,14 @@ class _FinancialDashboardScreenState extends State<FinancialDashboardScreen> {
                       ),
                     ],
 
-                    // Label de Usuário (se houver)
-                    if (userRoleLabel != null) ...[
+                    // Label de Usuário e Nome
+                    if (t['user_name'] != null || userRoleLabel != null) ...[
                       Text(' • ', style: TextStyle(color: Colors.grey[400])),
                       Text(
-                        userRoleLabel.toUpperCase(),
+                        [
+                          t['user_name'],
+                          (userRoleLabel != null ? '($userRoleLabel)' : null)
+                        ].where((e) => e != null).join(' ').toUpperCase(),
                         style: GoogleFonts.lato(
                           fontSize: 10,
                           fontWeight: FontWeight.bold,

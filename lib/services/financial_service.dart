@@ -127,6 +127,9 @@ class FinancialService {
       transactions.add(projected);
     }
 
+    // 4. (NOVO) Enriquecer com nomes dos usuários
+    await _enrichWithUserNames(transactions);
+
     // Reordenar tudo por data (decrescente)
     transactions.sort((a, b) {
       final dateA = DateTime.parse(a['transaction_date']);
@@ -138,6 +141,63 @@ class FinancialService {
     });
 
     return transactions;
+  }
+
+  // Helper para buscar nomes de usuários em lote
+  static Future<void> _enrichWithUserNames(
+      List<Map<String, dynamic>> transactions) async {
+    final studentIds = <String>{};
+    final trainerIds = <String>{};
+    final nutritionistIds = <String>{};
+
+    // 1. Coletar IDs
+    for (var t in transactions) {
+      final uid = t['related_user_id'] as String?;
+      final role = t['related_user_role'] as String?;
+      if (uid != null && role != null) {
+        if (role == 'student') studentIds.add(uid);
+        if (role == 'trainer') trainerIds.add(uid);
+        if (role == 'nutritionist') nutritionistIds.add(uid);
+      }
+    }
+
+    final namesMap = <String, String>{};
+
+    // 2. Buscar nomes (em paralelo para performance)
+    await Future.wait([
+      if (studentIds.isNotEmpty)
+        _client
+            .from('users_alunos')
+            .select('id, nome')
+            .filter('id', 'in', studentIds.toList())
+            .then((rows) {
+          for (var r in rows) namesMap[r['id']] = r['nome'];
+        }),
+      if (trainerIds.isNotEmpty)
+        _client
+            .from('users_personal')
+            .select('id, nome')
+            .filter('id', 'in', trainerIds.toList())
+            .then((rows) {
+          for (var r in rows) namesMap[r['id']] = r['nome'];
+        }),
+      if (nutritionistIds.isNotEmpty)
+        _client
+            .from('users_nutricionista')
+            .select('id, nome')
+            .filter('id', 'in', nutritionistIds.toList())
+            .then((rows) {
+          for (var r in rows) namesMap[r['id']] = r['nome'];
+        }),
+    ]);
+
+    // 3. Aplicar nomes
+    for (var t in transactions) {
+      final uid = t['related_user_id'] as String?;
+      if (uid != null && namesMap.containsKey(uid)) {
+        t['user_name'] = namesMap[uid];
+      }
+    }
   }
 
   // Obter resumo financeiro do mês (reutiliza getTransactions para consistência)
@@ -421,7 +481,7 @@ class FinancialService {
       final response = await _client
           .from('financial_transactions')
           .select('id')
-          .eq('id_academia', idAcademia)
+          // .eq('id_academia', idAcademia) <-- REMOVIDO: Busca apenas pelo usuário para evitar erro de ID
           .eq('related_user_id', studentId)
           .eq('type', 'income')
           .gte('transaction_date', startStr)

@@ -11,8 +11,12 @@
 ### 3. Erro ao Deletar/Editar (Erro Crítico)
 **Causa:** A tabela `audit_logs` está sem a coluna `target_table`, quebrando as triggers de auditoria em operações de update/delete.
 
+### 4. Transações Financeiras sendo excluídas com o usuário
+**Causa:** O banco de dados está configurado para deletar "em cascata" (CASCADE). Isso significa que ao apagar um usuário, tudo dele some.
+**Correção:** Alterar a regra para `SET NULL` (Manter o registro financeiro, apenas remover o vínculo com o usuário).
+
 ## Solução
-Aplicar três migrações SQL que corrigem a RPC, os triggers de bloqueio e a tabela de auditoria.
+Aplicar quatro migrações SQL que corrigem a RPC, os triggers de bloqueio, a tabela de auditoria e protegem o histórico financeiro.
 
 ---
 
@@ -306,6 +310,134 @@ GRANT SELECT, INSERT ON public.audit_logs TO authenticated;
 
 ---
 
+### 8. Aplique a Quarta Migração: fix_delete_rpc_history (DEFINITIVA)
+
+Esta migração é completa: protege o banco de dados (FK) e atualiza a função de exclusão do sistema para garantir que o dinheiro nunca seja apagado.
+
+#### Abra uma Nova Query
+1. Clique em **New Query** (Nova Consulta) novamente
+2. Cole o script da correção definitiva
+
+#### Cole o Script SQL
+Copie e cole o conteúdo do arquivo:
+```
+supabase/migrations/20260129_fix_delete_rpc_history.sql
+```
+
+Ou copie diretamente daqui:
+
+```sql
+-- CORREÇÃO DEFINITIVA DE EXCLUSÃO DE USUÁRIO E HISTÓRICO FINANCEIRO
+-- 1. Assegura que constraints de deleção na tabela financeira sejam SET NULL
+-- 2. Atualiza a função RPC de deleção para garantir o desligamento do vínculo financeiro antes da exclusão
+
+-- PARTE 1: Garantir Schema do Banco (Foreign Key Segura)
+DO $$
+DECLARE
+    r RECORD;
+BEGIN
+    -- Remover qualquer FK em related_user_id (para recriar corretamente)
+    FOR r IN 
+        SELECT tc.constraint_name 
+        FROM information_schema.table_constraints AS tc 
+        JOIN information_schema.key_column_usage AS kcu
+          ON tc.constraint_name = kcu.constraint_name
+          AND tc.table_schema = kcu.table_schema
+        WHERE tc.constraint_type = 'FOREIGN KEY' 
+          AND tc.table_name = 'financial_transactions' 
+          AND kcu.column_name = 'related_user_id'
+    LOOP
+        EXECUTE 'ALTER TABLE public.financial_transactions DROP CONSTRAINT ' || quote_ident(r.constraint_name);
+    END LOOP;
+END $$;
+
+-- Recriar FK com SET NULL
+ALTER TABLE public.financial_transactions
+ADD CONSTRAINT fk_financial_transactions_user_v2
+FOREIGN KEY (related_user_id)
+REFERENCES auth.users(id)
+ON DELETE SET NULL;
+
+
+-- PARTE 2: Atualizar Função RPC de Deleção (delete_user_complete)
+-- Esta função é chamada pelo App para deletar usuários
+CREATE OR REPLACE FUNCTION delete_user_complete(target_user_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_role text;
+  v_user_name text;
+BEGIN
+  -- Identificar Role e Nome (para preservar no histórico)
+  IF EXISTS (SELECT 1 FROM users_alunos WHERE id = target_user_id) THEN
+    v_role := 'Aluno';
+    SELECT nome INTO v_user_name FROM users_alunos WHERE id = target_user_id;
+  ELSIF EXISTS (SELECT 1 FROM users_nutricionista WHERE id = target_user_id) THEN
+    v_role := 'Nutricionista';
+    SELECT nome INTO v_user_name FROM users_nutricionista WHERE id = target_user_id;
+  ELSIF EXISTS (SELECT 1 FROM users_personal WHERE id = target_user_id) THEN
+    v_role := 'Personal';
+    SELECT nome INTO v_user_name FROM users_personal WHERE id = target_user_id;
+  ELSIF EXISTS (SELECT 1 FROM users_adm WHERE id = target_user_id) THEN
+    v_role := 'Admin';
+    SELECT nome INTO v_user_name FROM users_adm WHERE id = target_user_id;
+  ELSE
+    v_role := 'Usuário';
+    v_user_name := 'Desconhecido';
+  END IF;
+
+  v_user_name := COALESCE(v_user_name, 'Sem Nome');
+
+  -- 1. PROTEGER DADOS FINANCEIROS (CRÍTICO)
+  -- Atualizar transações para remover o vínculo, mas preservando o NOME na descrição de forma inteligente
+  UPDATE public.financial_transactions
+  SET 
+    related_user_id = NULL,
+    description = CASE 
+        WHEN position(v_user_name in description) > 0 THEN description || ' (' || v_role || ' Excluído)'
+        ELSE description || ' - ' || v_user_name || ' (' || v_role || ' Excluído)'
+    END
+  WHERE related_user_id = target_user_id;
+
+  -- 2. LIMPEZA DE DADOS RELACIONADOS (Agendamentos, Treinos, etc)
+  
+  -- Dietas
+  UPDATE diets SET nutritionist_id = NULL WHERE nutritionist_id = target_user_id;
+  DELETE FROM diets WHERE student_id = target_user_id;
+
+  -- Treinos
+  DELETE FROM workouts WHERE student_id = target_user_id;
+  DELETE FROM physical_assessments WHERE student_id = target_user_id;
+
+  -- Agendamentos
+  DELETE FROM appointments WHERE student_id = target_user_id;
+
+  -- Notificações
+  DELETE FROM notifications WHERE user_id = target_user_id;
+
+  -- 3. DELETAR PERFIL (Tabelas públicas)
+  DELETE FROM users_alunos WHERE id = target_user_id;
+  DELETE FROM users_nutricionista WHERE id = target_user_id;
+  DELETE FROM users_personal WHERE id = target_user_id;
+  DELETE FROM users_adm WHERE id = target_user_id;
+
+  -- 4. DELETAR CONTA DE AUTENTICAÇÃO (Auth.Users)
+  DELETE FROM auth.users WHERE id = target_user_id;
+
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE EXCEPTION 'Erro fatal ao excluir usuário: %', SQLERRM;
+END;
+$$;
+```
+
+#### Execute o Script
+Executar da mesma forma.
+
+---
+
 ## ✅ Teste as Funcionalidades
 
 ### Teste 1: Redefinição de Senha pelo Administrador
@@ -364,6 +496,15 @@ Este teste confirma que o erro de auditoria foi resolvido.
 
 5. (Opcional) Tente **Deletar um Usuário** (Crie um usuário de teste antes!)
 6. A deleção deve ocorrer com sucesso ✅
+
+### Teste 5: Proteção de Histórico Financeiro
+
+1. Crie um aluno de teste
+2. Registre uma transação financeira para ele (ex: Pagamento de R$ 50,00)
+3. **Delete o aluno** pelo painel de admin
+4. Vá para o **Controle Financeiro**
+5. A transação de R$ 50,00 **AINDA DEVE ESTAR LÁ**, mas sem o nome do aluno (ou com nome genérico se o app tratar) ✅
+6. O sistema não pode apagar dinheiro do caixa só porque o aluno saiu!
 
 ---
 
