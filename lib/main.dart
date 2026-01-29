@@ -199,6 +199,8 @@ class _SpartanAppState extends State<SpartanApp> {
 
       // 2. Outros eventos de login (confirmação de email, etc)
       if (event == AuthChangeEvent.signedIn && session != null) {
+        _startBlockListeners(session.user.id); // <--- Iniciar monitoramento
+
         print('📧 Usuário logado. Verificando token de confirmação...');
 
         // Tentar pegar token da URL base (funciona melhor na Web, mas tentamos aqui)
@@ -220,8 +222,106 @@ class _SpartanAppState extends State<SpartanApp> {
             (route) => false,
           );
         }
+      } else if (event == AuthChangeEvent.signedOut) {
+        _cancelBlockListeners(); // <--- Parar monitoramento
       }
     });
+
+    // Se já estiver logado ao iniciar
+    final session = SupabaseService.client.auth.currentSession;
+    if (session != null) {
+      _startBlockListeners(session.user.id);
+    }
+  }
+
+  // --- Lógica de Monitoramento de Bloqueio (Realtime) ---
+  final List<RealtimeChannel> _blockChannels = [];
+
+  void _startBlockListeners(String userId) {
+    _cancelBlockListeners(); // Limpar anteriores
+
+    print('🛡️ Iniciando monitoramento de bloqueio para: $userId');
+
+    // Monitorar Users Alunos
+    _subscribeToBlockTable('users_alunos', userId);
+    // Monitorar Users Personal
+    _subscribeToBlockTable('users_personal', userId);
+    // Monitorar Users Nutricionista
+    _subscribeToBlockTable('users_nutricionista', userId);
+    // Monitorar Users Adm (Opcional)
+    _subscribeToBlockTable('users_adm', userId);
+  }
+
+  void _subscribeToBlockTable(String table, String userId) {
+    try {
+      final channel = SupabaseService.client
+          .channel('public:$table:id=eq:$userId')
+          .onPostgresChanges(
+              event: PostgresChangeEvent.update,
+              schema: 'public',
+              table: table,
+              filter: PostgresChangeFilter(
+                  type: PostgresChangeFilterType.eq,
+                  column: 'id',
+                  value: userId),
+              callback: (payload) {
+                final newRecord = payload.newRecord;
+                if (newRecord['is_blocked'] == true) {
+                  _handleUserBlocked();
+                }
+              })
+          .subscribe();
+
+      _blockChannels.add(channel);
+    } catch (e) {
+      print('Erro ao subscrever em $table: $e');
+    }
+  }
+
+  void _cancelBlockListeners() {
+    for (var channel in _blockChannels) {
+      SupabaseService.client.removeChannel(channel);
+    }
+    _blockChannels.clear();
+  }
+
+  void _handleUserBlocked() {
+    print('🚫 USUÁRIO BLOQUEADO EM TEMPO REAL!');
+    // Exibir Dialog Bloqueante
+    if (_navigatorKey.currentContext != null) {
+      showDialog(
+        context: _navigatorKey.currentContext!,
+        barrierDismissible: false, // Não pode fechar clicando fora
+        builder: (context) => AlertDialog(
+          title: const Text('Acesso Bloqueado'),
+          content: const Text(
+              'Sua conta foi bloqueada temporariamente, entre em contato com a administração da academia.'),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                Navigator.of(context).pop(); // Fecha dialog
+                await _performLogout();
+              },
+              child: const Text('Entendi'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  Future<void> _performLogout() async {
+    try {
+      await SupabaseService.client.auth.signOut();
+      await CacheManager().clearAll(); // <--- Corrected
+      // Navegar para Login
+      _navigatorKey.currentState?.pushNamedAndRemoveUntil(
+        '/login',
+        (route) => false,
+      );
+    } catch (e) {
+      print('Erro ao fazer logout forçado: $e');
+    }
   }
 
   @override

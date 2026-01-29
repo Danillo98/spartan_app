@@ -181,6 +181,39 @@ class AppointmentService {
     }
   }
 
+  // Buscar Agendamentos DO PROFISSIONAL (Meu Agendamento)
+  static Future<List<Map<String, dynamic>>> getMyAppointments() async {
+    try {
+      final user = _client.auth.currentUser;
+      if (user == null) return [];
+
+      // Filtra onde professional_ids (array JSONB) contem o ID do user
+      final response = await _client
+          .from('appointments')
+          .select('*, users_alunos(nome, telefone)')
+          .contains('professional_ids', [user.id])
+          .eq('status', 'scheduled') // Apenas agendados
+          .order('scheduled_at', ascending: true);
+
+      final List<dynamic> data = response as List<dynamic>;
+
+      return data.map((item) {
+        final map = item as Map<String, dynamic>;
+        String? studentName;
+        if (map['users_alunos'] != null) {
+          studentName = map['users_alunos']['nome'];
+        }
+        return {
+          ...map,
+          'display_name': studentName ?? map['visitor_name'] ?? 'Visitante',
+        };
+      }).toList();
+    } catch (e) {
+      print('Erro ao buscar meus agendamentos: $e');
+      return [];
+    }
+  }
+
   // Atualizar Status (Rápido)
   static Future<void> updateStatus(String id, String newStatus) async {
     await _client

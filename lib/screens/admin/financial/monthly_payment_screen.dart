@@ -79,8 +79,8 @@ class _MonthlyPaymentScreenState extends State<MonthlyPaymentScreen> {
         // O user disse: "filtrar pro PAGO, NÃO PAGO e VENCIDOS".
         // Vou fazer literal:
         if (_currentFilter == 'pending') {
-          // Mostrar pending E overdue (ambos não pagos)
-          statusMatches = s['status'] == 'pending' || s['status'] == 'overdue';
+          // Mostrar APENAS pending (não vencidos)
+          statusMatches = s['status'] == 'pending';
         } else if (_currentFilter == 'overdue') {
           // Apenas vencidos
           statusMatches = s['status'] == 'overdue';
@@ -298,7 +298,7 @@ class _MonthlyPaymentScreenState extends State<MonthlyPaymentScreen> {
                 const SizedBox(width: 8),
                 _buildFilterChip('Pagos', 'paid', Colors.green),
                 const SizedBox(width: 8),
-                _buildFilterChip('Não Pagos', 'pending', Colors.orange),
+                _buildFilterChip('Pendentes', 'pending', Colors.orange),
                 const SizedBox(width: 8),
                 _buildFilterChip('Vencidos', 'overdue', Colors.red),
               ],
@@ -363,7 +363,7 @@ class _MonthlyPaymentScreenState extends State<MonthlyPaymentScreen> {
       statusIcon = Icons.warning_rounded;
     } else {
       statusColor = Colors.orange;
-      statusLabel = 'NÃO PAGO';
+      statusLabel = 'PENDENTE';
       statusIcon = Icons.schedule_rounded;
     }
 

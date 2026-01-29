@@ -438,6 +438,62 @@ Executar da mesma forma.
 
 ---
 
+### 9. Aplique a Quinta Migração: fix_financial_rls (CORREÇÃO DE BLOQUEIO)
+
+**IMPORTANTE:** Seus alunos estão sendo bloqueados mesmo pagando porque o aplicativo **não tem permissão** para ler a tabela de pagamentos. Este script resolve isso.
+
+#### Abra uma Nova Query
+1. Clique em **New Query** (Nova Consulta) novamente
+2. Cole o script de permissões
+
+#### Cole o Script SQL
+Copie e cole o conteúdo do arquivo:
+```
+supabase/migrations/20260129_fix_financial_rls.sql
+```
+
+Ou copie diretamente daqui:
+
+```sql
+-- CORREÇÃO DE PERMISSÕES (RLS) NA TABELA FINANCEIRA
+-- Habilita Row Level Security e permite que Admins e Alunos vejam seus dados.
+
+-- 1. Habilitar RLS
+ALTER TABLE public.financial_transactions ENABLE ROW LEVEL SECURITY;
+
+-- 2. Política para ADMIN (Ver tudo da sua academia)
+DROP POLICY IF EXISTS "Admins podem ver transações da sua academia" ON public.financial_transactions;
+
+CREATE POLICY "Admins podem ver transações da sua academia"
+ON public.financial_transactions
+FOR ALL
+USING (
+  -- O dono da academia (Admin) vê tudo onde ele é o dono (id_academia)
+  id_academia = auth.uid() 
+  OR 
+  EXISTS (SELECT 1 FROM users_adm WHERE id = auth.uid() AND id = financial_transactions.id_academia)
+);
+
+-- 3. Política para USUÁRIOS/ALUNOS (Ver apenas suas transações)
+DROP POLICY IF EXISTS "Usuários podem ver suas próprias transações" ON public.financial_transactions;
+
+CREATE POLICY "Usuários podem ver suas próprias transações"
+ON public.financial_transactions
+FOR SELECT
+USING (
+  related_user_id = auth.uid()
+);
+
+-- Garantir permissões básicas
+GRANT SELECT ON public.financial_transactions TO authenticated;
+GRANT ALL ON public.financial_transactions TO service_role;
+```
+
+#### Execute o Script
+Clique em **Run**.
+
+---
+
 ## ✅ Teste as Funcionalidades
 
 ### Teste 1: Redefinição de Senha pelo Administrador

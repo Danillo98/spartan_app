@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import '../services/notice_service.dart';
+import '../services/appointment_service.dart';
 import '../config/app_theme.dart';
 
 class BulletinBoardCard extends StatefulWidget {
@@ -13,26 +15,57 @@ class BulletinBoardCard extends StatefulWidget {
 }
 
 class _BulletinBoardCardState extends State<BulletinBoardCard> {
-  List<Map<String, dynamic>> _activeNotices = [];
+  List<Map<String, dynamic>> _items = [];
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadActiveNotices();
+    _loadData();
   }
 
-  Future<void> _loadActiveNotices() async {
+  Future<void> _loadData() async {
     try {
+      // 1. Carregar Avisos
       final notices = await NoticeService.getActiveNotices();
+      final noticesFormatted = notices.map((n) => {
+            ...n,
+            'type': 'notice',
+            'sortDate': DateTime.parse(n['created_at']),
+          });
+
+      // 2. Carregar Agendamentos (Avaliações)
+      final appointments = await AppointmentService.getMyAppointments();
+      final appointmentsFormatted = appointments.map((a) => {
+            ...a,
+            'type': 'appointment',
+            'sortDate': DateTime.parse(a['scheduled_at']),
+          });
+
+      // 3. Combinar e Ordenar
+      final allItems = [...noticesFormatted, ...appointmentsFormatted];
+
+      // Ordenar: Agendamentos mais próximos primeiro, depois avisos mais recentes?
+      // Melhor: Tudo cronológico RECENTE -> ANTIGO ou PRÓXIMO -> DISTANTE?
+      // Aviso é cronologia passada (publicado em). Agendamento é futuro (agendado para).
+      // Vamos ordenar pela data "relevante". Se for futuro, prioridade alta.
+
+      allItems.sort((a, b) {
+        final dateA = a['sortDate'] as DateTime;
+        final dateB = b['sortDate'] as DateTime;
+        // Ordem decrescente (mais novo primeiro)
+        return dateB.compareTo(dateA);
+      });
+
       if (mounted) {
         setState(() {
-          _activeNotices = notices;
+          _items = allItems;
           _isLoading = false;
         });
       }
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
+      print('Erro ao carregar quadro: $e');
     }
   }
 
@@ -49,13 +82,42 @@ class _BulletinBoardCardState extends State<BulletinBoardCard> {
       );
     }
 
-    if (_activeNotices.isEmpty) {
+    if (_items.isEmpty) {
       return _buildEmptyNotice();
     }
 
-    return Column(
-      children:
-          _activeNotices.map((notice) => _buildNoticeItem(notice)).toList(),
+    return Container(
+      // Altura máxima para permitir scroll se houver muitos itens
+      constraints: const BoxConstraints(maxHeight: 400),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: ListView.separated(
+          padding: const EdgeInsets.all(16),
+          shrinkWrap:
+              true, // Importante para não expandir infinitamente se tiver poucos itens
+          itemCount: _items.length,
+          separatorBuilder: (context, index) => const SizedBox(height: 12),
+          itemBuilder: (context, index) {
+            final item = _items[index];
+            if (item['type'] == 'appointment') {
+              return _buildAppointmentItem(item);
+            } else {
+              return _buildNoticeItem(item);
+            }
+          },
+        ),
+      ),
     );
   }
 
@@ -97,7 +159,7 @@ class _BulletinBoardCardState extends State<BulletinBoardCard> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Não há avisos da academia no momento!',
+                  'Não há avisos ou agendamentos no momento!',
                   style: TextStyle(
                     fontSize: 14,
                     color: AppTheme.secondaryText,
@@ -115,61 +177,54 @@ class _BulletinBoardCardState extends State<BulletinBoardCard> {
   Color _getNoticeColor(String authorLabel) {
     final label = authorLabel.toLowerCase();
     if (label.contains('personal')) return AppTheme.primaryRed;
-    if (label.contains('nutri')) return const Color(0xFF2A9D8F); // Verde Nutri
-    return Colors.black87; // Admin (Preto suave)
+    if (label.contains('nutri')) return const Color(0xFF2A9D8F);
+    return Colors.black87;
   }
 
   Widget _buildNoticeItem(Map<String, dynamic> notice) {
-    final author = notice['author_label'] ?? 'Gestão da Academia';
+    final author = notice['author_label'] ?? 'Geral';
     final noticeColor = _getNoticeColor(author);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-          color: noticeColor.withOpacity(0.08), // Fundo bem suave
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: noticeColor.withOpacity(0.3), width: 1),
-          boxShadow: [
-            BoxShadow(
-              color: noticeColor.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            )
-          ]),
+        color: noticeColor.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: noticeColor.withOpacity(0.3), width: 1),
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.8),
               shape: BoxShape.circle,
             ),
             child: Icon(
-              Icons.notifications_active_rounded,
+              Icons.campaign_rounded, // Ícone de megafone para aviso
               color: noticeColor,
-              size: 28,
+              size: 24,
             ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Autor Label
+                // Label
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   margin: const EdgeInsets.only(bottom: 4),
                   decoration: BoxDecoration(
                     color: noticeColor,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    author.toUpperCase(),
+                    'AVISO - ${author.toUpperCase()}',
                     style: const TextStyle(
-                      fontSize: 10,
+                      fontSize: 9,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                       letterSpacing: 0.5,
@@ -179,18 +234,101 @@ class _BulletinBoardCardState extends State<BulletinBoardCard> {
                 Text(
                   notice['title'],
                   style: GoogleFonts.lato(
-                    fontSize: 16,
+                    fontSize: 15,
                     fontWeight: FontWeight.bold,
                     color: AppTheme.primaryText,
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 4),
                 Text(
                   notice['description'],
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 13,
                     color: AppTheme.secondaryText,
-                    height: 1.4,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAppointmentItem(Map<String, dynamic> appt) {
+    final date = DateTime.parse(appt['scheduled_at']).toLocal();
+    final dateStr = DateFormat('dd/MM').format(date);
+    final timeStr = DateFormat('HH:mm').format(date);
+    final color = AppTheme.primaryGold; // Dourado para agendamentos importantes
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.5), width: 1),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.calendar_today_rounded,
+              color: color,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  margin: const EdgeInsets.only(bottom: 4),
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Text(
+                    'AGENDA',
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+                Text(
+                  'Avaliação Física',
+                  style: GoogleFonts.lato(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.primaryText,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Aluno: ${appt['display_name']}',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppTheme.secondaryText,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  'Data: $dateStr às $timeStr',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppTheme.secondaryText,
                   ),
                 ),
               ],
