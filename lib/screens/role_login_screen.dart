@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/user_role.dart';
 import '../services/auth_service.dart';
-import '../services/financial_service.dart';
 import '../config/app_theme.dart';
 import 'admin_register_screen.dart';
 import 'forgot_password_screen.dart';
@@ -114,70 +113,8 @@ class _RoleLoginScreenState extends State<RoleLoginScreen>
           return;
         }
 
-        // VERIFICAÇÃO DE INADIMPLÊNCIA (Apenas para Alunos)
-        if (userRole == UserRole.student) {
-          final studentId = userData['id'];
-          final idAcademia = userData['id_academia'];
-          final paymentDueDay = userData['payment_due_day'];
-
-          if (idAcademia != null) {
-            // Chamada segura para verificar pendência
-            bool isOverdue = false;
-            try {
-              isOverdue = await FinancialService.isStudentOverdue(
-                studentId: studentId,
-                idAcademia: idAcademia,
-                paymentDueDay: paymentDueDay is int
-                    ? paymentDueDay
-                    : int.tryParse(paymentDueDay.toString()),
-              );
-            } catch (e) {
-              print('Erro ao verificar status financeiro: $e');
-              // Em caso de erro na verificação, por segurança, não bloqueia (ou bloqueia? Geralmente melhor não bloquear por erro técnico)
-            }
-
-            if (isOverdue) {
-              await AuthService.signOut();
-              if (mounted) {
-                setState(() => _isLoading = false);
-
-                showDialog(
-                  context: context,
-                  barrierDismissible: false,
-                  builder: (context) => AlertDialog(
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16)),
-                    title: Row(
-                      children: [
-                        Icon(Icons.lock_outline_rounded,
-                            color: AppTheme.accentRed, size: 28),
-                        const SizedBox(width: 10),
-                        const Text('Acesso Bloqueado'),
-                      ],
-                    ),
-                    content: const Text(
-                      'Sua mensalidade está vencida.\n\nPor favor, realize o pagamento para liberar seu acesso ao aplicativo.',
-                      style: TextStyle(fontSize: 16),
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: Text(
-                          'ENTENDI',
-                          style: GoogleFonts.lato(
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.primaryText,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }
-              return;
-            }
-          }
-        }
+        // A verificação financeira agora é feita dentro do AuthService.
+        // Se passar daqui, o usuário está apto a logar.
 
         Widget dashboard;
         switch (widget.role) {
@@ -208,19 +145,57 @@ class _RoleLoginScreenState extends State<RoleLoginScreen>
           (route) => false,
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              result['message'] ?? 'Erro ao fazer login',
-              style: const TextStyle(color: Colors.white),
+        // Se falhou, verificar se é bloqueio financeiro para mostrar Popup
+        if (result['message'] != null &&
+            result['message'].contains('Mensalidade vencida')) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => AlertDialog(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
+              title: Row(
+                children: [
+                  Icon(Icons.lock_outline_rounded,
+                      color: AppTheme.accentRed, size: 28),
+                  const SizedBox(width: 10),
+                  const Text('Acesso Bloqueado'),
+                ],
+              ),
+              content: const Text(
+                'Sua mensalidade está vencida.\n\nPor favor, realize o pagamento para liberar seu acesso ao aplicativo.',
+                style: TextStyle(fontSize: 16),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(
+                    'ENTENDI',
+                    style: GoogleFonts.lato(
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.primaryText,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            backgroundColor: AppTheme.accentRed,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
+          );
+        } else {
+          // Erro Genérico
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                result['message'] ?? 'Erro ao fazer login',
+                style: const TextStyle(color: Colors.white),
+              ),
+              backgroundColor: AppTheme.accentRed,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
-          ),
-        );
+          );
+        }
       }
     } catch (e) {
       if (mounted) {

@@ -8,8 +8,11 @@
 ### 2. Alunos criados com mensalidade paga ficam bloqueados
 **Causa:** O campo `is_blocked` pode não estar sendo definido corretamente como `FALSE` ao criar novos usuários.
 
+### 3. Erro ao Deletar/Editar (Erro Crítico)
+**Causa:** A tabela `audit_logs` está sem a coluna `target_table`, quebrando as triggers de auditoria em operações de update/delete.
+
 ## Solução
-Aplicar duas migrações SQL que criam a função RPC necessária e garantem que novos usuários sempre tenham `is_blocked = FALSE`.
+Aplicar três migrações SQL que corrigem a RPC, os triggers de bloqueio e a tabela de auditoria.
 
 ---
 
@@ -220,6 +223,89 @@ Você deve ver 4 triggers (um para cada tabela de usuários).
 
 ---
 
+### 7. Aplique a Terceira Migração: fix_audit_logs_critical (MUITO IMPORTANTE)
+
+Esta correção resolve os erros de "column target_table does not exist" ao tentar deletar ou editar registros.
+
+#### Abra uma Nova Query
+1. Clique em **New Query** (Nova Consulta) novamente
+2. Cole o script da terceira migração
+
+#### Cole o Script SQL
+Copie e cole o conteúdo do arquivo:
+```
+supabase/migrations/20260129_fix_audit_logs_critical.sql
+```
+
+Ou copie diretamente daqui:
+
+```sql
+-- CORREÇÃO CRÍTICA DE AUDITORIA
+-- Corrige erro: column "target_table" of relation "audit_logs" does not exist
+
+-- 1. Adicionar coluna target_table se não existir (para compatibilidade com triggers de security_hardening)
+ALTER TABLE public.audit_logs ADD COLUMN IF NOT EXISTS target_table TEXT;
+
+-- 2. Garantir que outras colunas esperadas também existam
+ALTER TABLE public.audit_logs ADD COLUMN IF NOT EXISTS target_id UUID;
+ALTER TABLE public.audit_logs ADD COLUMN IF NOT EXISTS details JSONB;
+ALTER TABLE public.audit_logs ADD COLUMN IF NOT EXISTS action TEXT;
+ALTER TABLE public.audit_logs ADD COLUMN IF NOT EXISTS user_id UUID;
+
+-- 3. Sincronizar dados entre table_name (legado) e target_table (novo)
+UPDATE public.audit_logs 
+SET target_table = table_name 
+WHERE target_table IS NULL AND table_name IS NOT NULL;
+
+-- 4. Opcional: Se table_name não existir, criar como alias de target_table
+ALTER TABLE public.audit_logs ADD COLUMN IF NOT EXISTS table_name TEXT;
+UPDATE public.audit_logs 
+SET table_name = target_table 
+WHERE table_name IS NULL AND target_table IS NOT NULL;
+
+-- 5. Atualizar a função de auditoria para ser mais resiliente
+CREATE OR REPLACE FUNCTION process_audit_log() RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO public.audit_logs (
+        user_id, 
+        action, 
+        target_table, 
+        table_name,   
+        target_id, 
+        record_id,    
+        details
+    )
+    VALUES (
+        auth.uid(),
+        TG_OP,
+        TG_TABLE_NAME,
+        TG_TABLE_NAME, 
+        CASE WHEN TG_OP = 'DELETE' THEN OLD.id ELSE NEW.id END,
+        CASE WHEN TG_OP = 'DELETE' THEN OLD.id ELSE NEW.id END,
+        jsonb_build_object('old_data', OLD, 'new_data', NEW)
+    );
+    RETURN NULL; 
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 6. Recriar Trigger para Transações Financeiras
+DROP TRIGGER IF EXISTS audit_financial_transactions ON public.financial_transactions;
+CREATE TRIGGER audit_financial_transactions
+AFTER UPDATE OR DELETE ON public.financial_transactions
+FOR EACH ROW EXECUTE FUNCTION process_audit_log();
+
+-- 7. Grant permissões necessárias
+GRANT ALL ON public.audit_logs TO postgres;
+GRANT ALL ON public.audit_logs TO service_role;
+GRANT SELECT, INSERT ON public.audit_logs TO authenticated;
+```
+
+#### Execute o Script
+1. Clique no botão **Run** (Executar) ou pressione `Ctrl + Enter`
+2. Aguarde a confirmação de sucesso
+
+---
+
 ## ✅ Teste as Funcionalidades
 
 ### Teste 1: Redefinição de Senha pelo Administrador
@@ -266,6 +352,18 @@ FROM users_adm;
 ```
 
 Os números de `total` e `desbloqueados` devem ser iguais para cada tipo ✅
+
+### Teste 4: Deletar/Editar Registros (Correção Crítica)
+
+Este teste confirma que o erro de auditoria foi resolvido.
+
+1. Vá para o **Financeiro**
+2. Crie uma nova transação de teste (ex: Receita de R$ 1,00)
+3. Tente **Deletar** essa transação
+4. A transação deve ser removida com sucesso **sem erro vermelho** ✅
+
+5. (Opcional) Tente **Deletar um Usuário** (Crie um usuário de teste antes!)
+6. A deleção deve ocorrer com sucesso ✅
 
 ---
 
