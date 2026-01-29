@@ -9,7 +9,7 @@ import 'screens/login_screen.dart';
 import 'screens/nutritionist/diets_list_screen.dart';
 import 'services/supabase_service.dart';
 import 'services/cache_manager.dart';
-// import 'services/notification_service.dart';
+import 'services/notification_service.dart';
 import 'config/app_theme.dart';
 import 'package:app_links/app_links.dart';
 import 'package:windows_single_instance/windows_single_instance.dart';
@@ -53,10 +53,13 @@ void main(List<String> args) async {
     print("❌ Erro ao inicializar Cache Manager: $e");
   }
 
-  // Inicializar Notificações (OneSignal)
+  // Inicializar Notificações (Firebase Messaging)
   try {
-    // await NotificationService.init();
-    // Comentado para evitar erro se não tiver configurado ainda
+    if (!Platform.isWindows) {
+      await NotificationService.init();
+    } else {
+      print("⚠️ Notificações Push não suportadas nativamente no Windows.");
+    }
   } catch (e) {
     print("Erro ao inicializar notificações: $e");
   }

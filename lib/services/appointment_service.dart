@@ -185,17 +185,24 @@ class AppointmentService {
   static Future<List<Map<String, dynamic>>> getMyAppointments() async {
     try {
       final user = _client.auth.currentUser;
-      if (user == null) return [];
+      if (user == null) {
+        print('⚠️ getMyAppointments: Usuário não autenticado.');
+        return [];
+      }
 
-      // Filtra onde professional_ids (array JSONB) contem o ID do user
+      print('🔎 Buscando agendamentos para o profissional: ${user.id}');
+
+      // Filtro robusto para JSONB Array no Postgrest
+      // Usamos 'cs' (contains) passando o array como string JSON
       final response = await _client
           .from('appointments')
           .select('*, users_alunos(nome, telefone)')
-          .contains('professional_ids', [user.id])
-          .eq('status', 'scheduled') // Apenas agendados
+          .filter('professional_ids', 'cs', '["${user.id}"]')
+          .eq('status', 'scheduled')
           .order('scheduled_at', ascending: true);
 
       final List<dynamic> data = response as List<dynamic>;
+      print('✅ Encontrados ${data.length} agendamentos para mim.');
 
       return data.map((item) {
         final map = item as Map<String, dynamic>;
@@ -209,7 +216,7 @@ class AppointmentService {
         };
       }).toList();
     } catch (e) {
-      print('Erro ao buscar meus agendamentos: $e');
+      print('❌ Erro ao buscar meus agendamentos: $e');
       return [];
     }
   }
