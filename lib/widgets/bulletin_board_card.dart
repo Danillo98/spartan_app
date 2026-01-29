@@ -86,38 +86,56 @@ class _BulletinBoardCardState extends State<BulletinBoardCard> {
       return _buildEmptyNotice();
     }
 
-    return Container(
-      // Altura máxima para permitir scroll se houver muitos itens
-      constraints: const BoxConstraints(maxHeight: 400),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 12),
+          child: Text(
+            'Quadro de Avisos:',
+            style: GoogleFonts.lato(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.primaryText,
+              letterSpacing: 0.5,
+            ),
           ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: ListView.separated(
-          padding: const EdgeInsets.all(16),
-          shrinkWrap:
-              true, // Importante para não expandir infinitamente se tiver poucos itens
-          itemCount: _items.length,
-          separatorBuilder: (context, index) => const SizedBox(height: 12),
-          itemBuilder: (context, index) {
-            final item = _items[index];
-            if (item['type'] == 'appointment') {
-              return _buildAppointmentItem(item);
-            } else {
-              return _buildNoticeItem(item);
-            }
-          },
         ),
-      ),
+        Container(
+          // constraints: const BoxConstraints(maxHeight: 400), // Scroll removido
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: ListView.separated(
+              padding: const EdgeInsets.all(16),
+              shrinkWrap:
+                  true, // Necessário pois está dentro de um Column/ScrollView maior
+              physics:
+                  const NeverScrollableScrollPhysics(), // Scroll do dashboard assume
+              itemCount: _items.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                final item = _items[index];
+                if (item['type'] == 'appointment') {
+                  return _buildAppointmentItem(item);
+                } else {
+                  return _buildNoticeItem(item);
+                }
+              },
+            ),
+          ),
+        ),
+      ],
     );
   }
 
