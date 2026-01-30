@@ -5,6 +5,7 @@ import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/workout_service.dart';
+import '../../services/cache_manager.dart';
 import '../../config/app_theme.dart';
 import 'add_workout_exercise_screen.dart';
 import 'edit_workout_day_screen.dart';
@@ -270,7 +271,19 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
     );
 
     if (result == true) {
-      _loadDetails();
+      // Forçar limpeza do cache para este treino para garantir que os dados novos apareçam
+      await CacheManager()
+          .invalidatePattern('workout_detail_${widget.workoutId}');
+
+      // Forçar refresh visual setando loading
+      if (mounted) {
+        setState(() {
+          _workout = null;
+          _isLoading = true;
+        });
+      }
+
+      await _loadDetails();
     }
   }
 

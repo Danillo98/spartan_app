@@ -35,17 +35,20 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
           widget.report['student']?['name'] ??
           'Aluno';
 
-      var nutritionistName =
-          widget.report['users_nutricionista']?['nome'] ?? 'Nutricionista';
+      var nutritionistName = widget.report['users_nutricionista']?['nome'] ??
+          'Nutricionista-Geral';
 
-      // Fallback: Se for "Nutricionista" (genérico), tentar pegar do Auth se o usuário atual for o nutri
-      // ou tentar pegar o nome através do ID se possível
-      if (nutritionistName == 'Nutricionista') {
+      // Se for o valor padrão ou genérico, buscar o nome real
+      if (nutritionistName == 'Nutricionista-Geral' ||
+          nutritionistName == 'Nutricionista') {
         try {
-          // 1. Tentar pegar do Supabase usando nutritionist_id
           final nutriId = widget.report['nutritionist_id'];
           if (nutriId != null) {
             final client = Supabase.instance.client;
+
+            // Tenta buscar usando RPC se existir, ou query direta
+            // Query direta pode falhar por RLS se o aluno não tiver permissão de ver tabelas de nutri
+            // Mas vamos tentar
             final userRes = await client
                 .from('users_nutricionista')
                 .select('nome')
@@ -57,13 +60,22 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
             }
           }
         } catch (e) {
-          // debugPrint('Erro ao buscar nome do nutricionista: $e');
+          // Se falhar (ex: RLS), tenta pegar do Auth se o usuário for o próprio nutri (nutri imprimindo)
+          final curentUser = Supabase.instance.client.auth.currentUser;
+          if (curentUser != null &&
+              widget.report['nutritionist_id'] == curentUser.id) {
+            // É o próprio nutri, então pega do user metadata ou tabela
+            nutritionistName =
+                curentUser.userMetadata?['nome'] ?? 'Nutricionista';
+          } else {
+            nutritionistName = 'Nutricionista'; // Fallback final
+          }
         }
       }
 
       final printData = {
         'student_name': studentName,
-        'nutritionist_name': nutritionistName,
+        'nutritionist_name': nutritionistName, // Agora usa a variável resolvida
         'assessment_date': widget.report['assessment_date'],
         'weight': widget.report['weight'],
         'height': widget.report['height'],

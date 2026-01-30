@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import '../../services/diet_service.dart';
 import '../../config/app_theme.dart';
 
@@ -591,21 +592,63 @@ class _AddDietDayWithMealsScreenState extends State<AddDietDayWithMealsScreen> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: TextFormField(
-                  controller: meal['time'],
-                  decoration: InputDecoration(
-                    labelText: 'Horário',
-                    hintText: '07:00',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                child: InkWell(
+                  onTap: () async {
+                    TimeOfDay initialTime = TimeOfDay.now();
+                    if (meal['time']!.text.isNotEmpty) {
+                      try {
+                        final parts = meal['time']!.text.split(':');
+                        if (parts.length == 2) {
+                          initialTime = TimeOfDay(
+                              hour: int.parse(parts[0]),
+                              minute: int.parse(parts[1]));
+                        }
+                      } catch (_) {}
+                    }
+
+                    final TimeOfDay? picked = await showTimePicker(
+                      context: context,
+                      initialTime: initialTime,
+                      builder: (context, child) {
+                        return Theme(
+                          data: Theme.of(context).copyWith(
+                            colorScheme: const ColorScheme.light(
+                              primary: nutritionistPrimary,
+                              onPrimary: Colors.white,
+                              onSurface: Colors.black,
+                            ),
+                          ),
+                          child: child!,
+                        );
+                      },
+                    );
+
+                    if (picked != null) {
+                      final now = DateTime.now();
+                      final dt = DateTime(now.year, now.month, now.day,
+                          picked.hour, picked.minute);
+                      meal['time']!.text = DateFormat('HH:mm').format(dt);
+                    }
+                  },
+                  child: IgnorePointer(
+                    child: TextFormField(
+                      controller: meal['time'],
+                      decoration: InputDecoration(
+                        labelText: 'Horário',
+                        hintText: '00:00',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        suffixIcon: const Icon(Icons.access_time),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Obrigatório';
+                        }
+                        return null;
+                      },
                     ),
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Obrigatório';
-                    }
-                    return null;
-                  },
                 ),
               ),
             ],

@@ -209,7 +209,34 @@ class NoticeService {
       }
 
       final response = await query.order('created_at', ascending: false);
-      final notices = List<Map<String, dynamic>>.from(response);
+      final rawNotices = List<Map<String, dynamic>>.from(response);
+
+      // Client-side Filter (Backup for RLS)
+      final myId = user.id;
+      final notices = rawNotices.where((notice) {
+        var targetIds = notice['target_user_ids'];
+
+        // Handle JSON being returned as String
+        if (targetIds is String) {
+          try {
+            if (targetIds.startsWith('[') && targetIds.endsWith(']')) {
+              targetIds = targetIds
+                  .substring(1, targetIds.length - 1)
+                  .split(',')
+                  .map((e) => e.trim().replaceAll('"', '').replaceAll("'", ""))
+                  .where((e) => e.isNotEmpty)
+                  .toList();
+            }
+          } catch (_) {}
+        }
+
+        if (targetIds != null && targetIds is List && targetIds.isNotEmpty) {
+          // Ensure we compare strings
+          return targetIds.map((e) => e.toString().trim()).contains(myId);
+        }
+
+        return true;
+      }).toList();
 
       await _injectPaymentWarning(user.id, notices, idAcademia);
 

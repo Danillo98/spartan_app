@@ -192,58 +192,45 @@ class _AddSingleMealScreenState extends State<AddSingleMealScreen> {
                       Expanded(
                         child: InkWell(
                           onTap: () async {
-                            // Mostrar CupertinoDatePicker
-                            showCupertinoModalPopup(
+                            final TimeOfDay? picked = await showTimePicker(
                               context: context,
-                              builder: (context) {
-                                return Container(
-                                  height: 250,
-                                  color: Colors.white,
-                                  child: Column(
-                                    children: [
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          CupertinoButton(
-                                            child: const Text('Cancelar'),
-                                            onPressed: () =>
-                                                Navigator.pop(context),
-                                          ),
-                                          CupertinoButton(
-                                            child: const Text('Confirmar',
-                                                style: TextStyle(
-                                                    fontWeight:
-                                                        FontWeight.bold)),
-                                            onPressed: () =>
-                                                Navigator.pop(context),
-                                          ),
-                                        ],
+                              initialTime: _timeController.text.isNotEmpty
+                                  ? TimeOfDay(
+                                      hour: int.parse(
+                                          _timeController.text.split(':')[0]),
+                                      minute: int.parse(
+                                          _timeController.text.split(':')[1]),
+                                    )
+                                  : TimeOfDay.now(),
+                              builder: (context, child) {
+                                return Theme(
+                                  data: Theme.of(context).copyWith(
+                                    colorScheme: const ColorScheme.light(
+                                      primary:
+                                          nutritionistPrimary, // Header background color
+                                      onPrimary:
+                                          Colors.white, // Header text color
+                                      onSurface:
+                                          Colors.black, // Body text color
+                                    ),
+                                    textButtonTheme: TextButtonThemeData(
+                                      style: TextButton.styleFrom(
+                                        foregroundColor:
+                                            nutritionistPrimary, // Button text color
                                       ),
-                                      Expanded(
-                                        child: CupertinoDatePicker(
-                                          mode: CupertinoDatePickerMode.time,
-                                          use24hFormat: true,
-                                          initialDateTime: _timeController
-                                                  .text.isNotEmpty
-                                              ? DateFormat('HH:mm')
-                                                  .parse(_timeController.text)
-                                              : DateTime.now(),
-                                          onDateTimeChanged: (DateTime date) {
-                                            _timeController.text =
-                                                DateFormat('HH:mm')
-                                                    .format(date);
-                                          },
-                                        ),
-                                      ),
-                                    ],
+                                    ),
                                   ),
+                                  child: child!,
                                 );
                               },
                             );
-                            if (_timeController.text.isEmpty) {
+
+                            if (picked != null) {
+                              final now = DateTime.now();
+                              final dt = DateTime(now.year, now.month, now.day,
+                                  picked.hour, picked.minute);
                               _timeController.text =
-                                  DateFormat('HH:mm').format(DateTime.now());
+                                  DateFormat('HH:mm').format(dt);
                             }
                           },
                           child: IgnorePointer(
