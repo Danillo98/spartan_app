@@ -82,7 +82,7 @@ class PhysicalAssessmentService {
     return List<Map<String, dynamic>>.from(response);
   }
 
-  // Buscar todos os relatórios DE UM ALUNO (com nome do nutricionista)
+  // Buscar todos os relatórios DE UM ALUNO
   static Future<List<Map<String, dynamic>>> getStudentAssessments(
       String studentId) async {
     final response = await _client
@@ -91,7 +91,96 @@ class PhysicalAssessmentService {
         .eq('student_id', studentId)
         .order('assessment_date', ascending: false);
 
-    return List<Map<String, dynamic>>.from(response);
+    return await _populateUsers(response);
+  }
+
+  // Lógica COPIADA do DietService para popular nomes manualmente (Bypass RLS)
+  static Future<List<Map<String, dynamic>>> _populateUsers(
+      List<dynamic> assessments) async {
+    if (assessments.isEmpty) return [];
+
+    final assessmentList = List<Map<String, dynamic>>.from(assessments);
+    final nutriIds = assessmentList
+        .map((a) => a['nutritionist_id'].toString())
+        .where((id) => id != 'null')
+        .toSet()
+        .toList();
+
+    Map<String, dynamic> nutrisMap = {};
+    if (nutriIds.isNotEmpty) {
+      // 1. Tenta buscar em Nutricionistas
+      final nutris = await _client
+          .from('users_nutricionista')
+          .select('id, nome, email')
+          .inFilter('id', nutriIds);
+
+      nutrisMap.addAll({
+        for (var n in nutris)
+          n['id']: {
+            'id': n['id'],
+            'nome': n['nome'],
+            'email': n['email'],
+          }
+      });
+
+      // 2. Fallback para Personais (IDs que não foram achados)
+      final missingIds =
+          nutriIds.where((id) => !nutrisMap.containsKey(id)).toList();
+      if (missingIds.isNotEmpty) {
+        final personals = await _client
+            .from('users_personal')
+            .select('id, nome, email')
+            .inFilter('id', missingIds);
+
+        nutrisMap.addAll({
+          for (var p in personals)
+            p['id']: {
+              'id': p['id'],
+              'nome': p['nome'],
+              'email': p['email'],
+            }
+        });
+      }
+
+      // 3. Fallback para Admins (última tentativa)
+      final stillMissing =
+          nutriIds.where((id) => !nutrisMap.containsKey(id)).toList();
+      if (stillMissing.isNotEmpty) {
+        final adms = await _client
+            .from('users_adm')
+            .select('id, nome') // Adm as vezes não tem email público
+            .inFilter('id', stillMissing);
+
+        nutrisMap.addAll({
+          for (var a in adms)
+            a['id']: {
+              'id': a['id'],
+              'nome': a['nome'] ?? 'Administração',
+              'email': '',
+            }
+        });
+      }
+    }
+
+    // Populando o resultado final
+    return assessmentList.map((a) {
+      final nid = a['nutritionist_id'].toString();
+      final existingUserObj = a['users_nutricionista'] ?? {};
+
+      // Pega do mapa manual OU do objeto que veio do join (se existir) OU 'Nutricionista'
+      final resolvedUser =
+          nutrisMap[nid] ?? (existingUserObj is Map ? existingUserObj : {});
+      final resolvedName =
+          resolvedUser['nome'] ?? resolvedUser['name'] ?? 'Nutricionista';
+
+      return {
+        ...a,
+        'users_nutricionista': {
+          ...(existingUserObj is Map ? existingUserObj : {}),
+          'nome': resolvedName,
+        }
+      };
+    }).toList();
   }
 
   // Criar Relatório

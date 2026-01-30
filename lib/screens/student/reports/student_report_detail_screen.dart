@@ -35,64 +35,16 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
           widget.report['student']?['name'] ??
           'Aluno';
 
+      // 1. Tentar pegar o nome que já temos
       String resolvedName = widget.report['users_nutricionista']?['nome'] ??
           'Nutricionista-Geral';
 
-      final nutriId = widget.report['nutritionist_id'];
-
-      // Helper para buscar nome em qualquer tabela de usuário
-      Future<String?> fetchNameFromTable(String table, String id) async {
-        try {
-          final res = await Supabase.instance.client
-              .from(table)
-              .select('nome')
-              .eq('id', id)
-              .maybeSingle();
-          return res?['nome'];
-        } catch (_) {
-          return null;
-        }
-      }
-
-      // Se o nome for genérico ou nulo, tentar buscar em múltiplas tabelas
-      final nameLower = resolvedName.toLowerCase();
-      if ((nameLower.contains('nutricionista') ||
-              nameLower.contains('geral') ||
-              resolvedName == 'Aluno') &&
-          nutriId != null) {
-        // 1. Tentar users_nutricionista
-        var schemaName =
-            await fetchNameFromTable('users_nutricionista', nutriId);
-
-        // 2. Tentar users_personal (caso tenha sido criado por personal admin)
-        if (schemaName == null) {
-          schemaName = await fetchNameFromTable('users_personal', nutriId);
-        }
-
-        // 3. Tentar users_adm
-        if (schemaName == null) {
-          schemaName = await fetchNameFromTable('users_adm', nutriId);
-        }
-
-        // 4. Fallback: Usuário atual
-        if (schemaName == null) {
-          final currentUser = Supabase.instance.client.auth.currentUser;
-          if (currentUser != null && currentUser.id == nutriId) {
-            schemaName = currentUser.userMetadata?['nome'];
-          }
-        }
-
-        if (schemaName != null && schemaName.isNotEmpty) {
-          resolvedName = schemaName;
-        }
-      }
-
-      // Update variables for print
-      var nutritionistName = resolvedName;
+      final nutritionistName = resolvedName;
 
       final printData = {
         'student_name': studentName,
-        'nutritionist_name': nutritionistName, // Agora usa a variável resolvida
+        'nutritionist_name':
+            nutritionistName, // Agora usa a variável resolvida na hora
         'assessment_date': widget.report['assessment_date'],
         'weight': widget.report['weight'],
         'height': widget.report['height'],
