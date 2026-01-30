@@ -35,44 +35,42 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
           widget.report['student']?['name'] ??
           'Aluno';
 
-      var nutritionistName = widget.report['users_nutricionista']?['nome'] ??
-          'Nutricionista-Geral';
+      String resolvedName =
+          widget.report['users_nutricionista']?['nome'] ?? 'Nutricionista';
 
-      // Se for o valor padrão ou genérico, buscar o nome real
-      final nutriNameLower = nutritionistName.toLowerCase();
-      if (nutriNameLower.contains('nutricionista') ||
-          nutriNameLower.contains('geral')) {
+      // Se o nome for genérico ou nulo, tentar buscar diretamente no banco
+      final nameLower = resolvedName.toLowerCase();
+      if (nameLower.contains('nutricionista') ||
+          nameLower.contains('geral') ||
+          resolvedName == 'Aluno') {
         try {
           final nutriId = widget.report['nutritionist_id'];
           if (nutriId != null) {
-            final client = Supabase.instance.client;
-
-            // Tenta buscar usando RPC se existir, ou query direta
-            // Query direta pode falhar por RLS se o aluno não tiver permissão de ver tabelas de nutri
-            // Mas vamos tentar
-            final userRes = await client
+            final fetchRes = await Supabase.instance.client
                 .from('users_nutricionista')
                 .select('nome')
                 .eq('id', nutriId)
                 .maybeSingle();
 
-            if (userRes != null && userRes['nome'] != null) {
-              nutritionistName = userRes['nome'];
+            if (fetchRes != null && fetchRes['nome'] != null) {
+              resolvedName = fetchRes['nome'];
+            } else {
+              // Tentar Fallback verificando metadata do usuário atual caso seja o próprio nutri
+              final currentUser = Supabase.instance.client.auth.currentUser;
+              if (currentUser != null && currentUser.id == nutriId) {
+                resolvedName =
+                    currentUser.userMetadata?['nome'] ?? resolvedName;
+              }
             }
           }
         } catch (e) {
-          // Se falhar (ex: RLS), tenta pegar do Auth se o usuário for o próprio nutri (nutri imprimindo)
-          final curentUser = Supabase.instance.client.auth.currentUser;
-          if (curentUser != null &&
-              widget.report['nutritionist_id'] == curentUser.id) {
-            // É o próprio nutri, então pega do user metadata ou tabela
-            nutritionistName =
-                curentUser.userMetadata?['nome'] ?? 'Nutricionista';
-          } else {
-            nutritionistName = 'Nutricionista'; // Fallback final
-          }
+          print('Erro ao buscar nome do nutricionista: $e');
+          // Mantém o resolvedName anterior se der erro
         }
       }
+
+      // Update variables for print
+      var nutritionistName = resolvedName;
 
       final printData = {
         'student_name': studentName,
