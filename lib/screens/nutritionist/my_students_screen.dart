@@ -235,16 +235,16 @@ class _MyStudentsNutritionistScreenState
                       const SnackBar(content: Text('Enviando avisos...')));
 
                   try {
-                    for (var studentId in _selectedStudentIds) {
-                      await NoticeService.createNotice(
-                        title: titleController.text.trim(),
-                        description: descController.text.trim(),
-                        startAt: startAt,
-                        endAt: endAt,
-                        targetStudentId: studentId,
-                        authorLabel: 'Nutricionista: $nutriName',
-                      );
-                    }
+                    final studentIdsList = _selectedStudentIds.toList();
+                    await NoticeService.createNotice(
+                      title: titleController.text.trim(),
+                      description: descController.text.trim(),
+                      startAt: startAt,
+                      endAt: endAt,
+                      targetUserIds: studentIdsList, // Envia lista de IDs
+                      targetRole: 'student', // Define explicitamente como aluno
+                      authorLabel: 'Nutricionista: $nutriName',
+                    );
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                           content: Text('Avisos enviados com sucesso!'),

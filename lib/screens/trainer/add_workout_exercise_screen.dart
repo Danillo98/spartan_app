@@ -163,7 +163,7 @@ class _AddWorkoutExerciseScreenState extends State<AddWorkoutExerciseScreen> {
         workoutDayId: widget.workoutDayId,
         name: _nameController.text,
         muscleGroup: _selectedMuscleGroup,
-        sets: int.parse(_setsController.text),
+        sets: int.tryParse(_setsController.text) ?? 0,
         reps: _repsController.text,
         weight: int.tryParse(_weightController.text),
         restSeconds: int.tryParse(_restController.text),
@@ -401,8 +401,7 @@ class _AddWorkoutExerciseScreenState extends State<AddWorkoutExerciseScreen> {
                       controller: _setsController,
                       keyboardType: TextInputType.number,
                       decoration: _inputDecoration('Séries', Icons.repeat),
-                      validator: (value) =>
-                          value == null || value.isEmpty ? 'Obrigatório' : null,
+                      // Validador removido (opcional)
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -410,8 +409,7 @@ class _AddWorkoutExerciseScreenState extends State<AddWorkoutExerciseScreen> {
                     child: TextFormField(
                       controller: _repsController,
                       decoration: _inputDecoration('Repetições', Icons.numbers),
-                      validator: (value) =>
-                          value == null || value.isEmpty ? 'Obrigatório' : null,
+                      // Validador removido (opcional)
                     ),
                   ),
                 ],

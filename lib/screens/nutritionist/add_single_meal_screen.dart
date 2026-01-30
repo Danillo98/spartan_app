@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:intl/intl.dart';
 import '../../services/diet_service.dart';
 import '../../config/app_theme.dart';
 
@@ -188,21 +190,81 @@ class _AddSingleMealScreenState extends State<AddSingleMealScreen> {
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: TextFormField(
-                          controller: _timeController,
-                          decoration: InputDecoration(
-                            labelText: 'Horário',
-                            hintText: '07:00',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
+                        child: InkWell(
+                          onTap: () async {
+                            // Mostrar CupertinoDatePicker
+                            showCupertinoModalPopup(
+                              context: context,
+                              builder: (context) {
+                                return Container(
+                                  height: 250,
+                                  color: Colors.white,
+                                  child: Column(
+                                    children: [
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          CupertinoButton(
+                                            child: const Text('Cancelar'),
+                                            onPressed: () =>
+                                                Navigator.pop(context),
+                                          ),
+                                          CupertinoButton(
+                                            child: const Text('Confirmar',
+                                                style: TextStyle(
+                                                    fontWeight:
+                                                        FontWeight.bold)),
+                                            onPressed: () =>
+                                                Navigator.pop(context),
+                                          ),
+                                        ],
+                                      ),
+                                      Expanded(
+                                        child: CupertinoDatePicker(
+                                          mode: CupertinoDatePickerMode.time,
+                                          use24hFormat: true,
+                                          initialDateTime: _timeController
+                                                  .text.isNotEmpty
+                                              ? DateFormat('HH:mm')
+                                                  .parse(_timeController.text)
+                                              : DateTime.now(),
+                                          onDateTimeChanged: (DateTime date) {
+                                            _timeController.text =
+                                                DateFormat('HH:mm')
+                                                    .format(date);
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            );
+                            if (_timeController.text.isEmpty) {
+                              _timeController.text =
+                                  DateFormat('HH:mm').format(DateTime.now());
+                            }
+                          },
+                          child: IgnorePointer(
+                            child: TextFormField(
+                              controller: _timeController,
+                              decoration: InputDecoration(
+                                labelText: 'Horário',
+                                hintText: '00:00',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                suffixIcon: const Icon(Icons.access_time),
+                              ),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Obrigatório';
+                                }
+                                return null;
+                              },
                             ),
                           ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Obrigatório';
-                            }
-                            return null;
-                          },
                         ),
                       ),
                     ],

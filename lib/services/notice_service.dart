@@ -114,7 +114,12 @@ class NoticeService {
       finalIds.add(targetUserId);
     if (targetStudentId != null && !finalIds.contains(targetStudentId)) {
       finalIds.add(targetStudentId);
-      if (targetRole == 'all') targetRole = 'student';
+    }
+
+    // Only set to student if we have specific student IDs, otherwise keep as is (could be 'all')
+    // But if sending to specific IDs, usually implies 'student' role in this app context.
+    if (finalIds.isNotEmpty && targetRole == 'all') {
+      targetRole = 'student';
     }
 
     await _client.from('notices').insert({

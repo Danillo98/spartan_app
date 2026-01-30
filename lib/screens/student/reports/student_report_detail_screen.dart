@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../../config/app_theme.dart';
 import 'dart:math';
 import 'dart:ui' as ui;
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class StudentReportDetailScreen extends StatefulWidget {
   final Map<String, dynamic> report;
@@ -34,8 +35,31 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
           widget.report['student']?['name'] ??
           'Aluno';
 
-      final nutritionistName =
+      var nutritionistName =
           widget.report['users_nutricionista']?['nome'] ?? 'Nutricionista';
+
+      // Fallback: Se for "Nutricionista" (genérico), tentar pegar do Auth se o usuário atual for o nutri
+      // ou tentar pegar o nome através do ID se possível
+      if (nutritionistName == 'Nutricionista') {
+        try {
+          // 1. Tentar pegar do Supabase usando nutritionist_id
+          final nutriId = widget.report['nutritionist_id'];
+          if (nutriId != null) {
+            final client = Supabase.instance.client;
+            final userRes = await client
+                .from('users_nutricionista')
+                .select('nome')
+                .eq('id', nutriId)
+                .maybeSingle();
+
+            if (userRes != null && userRes['nome'] != null) {
+              nutritionistName = userRes['nome'];
+            }
+          }
+        } catch (e) {
+          // debugPrint('Erro ao buscar nome do nutricionista: $e');
+        }
+      }
 
       final printData = {
         'student_name': studentName,
