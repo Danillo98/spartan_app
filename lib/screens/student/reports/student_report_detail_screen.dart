@@ -39,8 +39,9 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
           'Nutricionista-Geral';
 
       // Se for o valor padrão ou genérico, buscar o nome real
-      if (nutritionistName == 'Nutricionista-Geral' ||
-          nutritionistName == 'Nutricionista') {
+      final nutriNameLower = nutritionistName.toLowerCase();
+      if (nutriNameLower.contains('nutricionista') ||
+          nutriNameLower.contains('geral')) {
         try {
           final nutriId = widget.report['nutritionist_id'];
           if (nutriId != null) {

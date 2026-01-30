@@ -205,21 +205,65 @@ class _EditMealScreenState extends State<EditMealScreen> {
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: TextFormField(
-                          controller: _timeController,
-                          decoration: InputDecoration(
-                            labelText: 'Horário',
-                            hintText: '07:00',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
+                        child: InkWell(
+                          onTap: () async {
+                            TimeOfDay initialTime = TimeOfDay.now();
+                            if (_timeController.text.isNotEmpty) {
+                              try {
+                                final parts = _timeController.text.split(':');
+                                if (parts.length == 2) {
+                                  initialTime = TimeOfDay(
+                                    hour: int.parse(parts[0]),
+                                    minute: int.parse(parts[1]),
+                                  );
+                                }
+                              } catch (_) {}
+                            }
+                            final picked = await showTimePicker(
+                              context: context,
+                              initialTime: initialTime,
+                              builder: (context, child) {
+                                return Theme(
+                                  data: Theme.of(context).copyWith(
+                                    colorScheme: const ColorScheme.light(
+                                        primary: nutritionistPrimary),
+                                  ),
+                                  child: child!,
+                                );
+                              },
+                            );
+                            if (picked != null) {
+                              // Formatar HH:mm
+                              final now = DateTime.now();
+                              final dt = DateTime(now.year, now.month, now.day,
+                                  picked.hour, picked.minute);
+                              // Requer intl import no topo, mas se não tiver, formatted string manual:
+                              final hour =
+                                  picked.hour.toString().padLeft(2, '0');
+                              final minute =
+                                  picked.minute.toString().padLeft(2, '0');
+                              _timeController.text = '$hour:$minute';
+                            }
+                          },
+                          child: IgnorePointer(
+                            child: TextFormField(
+                              controller: _timeController,
+                              decoration: InputDecoration(
+                                labelText: 'Horário',
+                                hintText: '07:00',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                suffixIcon: const Icon(Icons.access_time),
+                              ),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Obrigatório';
+                                }
+                                return null;
+                              },
                             ),
                           ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Obrigatório';
-                            }
-                            return null;
-                          },
                         ),
                       ),
                     ],
