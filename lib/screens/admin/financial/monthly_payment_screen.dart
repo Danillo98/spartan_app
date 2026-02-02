@@ -136,6 +136,11 @@ class _MonthlyPaymentScreenState extends State<MonthlyPaymentScreen> {
         final amount =
             double.tryParse(amountController.text.replaceAll(',', '.')) ?? 0.0;
 
+        DateTime? dueDate;
+        if (student['next_due_date_iso'] != null) {
+          dueDate = DateTime.parse(student['next_due_date_iso']);
+        }
+
         await FinancialService.addTransaction(
           description: 'Mensalidade - ${student['name']}',
           amount: amount,
@@ -144,6 +149,7 @@ class _MonthlyPaymentScreenState extends State<MonthlyPaymentScreen> {
           category: 'Mensalidade',
           relatedUserId: student['id'],
           relatedUserRole: 'student',
+          dueDate: dueDate,
         );
 
         _loadData();

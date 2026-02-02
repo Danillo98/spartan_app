@@ -376,7 +376,6 @@ class FinancialService {
     await _client.from('financial_transactions').delete().eq('id', id);
   }
 
-  // Obter status de pagamento das mensalidades dos alunos
   static Future<List<Map<String, dynamic>>> getMonthlyPaymentsStatus({
     required int month,
     required int year,
@@ -384,51 +383,115 @@ class FinancialService {
     // 1. Buscar todos os alunos
     final students = await UserService.getUsersByRole(UserRole.student);
 
-    // 2. Buscar transações de entrada deste mês
-    final transactions = await getTransactions(month: month, year: year);
-    final incomeTransactions = transactions
-        .where((t) =>
-            t['type'] == 'income' &&
-            t['related_user_id'] != null &&
-            t['related_user_role'] == 'student')
-        .toList();
+    // 2. Buscar TODAS as transações de entrada de alunos (Histórico Completo)
+    // Ordenado por data crescente para mapear: 1ª Mensalidade -> 1º Pagamento, etc.
+    final response = await _client
+        .from('financial_transactions')
+        .select()
+        .eq('type', 'income')
+        .eq('related_user_role', 'student')
+        .order('transaction_date', ascending: true);
 
-    // 3. Cruzar informações
+    final allTransactions = List<Map<String, dynamic>>.from(response);
+
+    // Agrupar por aluno
+    final Map<String, List<Map<String, dynamic>>> studentPayments = {};
+    for (var t in allTransactions) {
+      final uid = t['related_user_id'] as String?;
+      if (uid != null) {
+        if (!studentPayments.containsKey(uid)) {
+          studentPayments[uid] = [];
+        }
+        studentPayments[uid]!.add(t);
+      }
+    }
+
     final result = <Map<String, dynamic>>[];
     final now = DateTime.now();
 
     for (var student in students) {
       final studentId = student['id'];
       final dueDay = student['payment_due_day'] as int?;
+      final createdAtStr = student['created_at'] as String?;
 
-      // Verificar se pagou (procura transação vinculada ao aluno)
-      final payments = incomeTransactions
-          .where((t) => t['related_user_id'] == studentId)
-          .toList();
+      // Ignorar alunos sem data de criação (banco inconsistente) ou tratar como novos
+      if (createdAtStr == null) continue;
 
-      final isPaid = payments.isNotEmpty;
-      final payment = isPaid ? payments.first : null;
+      final createdAt = DateTime.parse(createdAtStr);
 
-      // Definir Status
-      String status = 'pending'; // Pendente
+      // Calcular a qual "número de mensalidade" o mês visualizado corresponde
+      // Ex: Entrou em Jan/2026.
+      // Visualizando Jan/2026 -> Mês 1.
+      // Visualizando Fev/2026 -> Mês 2.
 
-      if (isPaid) {
+      // Diferença em meses
+      int monthsSinceStart =
+          (year - createdAt.year) * 12 + (month - createdAt.month) + 1;
+
+      // Se estamos vendo um mês ANTERIOR à entrada do aluno, ignora ou mostra traço
+      // Decisão: Não mostrar na lista deste mês.
+      if (monthsSinceStart < 1) continue;
+
+      // Buscar pagamentos deste aluno
+      final myPayments = studentPayments[studentId] ?? [];
+
+      // Verificar status "Ledger"
+      // Se monthsSinceStart = 1, precisamos ter pelo menos 1 pagamento.
+      // Se monthsSinceStart = 5, precisamos ter pelo menos 5 pagamentos.
+
+      // O pagamento que "cobre" este mês é o de índice (monthsSinceStart - 1)
+      // Ex: Mês 1 precisa do pagamento index 0.
+
+      Map<String, dynamic>? coveringPayment;
+      String status = 'pending';
+
+      // Quantos pagamentos este aluno já fez no total?
+      int currentPaidCount = myPayments.length;
+
+      // Calcular a data de vencimento da PRÓXIMA parcela a ser paga (Ledger)
+      // Ex: Entrou em Jan. Pagou 0. Próxima: Jan.
+      // Ex: Entrou em Jan. Pagou 1. Próxima: Fev.
+      int targetYear =
+          createdAt.year + ((createdAt.month + currentPaidCount - 1) ~/ 12);
+      int targetMonth = (createdAt.month + currentPaidCount - 1) % 12 + 1;
+      int targetDay = dueDay ?? 10;
+
+      int lastDayOfTargetMonth = DateTime(targetYear, targetMonth + 1, 0).day;
+      if (targetDay > lastDayOfTargetMonth) targetDay = lastDayOfTargetMonth;
+
+      DateTime finalNextDueDate = DateTime(targetYear, targetMonth, targetDay);
+
+      if (currentPaidCount >= monthsSinceStart) {
+        // Está pago para este mês visualizado!
+        coveringPayment = myPayments[monthsSinceStart - 1];
         status = 'paid';
       } else {
-        // Lógica de Vencido
-        if (dueDay != null) {
-          // Se o mês consultado é PASSADO, e não pagou -> Vencido
-          if (year < now.year || (year == now.year && month < now.month)) {
-            status = 'overdue';
-          }
-          // Se é o mês ATUAL e já passou do dia -> Vencido
-          else if (year == now.year && month == now.month && now.day > dueDay) {
-            status = 'overdue';
-          }
+        // Não está pago para este mês.
+
+        // Se devemos meses anteriores (dívida acumulada), status é VENCIDO imediatamente.
+        if (currentPaidCount < monthsSinceStart - 1) {
+          status = 'overdue';
         } else {
-          // Sem dia de vencimento, se o mês já virou, considera vencido
-          if (year < now.year || (year == now.year && month < now.month)) {
-            status = 'overdue';
+          // Deve apenas este mês.
+          // Aplica regras de data.
+          if (dueDay != null) {
+            // Mês passado (ou anterior ao atual) -> Vencido
+            if (year < now.year || (year == now.year && month < now.month)) {
+              status = 'overdue';
+            }
+            // Mês atual e dia já passou -> Vencido
+            else if (year == now.year &&
+                month == now.month &&
+                now.day > dueDay) {
+              status = 'overdue';
+            } else {
+              status = 'pending';
+            }
+          } else {
+            // Sem dia, virada de mês -> Vencido
+            if (year < now.year || (year == now.year && month < now.month)) {
+              status = 'overdue';
+            }
           }
         }
       }
@@ -436,9 +499,14 @@ class FinancialService {
       result.add({
         ...student,
         'status': status, // paid, pending, overdue
-        'payment_date': payment != null ? payment['transaction_date'] : null,
-        'payment_amount': payment != null ? payment['amount'] : 0.0,
-        'payment_id': payment != null ? payment['id'] : null,
+        'payment_date': coveringPayment != null
+            ? coveringPayment['transaction_date']
+            : null,
+        'payment_amount':
+            coveringPayment != null ? coveringPayment['amount'] : 0.0,
+        'payment_id': coveringPayment != null ? coveringPayment['id'] : null,
+        'next_due_date_iso': finalNextDueDate
+            .toIso8601String(), // Para usar no registro do pagamento
       });
     }
 

@@ -31,6 +31,8 @@ class _FinancialDashboardScreenState extends State<FinancialDashboardScreen> {
 
   DateTime _currentDate = DateTime.now();
   String _currentFilter = 'all'; // 'all', 'income', 'fixed', 'variable'
+  String _searchQuery = '';
+  DateTime? _filterDate;
 
   @override
   void initState() {
@@ -79,21 +81,49 @@ class _FinancialDashboardScreenState extends State<FinancialDashboardScreen> {
   }
 
   List<Map<String, dynamic>> get _filteredTransactions {
-    if (_currentFilter == 'all') return _transactions;
-    if (_currentFilter == 'income') {
-      return _transactions.where((t) => t['type'] == 'income').toList();
-    }
-    if (_currentFilter == 'fixed') {
-      return _transactions
+    // 1. Filtro base (Tipo)
+    List<Map<String, dynamic>> baseList;
+    if (_currentFilter == 'all') {
+      baseList = _transactions;
+    } else if (_currentFilter == 'income') {
+      baseList = _transactions.where((t) => t['type'] == 'income').toList();
+    } else if (_currentFilter == 'fixed') {
+      baseList = _transactions
           .where((t) => t['type'] == 'expense' && t['category'] == 'fixed')
           .toList();
-    }
-    if (_currentFilter == 'variable') {
-      return _transactions
+    } else if (_currentFilter == 'variable') {
+      baseList = _transactions
           .where((t) => t['type'] == 'expense' && t['category'] == 'variable')
           .toList();
+    } else {
+      baseList = _transactions;
     }
-    return _transactions;
+
+    // 2. Filtro de Data Específica
+    if (_filterDate != null) {
+      baseList = baseList.where((t) {
+        final tDate = DateTime.parse(t['transaction_date']);
+        return tDate.year == _filterDate!.year &&
+            tDate.month == _filterDate!.month &&
+            tDate.day == _filterDate!.day;
+      }).toList();
+    }
+
+    // 3. Filtro de Pesquisa (Texto)
+    if (_searchQuery.isNotEmpty) {
+      final query = _searchQuery.toLowerCase();
+      baseList = baseList.where((t) {
+        final description = t['description'].toString().toLowerCase();
+        final amount = t['amount'].toString();
+        final userName = (t['user_name'] ?? '').toString().toLowerCase();
+
+        return description.contains(query) ||
+            amount.contains(query) ||
+            userName.contains(query);
+      }).toList();
+    }
+
+    return baseList;
   }
 
   String _formatCurrency(double value) {
@@ -263,6 +293,83 @@ class _FinancialDashboardScreenState extends State<FinancialDashboardScreen> {
                         ),
 
                         const SizedBox(height: 24),
+
+                        // Barra de Pesquisa e Filtro de Data
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                onChanged: (value) =>
+                                    setState(() => _searchQuery = value),
+                                decoration: InputDecoration(
+                                  hintText:
+                                      'Buscar por nome, valor ou descrição',
+                                  prefixIcon: const Icon(Icons.search_rounded),
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 12),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Container(
+                              decoration: BoxDecoration(
+                                color: _filterDate != null
+                                    ? Colors.black
+                                    : Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: IconButton(
+                                icon: Icon(
+                                  Icons.calendar_month_rounded,
+                                  color: _filterDate != null
+                                      ? Colors.white
+                                      : Colors.grey[700],
+                                ),
+                                onPressed: () async {
+                                  if (_filterDate != null) {
+                                    setState(() => _filterDate = null);
+                                    return;
+                                  }
+                                  final picked = await showDatePicker(
+                                    context: context,
+                                    initialDate: _currentDate,
+                                    firstDate: DateTime(2020),
+                                    lastDate: DateTime(2030),
+                                    builder: (context, child) {
+                                      return Theme(
+                                        data: Theme.of(context).copyWith(
+                                          colorScheme: const ColorScheme.light(
+                                            primary: Colors.black,
+                                          ),
+                                        ),
+                                        child: child!,
+                                      );
+                                    },
+                                  );
+                                  if (picked != null) {
+                                    setState(() {
+                                      _filterDate = picked;
+                                      // Se a data escolhida for de outro mês, atualiza a visão
+                                      if (picked.month != _currentDate.month ||
+                                          picked.year != _currentDate.year) {
+                                        _currentDate = picked;
+                                        _loadUncut();
+                                      }
+                                    });
+                                  }
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 16),
 
                         // Filtros (Chips)
                         SingleChildScrollView(
@@ -564,6 +671,19 @@ class _FinancialDashboardScreenState extends State<FinancialDashboardScreen> {
                         ),
                       ),
 
+                    // Pagamento (Só mostra se não for projeção)
+                    if (t['is_projected'] != true) ...[
+                      Text(' • ', style: TextStyle(color: Colors.grey[400])),
+                      Text(
+                        'PAGO ${DateFormat('dd/MM').format(date)}',
+                        style: GoogleFonts.lato(
+                          fontSize: 12,
+                          color: const Color(0xFF2E7D32),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+
                     // Vencimento
                     if (t['due_date'] != null) ...[
                       Text(' • ', style: TextStyle(color: Colors.grey[400])),
@@ -577,19 +697,6 @@ class _FinancialDashboardScreenState extends State<FinancialDashboardScreen> {
                                           .subtract(const Duration(days: 1))))
                               ? Colors.red[800]
                               : Colors.orange[800],
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-
-                    // Pagamento (Só mostra se não for projeção)
-                    if (t['is_projected'] != true) ...[
-                      Text(' • ', style: TextStyle(color: Colors.grey[400])),
-                      Text(
-                        'PAGO ${DateFormat('dd/MM').format(date)}',
-                        style: GoogleFonts.lato(
-                          fontSize: 12,
-                          color: const Color(0xFF2E7D32),
                           fontWeight: FontWeight.bold,
                         ),
                       ),
