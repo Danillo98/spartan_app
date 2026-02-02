@@ -1,4 +1,4 @@
-name: Deploy Flutter Web to Netlify
+name: Deploy Flutter Web to Firebase Hosting
 
 on:
   push:
