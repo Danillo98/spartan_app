@@ -1,13 +1,14 @@
-# 🗑️ GUIA - Deletar Academia Completa
+# 🗑️ GUIA - Deletar Academia Completa (V3 - Oficial)
 
 ## 🎯 OBJETIVO:
 
-Deletar TODOS os dados de uma academia específica do banco de dados, incluindo:
-- ✅ Administradores
+Deletar TODOS os dados de uma academia específica usando o **`id_academia`**, incluindo:
+- ✅ Administrador (Dono da Academia)
 - ✅ Nutricionistas
 - ✅ Personal Trainers
 - ✅ Alunos
 - ✅ Dados de autenticação (auth.users)
+- ✅ Dietas, Treinos e Avisos (Cascata)
 
 ---
 
@@ -17,7 +18,7 @@ Deletar TODOS os dados de uma academia específica do banco de dados, incluindo:
 
 - ❌ Não há como recuperar os dados após deletar
 - ❌ Todos os usuários da academia serão removidos
-- ❌ Todos os dados relacionados serão perdidos
+- ❌ O login de todos os usuários será removido
 
 **SEMPRE faça backup antes de usar em produção!**
 
@@ -30,171 +31,91 @@ Deletar TODOS os dados de uma academia específica do banco de dados, incluindo:
 1. Acesse: https://supabase.com/dashboard
 2. Vá em **SQL Editor**
 3. Clique em **"New query"**
-4. Copie todo o conteúdo do arquivo `supabase/functions/delete_gym.sql`
+4. Copie todo o conteúdo do arquivo `supabase/functions/delete_gym_v3.sql`
 5. Cole no editor
 6. Clique em **"Run"**
 7. Aguarde a confirmação: "Success. No rows returned"
 
 ---
 
-### **PASSO 2: Listar Usuários da Academia (RECOMENDADO!)**
+### **PASSO 2: Obter o ID da Academia**
 
-Antes de deletar, **SEMPRE** liste os usuários para confirmar:
+Você precisará do UUID da academia (que é o ID do administrador principal na tabela `users_adm`).
+
+---
+
+### **PASSO 3: Listar Usuários da Academia (RECOMENDADO!)**
+
+Antes de deletar, **SEMPRE** liste os usuários para confirmar que está pegando a academia certa:
 
 ```sql
--- Substituir pelo CNPJ da academia
-SELECT * FROM list_gym_users('53870683000102');
+-- Substituir pelo UUID da academia
+SELECT * FROM list_academia_users_v3('SEU_UUID_AQUI');
 ```
 
 **Resultado esperado:**
 ```
-id                                   | name           | email                  | role         | created_at
+output_user_id                       | output_name    | output_email           | output_role  | output_table_source
 -------------------------------------|----------------|------------------------|--------------|------------------
-7649bfca-9b23-423e-b437-4da212294123 | Danillo Neto   | danilloneto98@gmail.com| admin        | 2026-01-16 22:10
-a1b2c3d4-e5f6-7890-abcd-ef1234567890 | João Silva     | joao@example.com       | nutritionist | 2026-01-16 22:15
-b2c3d4e5-f6a7-8901-bcde-f12345678901 | Maria Santos   | maria@example.com      | personal     | 2026-01-16 22:20
-c3d4e5f6-a7b8-9012-cdef-123456789012 | Pedro Oliveira | pedro@example.com      | student      | 2026-01-16 22:25
+7649bfca-9b23-423e-b437-4da212294123 | Danillo Neto   | admin@gmail.com        | admin        | users_adm
+a1b2c3d4-e5f6-7890-abcd-ef1234567890 | João Silva     | joao@example.com       | nutritionist | users_nutricionista
+b2c3d4e5-f6a7-8901-bcde-f12345678901 | Maria Santos   | maria@example.com      | personal     | users_personal
+c3d4e5f6-a7b8-9012-cdef-123456789012 | Pedro Oliveira | pedro@example.com      | student      | users_alunos
 ```
 
 ---
 
-### **PASSO 3: Deletar Academia**
+### **PASSO 4: Deletar Academia**
 
-Após confirmar que os usuários listados estão corretos:
-
-```sql
--- Deletar pelo CNPJ
-SELECT delete_gym_by_cnpj('53870683000102');
-```
-
-**OU**
+Após confirmar, execute a deleção:
 
 ```sql
--- Deletar pelo ID do Admin
-SELECT delete_gym_by_admin_id('7649bfca-9b23-423e-b437-4da212294123');
+-- Deletar pelo ID_ACADEMIA
+SELECT delete_academia_by_id_v3('SEU_UUID_AQUI');
 ```
 
 ---
 
-### **PASSO 4: Verificar Resultado**
+### **PASSO 5: Verificar Resultado**
 
 **Resultado esperado:**
 ```json
 {
   "success": true,
-  "message": "Academia deletada com sucesso",
-  "cnpj": "53870683000102",
-  "deleted": {
-    "users": 15,      // Nutricionistas, Personals, Alunos
-    "admins": 1,      // Administradores
-    "auth_users": 16  // Total deletado do auth
+  "message": "Academia e usuários deletados com sucesso",
+  "id_academia": "SEU_UUID_AQUI",
+  "deleted_counts": {
+    "admins": 1,
+    "nutritionists": 2,
+    "personals": 5,
+    "students": 50,
+    "auth_users_total": 58
   }
 }
 ```
 
 ---
 
-### **PASSO 5: Confirmar Deleção**
+## 🔍 FUNÇÕES DISPONÍVEIS (V3):
 
-Verifique se realmente foi deletado:
+### **1. `list_academia_users_v3(id_academia)`**
 
-```sql
--- Deve retornar 0 linhas
-SELECT * FROM list_gym_users('53870683000102');
-```
-
----
-
-## 🔍 FUNÇÕES DISPONÍVEIS:
-
-### **1. `list_gym_users(cnpj)`**
-
-Lista todos os usuários de uma academia.
+Lista todos os usuários vinculados àquele ID de academia.
 
 **Uso:**
 ```sql
-SELECT * FROM list_gym_users('53870683000102');
+SELECT * FROM list_academia_users_v3('uuid-da-academia');
 ```
-
-**Retorna:**
-- id
-- name
-- email
-- role
-- created_at
 
 ---
 
-### **2. `delete_gym_by_cnpj(cnpj)`**
+### **2. `delete_academia_by_id_v3(id_academia)`**
 
-Deleta academia pelo CNPJ.
+Deleta tudo relacionado àquele ID.
 
 **Uso:**
 ```sql
-SELECT delete_gym_by_cnpj('53870683000102');
-```
-
-**Retorna:**
-- success (boolean)
-- message (string)
-- cnpj (string)
-- deleted (object com contadores)
-
----
-
-### **3. `delete_gym_by_admin_id(admin_id)`**
-
-Deleta academia pelo ID do administrador.
-
-**Uso:**
-```sql
-SELECT delete_gym_by_admin_id('7649bfca-9b23-423e-b437-4da212294123');
-```
-
-**Retorna:**
-- Mesmo formato que `delete_gym_by_cnpj`
-
----
-
-## 💡 CASOS DE USO:
-
-### **Caso 1: Academia cancelou assinatura**
-
-```sql
--- 1. Listar para confirmar
-SELECT * FROM list_gym_users('53870683000102');
-
--- 2. Deletar
-SELECT delete_gym_by_cnpj('53870683000102');
-
--- 3. Confirmar
-SELECT * FROM list_gym_users('53870683000102');
-```
-
----
-
-### **Caso 2: Limpar dados de teste**
-
-```sql
--- Deletar academia de teste
-SELECT delete_gym_by_cnpj('00000000000000');
-```
-
----
-
-### **Caso 3: Admin solicitou remoção de dados (LGPD)**
-
-```sql
--- 1. Listar
-SELECT * FROM list_gym_users('53870683000102');
-
--- 2. Fazer backup (exportar CSV)
-
--- 3. Deletar
-SELECT delete_gym_by_cnpj('53870683000102');
-
--- 4. Confirmar
-SELECT * FROM list_gym_users('53870683000102');
+SELECT delete_academia_by_id_v3('uuid-da-academia');
 ```
 
 ---
@@ -204,157 +125,20 @@ SELECT * FROM list_gym_users('53870683000102');
 ### **Quem pode executar?**
 
 - ✅ `service_role` (Supabase)
+- ✅ `postgres` (Superadmin)
 - ✅ Você no SQL Editor
-- ❌ Usuários do app (não têm permissão)
-
-### **Como proteger?**
-
-1. **Nunca** exponha essas funções via API pública
-2. **Sempre** use via SQL Editor ou backend seguro
-3. **Considere** adicionar autenticação extra
-4. **Implemente** logs de auditoria
 
 ---
 
-## 📊 EXEMPLO COMPLETO:
+## 📝 RESUMO TÉCNICO:
 
-```sql
--- ============================================
--- EXEMPLO: Deletar Academia "Spartan Gym"
--- ============================================
-
--- 1. Buscar CNPJ da academia
-SELECT cnpj, name, email 
-FROM public.users 
-WHERE role = 'admin' AND name LIKE '%Spartan%';
-
--- Resultado: cnpj = '53870683000102'
-
--- 2. Listar todos os usuários
-SELECT * FROM list_gym_users('53870683000102');
-
--- Resultado:
--- 1 admin
--- 3 nutricionistas
--- 5 personals
--- 20 alunos
--- Total: 29 usuários
-
--- 3. Confirmar que quer deletar
--- ATENÇÃO: Isso vai deletar 29 usuários!
-
--- 4. Executar deleção
-SELECT delete_gym_by_cnpj('53870683000102');
-
--- Resultado:
--- {
---   "success": true,
---   "message": "Academia deletada com sucesso",
---   "cnpj": "53870683000102",
---   "deleted": {
---     "users": 28,
---     "admins": 1,
---     "auth_users": 29
---   }
--- }
-
--- 5. Verificar
-SELECT * FROM list_gym_users('53870683000102');
-
--- Resultado: 0 linhas (deletado com sucesso!)
-```
+- O script varre as tabelas `users_adm`, `users_nutricionista`, `users_personal` e `users_alunos`.
+- Coleta todos os IDs de usuários vinculados ao `id_academia` fornecido.
+- Executa um `DELETE FROM auth.users` em lote para esses IDs.
+- Graças às chaves estrangeiras com `ON DELETE CASCADE`, os dados das tabelas públicas e dados relacionados (dietas, treinos) são removidos automaticamente pelo banco de dados.
 
 ---
 
-## ⚠️ PROBLEMAS COMUNS:
-
-### **Erro: "Nenhuma academia encontrada"**
-
-**Causa:** CNPJ não existe ou está incorreto
-
-**Solução:**
-```sql
--- Verificar CNPJs cadastrados
-SELECT DISTINCT cnpj, COUNT(*) as total_users
-FROM public.users
-WHERE role = 'admin'
-GROUP BY cnpj;
-```
-
----
-
-### **Erro: "Permission denied"**
-
-**Causa:** Usuário sem permissão
-
-**Solução:**
-- Use o SQL Editor do Supabase
-- Ou use `service_role` key
-
----
-
-### **Erro: "Function does not exist"**
-
-**Causa:** Função não foi criada
-
-**Solução:**
-1. Execute o script `delete_gym.sql` no SQL Editor
-2. Verifique se não houve erros
-
----
-
-## 🎯 MELHORIAS FUTURAS:
-
-### **1. Soft Delete**
-
-Ao invés de deletar permanentemente, marcar como "deletado":
-
-```sql
--- Adicionar coluna deleted_at
-ALTER TABLE public.users ADD COLUMN deleted_at TIMESTAMPTZ;
-
--- Função de soft delete
-CREATE FUNCTION soft_delete_gym(cnpj TEXT) ...
-```
-
-### **2. Logs de Auditoria**
-
-Registrar quem deletou e quando:
-
-```sql
-CREATE TABLE gym_deletion_logs (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  cnpj TEXT,
-  deleted_by UUID,
-  deleted_at TIMESTAMPTZ DEFAULT NOW(),
-  users_count INTEGER
-);
-```
-
-### **3. Confirmação de Segurança**
-
-Exigir confirmação antes de deletar:
-
-```sql
--- Gerar código de confirmação
-SELECT generate_deletion_code('53870683000102');
-
--- Deletar com código
-SELECT delete_gym_with_code('53870683000102', 'ABC123');
-```
-
----
-
-## 📝 RESUMO:
-
-- ✅ Funções criadas para deletar academia completa
-- ✅ Suporte para deletar por CNPJ ou Admin ID
-- ✅ Função de listagem para verificar antes
-- ✅ Retorna contadores de quantos foram deletados
-- ⚠️ **IRREVERSÍVEL** - Use com cuidado!
-
----
-
-**Arquivo SQL:** `supabase/functions/delete_gym.sql`
+**Arquivo SQL:** `supabase/functions/delete_gym_v3.sql`
 
 **Use com responsabilidade!** 🔒

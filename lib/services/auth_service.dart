@@ -22,11 +22,12 @@ class AuthService {
     required String email,
     required String password,
     required String phone,
-    required String cnpjAcademia, // NOVO!
-    required String academia, // NOVO!
+    required String cnpjAcademia,
+    required String academia,
     required String cnpj,
     required String cpf,
     required String address,
+    required String plan, // NOVO: Plano selecionado
   }) async {
     try {
       // Verificar se email já existe em users_adm
@@ -45,6 +46,7 @@ class AuthService {
 
       // Criar token com dados criptografados (SEM salvar no banco!)
       // Usar campos cnpj e cpf para armazenar cnpjAcademia e academia
+      // Address carrega dados extras: role|cnpj_pessoal|cpf_pessoal|endereco|plano
       final tokenData = RegistrationTokenService.createToken(
         name: name,
         email: email,
@@ -52,7 +54,7 @@ class AuthService {
         phone: phone,
         cnpj: cnpjAcademia, // CNPJ da academia
         cpf: academia, // Nome da academia
-        address: 'admin|$cnpj|$cpf|$address', // Role + Dados do admin
+        address: 'admin|$cnpj|$cpf|$address|$plan', // Dados packeados
       );
 
       final token = tokenData['token'] as String;
@@ -71,6 +73,14 @@ class AuthService {
           email: email,
           password: password,
           emailRedirectTo: confirmationUrl,
+          data: {
+            'role': 'admin',
+            'name': name,
+            'phone': phone,
+            'academia': academia,
+            'cnpj_academia': cnpjAcademia,
+            'plano_mensal': plan, // Agora enviamos o plano para o trigger
+          },
         );
 
         print('✅ SignUp executado com sucesso');
@@ -193,12 +203,21 @@ class AuthService {
           final addressParts = address.split('|');
           final role = addressParts.isNotEmpty ? addressParts[0] : 'student';
 
+          print('📦 Debug Address Parsing:');
+          print('CreateString: $address');
+          print('Parts: ${addressParts.length}');
+          addressParts.asMap().forEach((i, v) => print('[$i]: $v'));
+
           if (role == 'admin') {
             final personalCpf = addressParts.length > 2 ? addressParts[2] : '';
             final personalAddress =
                 addressParts.length > 3 ? addressParts[3] : '';
+            // PEGAR O PLANO COMSEGURANÇA
+            final plan = addressParts.length > 4 ? addressParts[4] : 'Standard';
 
-            await _client.from('users_adm').insert({
+            print('🏆 PLANO IDENTIFICADO: $plan');
+
+            await _client.from('users_adm').upsert({
               'id': loginTest.user!.id,
               'cnpj_academia': cnpjAcademia,
               'academia': academia,
@@ -207,8 +226,13 @@ class AuthService {
               'telefone': phone,
               'cpf': personalCpf,
               'endereco': personalAddress,
+              'plano_mensal': plan,
               'email_verified': true,
             });
+
+            // Garantia extra: Atualizar metadados do usuário para persistência
+            await _client.auth
+                .updateUser(UserAttributes(data: {'plano_mensal': plan}));
           } else {
             final createdByAdminId =
                 addressParts.length > 1 ? addressParts[1] : loginTest.user!.id;
@@ -277,11 +301,24 @@ class AuthService {
 
       print('📝 Criando novo usuário no auth.users...');
 
+      // EXTRAIR PLANO DO ADMIN ANTES DO SIGNUP
+      final addressParts = address.split('|');
+      final role = addressParts.isNotEmpty ? addressParts[0] : 'student';
+      String? adminPlan;
+      if (role == 'admin' && addressParts.length > 4) {
+        adminPlan = addressParts[4];
+      }
+
       // Criar novo usuário no Supabase Auth
-      final authResponse = await _client.auth.signUp(
-        email: email,
-        password: password,
-      );
+      final authResponse =
+          await _client.auth.signUp(email: email, password: password, data: {
+        'role': role,
+        'name': name,
+        'phone': phone,
+        'academia': cpf, // CPF aqui é academia no token
+        'cnpj_academia': cnpj, // CNPJ aqui é cnpj_academia no token
+        if (adminPlan != null) 'plano_mensal': adminPlan,
+      });
 
       if (authResponse.user == null) {
         throw Exception('Erro ao criar usuário no Supabase Auth');
@@ -295,20 +332,28 @@ class AuthService {
       final academia = cpf;
 
       // Address contém dados packeados: role|dados_extras
-      final addressParts = address.split('|');
-      final role = addressParts.isNotEmpty ? addressParts[0] : 'student';
+      // final addressParts = address.split('|'); // Já feito acima
+      // final role = addressParts.isNotEmpty ? addressParts[0] : 'student'; // Já feito acima
 
       print('🔍 Role identificado: $role');
       print('🔍 Academia: $academia ($cnpjAcademia)');
 
+      print('📦 Debug Address Parsing (Novo User):');
+      print('CreateString: $address');
+      print('Parts: ${addressParts.length}');
+      addressParts.asMap().forEach((i, v) => print('[$i]: $v'));
+
       // Inserir na tabela correta
       if (role == 'admin') {
-        // Admin: admin|cnpj_pessoal|cpf_pessoal|endereco
+        // Admin: admin|cnpj_pessoal|cpf_pessoal|endereco|plano
 
         final personalCpf = addressParts.length > 2 ? addressParts[2] : '';
         final personalAddress = addressParts.length > 3 ? addressParts[3] : '';
+        final plan = addressParts.length > 4 ? addressParts[4] : 'Standard';
 
-        await _client.from('users_adm').insert({
+        print('🏆 PLANO IDENTIFICADO (Novo User): $plan');
+
+        await _client.from('users_adm').upsert({
           'id': authResponse.user!.id,
           'cnpj_academia': cnpjAcademia,
           'academia': academia,
@@ -317,8 +362,13 @@ class AuthService {
           'telefone': phone,
           'cpf': personalCpf,
           'endereco': personalAddress,
+          'plano_mensal': plan,
           'email_verified': true,
         });
+
+        // Garantia extra
+        await _client.auth
+            .updateUser(UserAttributes(data: {'plano_mensal': plan}));
       } else {
         // Outros: role|created_by_admin_id
         final createdByAdminId =

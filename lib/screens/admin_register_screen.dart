@@ -50,6 +50,8 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
     filter: {"#": RegExp(r'[0-9]')},
   );
 
+  String _selectedPlan = ''; // Plano selecionado
+
   @override
   void initState() {
     super.initState();
@@ -89,6 +91,24 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
   Future<void> _handleRegister() async {
     if (!_formKey.currentState!.validate()) return;
 
+    // Validar se plano foi selecionado no último step
+    if (_selectedPlan.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Por favor, selecione um plano para continuar.',
+            style: TextStyle(color: Colors.white),
+          ),
+          backgroundColor: AppTheme.accentRed,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
@@ -103,6 +123,7 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
         cnpj: '', // CNPJ Pessoal (opcional, não está no form)
         cpf: _cpfMask.getUnmaskedText(), // CPF sem máscara
         address: _addressController.text.trim(),
+        plan: _selectedPlan, // Plano selecionado
       );
 
       if (!mounted) return;
@@ -374,7 +395,7 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
     }
 
     // Avançar para próximo step
-    if (_currentStep < 2) {
+    if (_currentStep < 3) {
       setState(() => _currentStep++);
       _animationController.reset();
       _animationController.forward();
@@ -408,6 +429,9 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
           break;
         case 2:
           _passwordFocus.requestFocus();
+          break;
+        case 3:
+          // Sem foco automático no step 4
           break;
       }
     });
@@ -477,7 +501,7 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Passo ${_currentStep + 1} de 3',
+                  'Passo ${_currentStep + 1} de 4',
                   style: GoogleFonts.lato(
                     fontSize: 12,
                     color: AppTheme.secondaryText,
@@ -496,11 +520,11 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 40),
       child: Row(
-        children: List.generate(3, (index) {
+        children: List.generate(4, (index) {
           final isActive = index <= _currentStep;
           return Expanded(
             child: Container(
-              margin: EdgeInsets.only(right: index < 2 ? 8 : 0),
+              margin: EdgeInsets.only(right: index < 3 ? 8 : 0),
               height: 4,
               decoration: BoxDecoration(
                 gradient: isActive ? AppTheme.primaryGradient : null,
@@ -522,6 +546,8 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
         return _buildStep2();
       case 2:
         return _buildStep3();
+      case 3:
+        return _buildStep4();
       default:
         return _buildStep1();
     }
@@ -736,6 +762,316 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
     );
   }
 
+  Widget _buildStep4() {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 600),
+        child: Column(
+          children: [
+            _buildStepTitle(
+                'Quase lá! Vamos iniciar nossa jornada em instantes...',
+                Icons.rocket_launch_rounded),
+            const SizedBox(height: 8),
+            Text(
+              'Escolha um plano mensal:',
+              style: GoogleFonts.lato(
+                fontSize: 16,
+                color: AppTheme.secondaryText,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 48),
+            _buildPlanCard(
+              id: 'Prata',
+              name: 'Prata',
+              price: '129,90',
+              tag: 'VALIDAÇÃO',
+              description: 'Ideal para academias de pequeno porte.',
+              color: Colors.blueGrey,
+              features: [
+                'Módulos: Administrador, Nutricionista, Personal Trainer e Aluno.',
+                'Dietas, Relatórios Físicos e Treinos.',
+                'Monitoramento de Mensalidades, Controle Financeiro, Fluxo de Caixa e Relatórios Mensais e Anuais em PDF.',
+                'Suporta até 250 alunos.',
+              ],
+            ),
+            const SizedBox(height: 32),
+            _buildPlanCard(
+              id: 'Ouro',
+              name: 'Ouro',
+              price: '239,90',
+              tag: 'MAIS ESCOLHIDO',
+              description: 'Para quem já validou e precisa escalar.',
+              color: const Color(0xFFD4AF37), // Dourado
+              features: [
+                'Módulos: Administrador, Nutricionista, Personal Trainer e Aluno.',
+                'Dietas, Relatórios Físicos e Treinos.',
+                'Monitoramento de Mensalidades, Controle Financeiro, Fluxo de Caixa e Relatórios Mensais e Anuais em PDF.',
+                'Suporta até 500 alunos.',
+                'Maior margem de lucro por aluno.',
+                'Estrutura para crescimento forte.',
+              ],
+              isRecommended: true,
+            ),
+            const SizedBox(height: 24),
+            _buildPlanCard(
+              id: 'Platina',
+              name: 'Platina',
+              price: '349,90',
+              tag: 'INFINITO',
+              description: 'A liberdade absoluta. O céu é o limite.',
+              color: const Color(0xFF00B8D4), // Cyan
+              features: [
+                'Módulos: Administrador, Nutricionista, Personal Trainer e Aluno.',
+                'Dietas, Relatórios Físicos e Treinos Integrados.',
+                'Monitoramento de Mensalidades, Controle Financeiro, Fluxo de Caixa e Relatórios Mensais e Anuais em PDF.',
+                'Alunos ILIMITADOS.',
+                'O céu é o limite! Aqui o lucro é exponencial.',
+                'Estrutura para grandes empreendimentos.',
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPlanCard({
+    required String id,
+    required String name,
+    required String price,
+    required String tag,
+    required String description,
+    required Color color,
+    required List<String> features,
+    bool isRecommended = false,
+  }) {
+    final isSelected = _selectedPlan == id;
+
+    // Fundo com opacidade dinâmica: 0.01 (1%) se selecionado, 0.02 (2%) se não selecionado
+    // Reduzindo a intensidade visual conforme solicitado
+    final cardBg =
+        isSelected ? color.withOpacity(0.01) : color.withOpacity(0.02);
+
+    return GestureDetector(
+      onTap: () {
+        setState(() => _selectedPlan = id);
+      },
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(20),
+              // Borda colorida
+              border: Border.all(
+                color: isSelected
+                    ? color
+                    : (isRecommended
+                        ? color.withOpacity(0.5)
+                        : Colors.grey.withOpacity(0.2)),
+                width: isSelected ? 2 : 1,
+              ),
+              // Sombra / LED
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: color.withOpacity(0.4),
+                        blurRadius: 20,
+                        spreadRadius: 2,
+                        offset: const Offset(0, 0),
+                      ),
+                    ]
+                  : [
+                      BoxShadow(
+                        color: color.withOpacity(0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            name.toUpperCase(),
+                            style: GoogleFonts.inter(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                              color: color,
+                              letterSpacing: 2,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: color.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              tag,
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: color,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        height: 28,
+                        width: 28,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isSelected ? color : Colors.transparent,
+                          border: Border.all(
+                            color: color,
+                            width: 2,
+                          ),
+                        ),
+                        child: isSelected
+                            ? const Icon(Icons.check,
+                                size: 18, color: Colors.white)
+                            : null,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Preço
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Text(
+                          'R\$',
+                          style: GoogleFonts.inter(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        price,
+                        style: GoogleFonts.inter(
+                          fontSize: 42,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.black87,
+                          height: 1,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Text(
+                          '/mês',
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            color: Colors.grey.shade500,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 12),
+                  Text(
+                    description,
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      color: Colors.grey.shade700,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+                  Divider(color: color.withOpacity(0.1), height: 1),
+                  const SizedBox(height: 24),
+
+                  // Features
+                  ...features.map((feature) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Icon(
+                                Icons.bolt_rounded,
+                                size: 18,
+                                color: color,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Flexible(
+                              child: Text(
+                                feature,
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  color: Colors.grey.shade800,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )),
+                ],
+              ),
+            ),
+          ),
+          if (isRecommended)
+            Positioned(
+              top: -16,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: color.withOpacity(0.4),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        )
+                      ]),
+                  child: Text(
+                    'MAIS ESCOLHIDO',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildStepTitle(String title, IconData icon) {
     return Row(
       children: [
@@ -827,78 +1163,81 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
           ),
         ),
       ),
-      child: Row(
-        children: [
-          if (_currentStep > 0)
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _previousStep,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppTheme.secondaryText,
-                  side: BorderSide(color: AppTheme.borderGrey),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: AppTheme.buttonRadius,
-                  ),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                child: Text(
-                  'VOLTAR',
-                  style: GoogleFonts.lato(
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1,
-                  ),
-                ),
-              ),
-            ),
-          if (_currentStep > 0) const SizedBox(width: 16),
-          Expanded(
-            flex: _currentStep == 0 ? 1 : 1,
-            child: Container(
-              height: 56,
-              decoration: BoxDecoration(
-                gradient: AppTheme.primaryGradient,
-                borderRadius: AppTheme.buttonRadius,
-                boxShadow: [
-                  BoxShadow(
-                    color: AppTheme.primaryGold.withOpacity(0.3),
-                    blurRadius: 15,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: ElevatedButton(
-                onPressed: _isLoading
-                    ? null
-                    : (_currentStep == 2 ? _handleRegister : _nextStep),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: AppTheme.buttonRadius,
-                  ),
-                ),
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 24,
-                        width: 24,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : Text(
-                        _currentStep == 2 ? 'Cadastrar' : 'PRÓXIMO',
-                        style: GoogleFonts.lato(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1,
-                          color: Colors.white,
-                        ),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 600),
+          child: Row(
+            children: [
+              if (_currentStep > 0)
+                Expanded(
+                  child: TextButton(
+                    onPressed: _isLoading ? null : _previousStep,
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: Text(
+                      'Voltar',
+                      style: GoogleFonts.lato(
+                        fontSize: 16,
+                        color: AppTheme.secondaryText,
                       ),
+                    ),
+                  ),
+                ),
+              if (_currentStep > 0) const SizedBox(width: 16),
+              Expanded(
+                flex: 2,
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: AppTheme.primaryGradient,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.primaryGold.withOpacity(0.3),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: ElevatedButton(
+                    onPressed: _isLoading
+                        ? null
+                        : (_currentStep == 3 ? _handleRegister : _nextStep),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : Text(
+                            _currentStep == 3
+                                ? 'FINALIZAR CADASTRO'
+                                : 'CONTINUAR',
+                            style: GoogleFonts.cinzel(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
