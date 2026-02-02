@@ -1091,12 +1091,14 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
           child: Icon(icon, color: Colors.white, size: 24),
         ),
         const SizedBox(width: 16),
-        Text(
-          title,
-          style: GoogleFonts.lato(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: AppTheme.primaryText,
+        Expanded(
+          child: Text(
+            title,
+            style: GoogleFonts.lato(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.primaryText,
+            ),
           ),
         ),
       ],
