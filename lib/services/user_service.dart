@@ -50,7 +50,7 @@ class UserService {
       // 4. Criar usuário via RPC (Direto no Banco)
       // Isso evita o envio de email automático do Supabase e já confirma o usuário
       // A Trigger do banco cuidará das tabelas públicas
-      final response = await _client.rpc('create_user_v3', params: {
+      final response = await _client.rpc('create_user_v4', params: {
         'p_email': email.trim(),
         'p_password': password,
         'p_metadata': {
@@ -58,6 +58,7 @@ class UserService {
           'name': name.trim(),
           'phone': phone.trim(),
           'academia': academia,
+          'id_academia': adminId, // ID da academia = ID do admin
           'cnpj_academia': cnpjAcademia,
           'created_by_admin_id': adminId,
           if (paymentDueDay != null) 'paymentDueDay': paymentDueDay,
@@ -477,6 +478,37 @@ class UserService {
     } catch (e) {
       print('❌ Erro ao alterar senha: $e');
       return {'success': false, 'message': 'Erro ao alterar senha: $e'};
+    }
+  }
+
+  // Verificar status de limite do plano (para exibir alertas)
+  static Future<Map<String, dynamic>> checkPlanLimitStatus() async {
+    try {
+      final adminDetails = await _getCurrentAdminDetails();
+      final idAcademia = adminDetails['id'];
+      final plan = adminDetails['plano_mensal']?.toString() ?? 'Prata';
+
+      // Definir limites
+      int limit = 200; // Prata default
+      if (plan.toLowerCase() == 'ouro') limit = 500;
+      if (plan.toLowerCase() == 'platina') limit = 999999;
+
+      final count = await _client
+          .from('users_alunos')
+          .count(CountOption.exact)
+          .eq('id_academia', idAcademia);
+
+      print('📊 Status Plano: $plan | Alunos: $count | Limite: $limit');
+
+      return {
+        'count': count,
+        'limit': limit,
+        'isAtLimit': count >= limit,
+        'plan': plan,
+      };
+    } catch (e) {
+      print('Erro ao verificar limite: $e');
+      return {'count': 0, 'limit': 200, 'isAtLimit': false, 'plan': 'Prata'};
     }
   }
 }

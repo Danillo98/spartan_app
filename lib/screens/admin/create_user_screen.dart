@@ -6,6 +6,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../models/user_role.dart';
 import '../../services/user_service.dart';
 import '../../config/app_theme.dart';
+import 'subscription_screen.dart';
 
 class CreateUserScreen extends StatefulWidget {
   const CreateUserScreen({super.key});
@@ -48,6 +49,16 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
   Future<void> _handleCreate() async {
     if (!_formKey.currentState!.validate()) return;
 
+    // 1. CHECAGEM PRÉVIA DE LIMITE (Antes de tentar cadastrar)
+    if (_selectedRole == UserRole.student) {
+      final verificationStatus = await UserService.checkPlanLimitStatus();
+      // Se JÁ ESTÁ no limite (ex: 200/200) e tenta cadastrar mais um
+      if (verificationStatus['isAtLimit'] == true) {
+        _showUpgradeDialog();
+        return; // Interrompe o processo aqui
+      }
+    }
+
     setState(() => _isLoading = true);
 
     try {
@@ -75,6 +86,22 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
 
       if (result['success'] == true) {
         if (!mounted) return;
+
+        // 2. CHECAGEM PÓS-CADASTRO (Para exibir o aviso de "Limite Atingido")
+        if (_selectedRole == UserRole.student) {
+          try {
+            final limitStatus = await UserService.checkPlanLimitStatus();
+            // Se atingiu o limite AGORA (ex: virou 200/200 com este cadastro)
+            if (limitStatus['isAtLimit'] == true && mounted) {
+              Navigator.pop(context, true);
+              _showLimitReachedSuccessDialog(limitStatus['plan']);
+              return;
+            }
+          } catch (e) {
+            print('Erro check silencioso: $e');
+          }
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -87,35 +114,400 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
         );
         Navigator.pop(context, true);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              result['message'] ?? 'Erro ao cadastrar usuário',
-              style: const TextStyle(color: Colors.white),
+        // Fallback: Se o backend retornar erro de limite (segurança dupla)
+        final message = result['message']?.toString() ?? '';
+
+        if (message.contains('Limite de alunos atingido') ||
+            message.contains('users_alunos_check')) {
+          _showUpgradeDialog();
+        } else if (message.contains('unique constraint') ||
+            message.contains('duplicate key')) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Este e-mail já está cadastrado no sistema.',
+                style:
+                    TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+              backgroundColor: AppTheme.accentRed,
+              behavior: SnackBarBehavior.floating,
             ),
-            backgroundColor: AppTheme.accentRed,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                result['message'] ?? 'Erro ao cadastrar usuário',
+                style: const TextStyle(color: Colors.white),
+              ),
+              backgroundColor: AppTheme.accentRed,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Erro inesperado: ${e.toString()}',
-              style: const TextStyle(color: Colors.white),
+        final message = e.toString();
+        if (message.contains('Limite de alunos atingido')) {
+          _showUpgradeDialog();
+        } else if (message.contains('unique constraint') ||
+            message.contains('duplicate key')) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Este e-mail já está cadastrado no sistema.',
+                style:
+                    TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+              backgroundColor: AppTheme.accentRed,
+              behavior: SnackBarBehavior.floating,
             ),
-            backgroundColor: AppTheme.accentRed,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Erro inesperado: ${e.toString()}',
+                style: const TextStyle(color: Colors.white),
+              ),
+              backgroundColor: AppTheme.accentRed,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
       }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  void _showUpgradeDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: Container(
+          width: 400,
+          padding: const EdgeInsets.all(32),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+              // Borda dourada sutil
+              BoxShadow(
+                color: const Color(0xFFFFD700).withOpacity(0.3),
+                blurRadius: 0,
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Ícone de Bloqueio/Crescimento
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFFFFF9E6), // Amarelo bem claro
+                ),
+                child: const Icon(
+                  Icons.rocket_launch_rounded, // Mudado para foguete
+                  size: 56,
+                  color: Color(0xFFFFD700), // Dourado
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              Text(
+                'Hora de Crescer! 🚀',
+                style: GoogleFonts.cinzel(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF1A1A1A),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+
+              Text(
+                'Incrível! Sua academia atingiu o limite máximo do plano atual.',
+                style: GoogleFonts.lato(
+                  fontSize: 16,
+                  color: const Color(0xFF666666),
+                  height: 1.5,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5F5F5),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'O próximo cadastro só será liberado após o upgrade.',
+                  style: GoogleFonts.lato(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFFCC3300), // Vermelho aviso elegante
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+
+              const SizedBox(height: 32),
+
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context); // Fecha Dialog
+                    // Navega para Subscription
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const SubscriptionScreen()),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFFD700), // Dourado
+                    foregroundColor: Colors.black,
+                    padding: const EdgeInsets.symmetric(vertical: 20),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    elevation: 5,
+                    shadowColor: const Color(0xFFFFD700).withOpacity(0.5),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'DESBLOQUEAR CRESCIMENTO',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 14,
+                            letterSpacing: 1),
+                      ),
+                      SizedBox(width: 8),
+                      Icon(Icons.arrow_forward_rounded, size: 20),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFF999999),
+                ),
+                child: const Text('Voltar'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showLimitReachedSuccessDialog(String plan) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: Container(
+          width: 400,
+          padding: const EdgeInsets.all(32),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Ícone Celebrativo
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFFE8F5E9), // Verde bem claro
+                ),
+                child: const Icon(
+                  Icons.emoji_events_rounded,
+                  size: 56,
+                  color: Color(0xFFFFD700), // Dourado
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Título (Foguete na mesma linha)
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  'PARABÉNS! VOCÊ CRESCEU! 🚀',
+                  style: GoogleFonts.cinzel(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF1A1A1A),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // CARD 1: Informação do Plano
+              Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5F5F5), // Cinza bem claro
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: RichText(
+                  textAlign: TextAlign.center,
+                  text: TextSpan(
+                    style: GoogleFonts.lato(
+                      fontSize: 15,
+                      color: const Color(0xFF666666),
+                      height: 1.4,
+                    ),
+                    children: [
+                      const TextSpan(
+                          text:
+                              'Você acaba de preencher a última vaga do seu plano '),
+                      TextSpan(
+                        text: plan.toUpperCase(),
+                        style: GoogleFonts.lato(
+                          fontWeight: FontWeight.w900,
+                          color: Colors.black, // Destaque
+                        ),
+                      ),
+                      const TextSpan(text: '.'),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12), // Espaçamento clean
+
+              // CARD 2: Necessidade de Upgrade
+              Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5F5F5),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'Para cadastrar mais usuários, é necessário fazer o upgrade do seu plano mensal.',
+                  style: GoogleFonts.lato(
+                    fontSize: 15,
+                    color: Colors.black, // Texto Preto conforme pedido
+                    fontWeight: FontWeight.w600,
+                    height: 1.4,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+
+              const SizedBox(height: 12), // Espaçamento clean
+
+              // CARD 3: Mensagem de Motivação (Verde Sucesso)
+              Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F5E9), // Verde bem clarinho
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: const Color(0xFF2A9D8F).withOpacity(0.3)),
+                ),
+                child: Text(
+                  'Atingir o limite é o maior sinal de que seu negócio é um sucesso absoluto!',
+                  style: GoogleFonts.lato(
+                    fontSize: 15,
+                    color: const Color(0xFF2A9D8F),
+                    fontWeight: FontWeight.bold,
+                    height: 1.4,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+
+              const SizedBox(height: 32),
+
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context); // Fecha Dialog
+                    Navigator.pop(context, true); // Fecha Tela de Cadastro
+
+                    // Navega para Subscription
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const SubscriptionScreen()),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFFD700),
+                    foregroundColor: Colors.black,
+                    padding: const EdgeInsets.symmetric(vertical: 20),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    elevation: 5,
+                    shadowColor: const Color(0xFFFFD700).withOpacity(0.4),
+                  ),
+                  child: const Text(
+                    'QUERO CONTINUAR CRESCENDO', // Botão mais persuasivo
+                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.pop(context, true);
+                },
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFF999999),
+                ),
+                child: const Text('Fechar e ver lista de alunos'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   String _getRoleName(UserRole role) {

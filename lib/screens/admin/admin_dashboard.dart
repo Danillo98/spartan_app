@@ -11,6 +11,7 @@ import 'financial/monthly_payment_screen.dart';
 import 'assessment_list_screen.dart';
 import 'notice_manager_screen.dart';
 import 'admin_profile_screen.dart';
+import 'subscription_screen.dart'; // Add Import
 import '../../widgets/responsive_utils.dart';
 
 class AdminDashboard extends StatefulWidget {
@@ -391,7 +392,13 @@ class _AdminDashboardState extends State<AdminDashboard>
                               icon: Icons.verified_rounded,
                               color: const Color(0xFF212121), // Preto Premium
                               onTap: () {
-                                _showComingSoon(context, 'Assinatura Spartan');
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const SubscriptionScreen(),
+                                  ),
+                                );
                               },
                             ),
                           ],

@@ -20,15 +20,14 @@ BEGIN
 
     -- 2. Definir o limite baseado no plano
     -- Normalizar para evitar problemas de case (Prata, PRATA, plata, etc)
-    IF ILIKE(v_admin_plan, 'Prata') THEN
+    IF v_admin_plan ILIKE 'Prata' THEN
         v_limit := 200;
-    ELSIF ILIKE(v_admin_plan, 'Ouro') THEN
+    ELSIF v_admin_plan ILIKE 'Ouro' THEN
         v_limit := 500;
-    ELSIF ILIKE(v_admin_plan, 'Platina') THEN
+    ELSIF v_admin_plan ILIKE 'Platina' THEN
         v_limit := 999999; -- Infinito na prática
     ELSE
-        -- Plano desconhecido ou Default: vamos assumir Prata (200) ou permitir?
-        -- Por segurança, assumimos 200 para evitar abusos em planos inválidos
+        -- Plano desconhecido ou Default: vamos assumir Prata (200) para evitar abusos
         v_limit := 200;
     END IF;
 

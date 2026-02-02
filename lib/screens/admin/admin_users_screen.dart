@@ -5,6 +5,7 @@ import '../../services/user_service.dart';
 import '../../config/app_theme.dart';
 import 'create_user_screen.dart';
 import 'edit_user_screen.dart';
+import 'subscription_screen.dart';
 
 class AdminUsersScreen extends StatefulWidget {
   const AdminUsersScreen({super.key});
@@ -461,14 +462,40 @@ class _AdminUsersScreenState extends State<AdminUsersScreen>
         ),
         child: FloatingActionButton.extended(
           onPressed: () async {
-            final result = await Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const CreateUserScreen(),
-              ),
-            );
-            if (result == true) {
-              _loadUsers();
+            // Verificar limite ANTES de navegar
+            try {
+              final limitStatus = await UserService.checkPlanLimitStatus();
+              final isAtLimit = limitStatus['isAtLimit'] ?? false;
+              // final plan = limitStatus['plan'] ?? 'Bronze'; // Se precisar mostrar o plano
+
+              if (isAtLimit && mounted) {
+                // Mostrar Popup de Bloqueio Imediato
+                _showUpgradeDialog();
+              } else {
+                // Navegar para Criar Usuário
+                if (mounted) {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const CreateUserScreen(),
+                    ),
+                  );
+                  if (result == true) {
+                    _loadUsers();
+                  }
+                }
+              }
+            } catch (e) {
+              // Fallback: se der erro na verificação, deixa tentar entrar (o backend barra depois)
+              if (mounted) {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const CreateUserScreen(),
+                  ),
+                );
+                if (result == true) _loadUsers();
+              }
             }
           },
           icon: const Icon(Icons.add_rounded, color: Colors.white),
@@ -480,6 +507,144 @@ class _AdminUsersScreenState extends State<AdminUsersScreen>
               )),
           backgroundColor: const Color(0xFF1A1A1A),
           elevation: 0,
+        ),
+      ),
+    );
+  }
+
+  void _showUpgradeDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+              maxWidth: 450), // Fixa a largura máxima elegantemente
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Ícone Foguete (Substituir por imagem se tiver, mas icone é leve)
+                Container(
+                  width: 100,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF9E5), // Fundo suave amarelo
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.rocket_launch_rounded,
+                    size: 50,
+                    color: Color(0xFFFFD700),
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                Text(
+                  'HORA DE CRESCER! 🚀',
+                  style: GoogleFonts.cinzel(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF1A1A1A),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+
+                Text(
+                  'Incrível! Sua academia atingiu o limite máximo do plano atual.',
+                  style: GoogleFonts.lato(
+                    fontSize: 15,
+                    color: const Color(0xFF666666),
+                    height: 1.5,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF5F5F5),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'O próximo cadastro só será liberado após o upgrade.',
+                    style: GoogleFonts.lato(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(
+                          0xFFD32F2F), // Vermelho alerta leve ou laranja
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+
+                const SizedBox(height: 32),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context); // Fecha Dialog
+                      // Navega para Subscription
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => const SubscriptionScreen()),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFFD700), // Dourado
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      elevation: 5,
+                      shadowColor: const Color(0xFFFFD700).withOpacity(0.5),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'DESBLOQUEAR CRESCIMENTO',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 14,
+                              letterSpacing: 1),
+                        ),
+                        SizedBox(width: 8),
+                        Icon(Icons.arrow_forward, size: 20),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('Voltar',
+                      style: TextStyle(color: Colors.grey, fontSize: 14)),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
