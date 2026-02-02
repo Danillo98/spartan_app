@@ -792,7 +792,7 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
                 'Módulos: Administrador, Nutricionista, Personal Trainer e Aluno.',
                 'Dietas, Relatórios Físicos e Treinos.',
                 'Monitoramento de Mensalidades, Controle Financeiro, Fluxo de Caixa e Relatórios Mensais e Anuais em PDF.',
-                'Suporta até 250 alunos.',
+                'Suporta até 200 alunos.',
               ],
             ),
             const SizedBox(height: 32),
