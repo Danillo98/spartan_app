@@ -12,7 +12,9 @@ import 'services/cache_manager.dart';
 import 'services/notification_service.dart';
 import 'config/app_theme.dart';
 import 'package:app_links/app_links.dart';
-import 'dart:io' show Platform;
+// REMOVIDO: import 'dart:io' show Platform; // Quebra na Web
+import 'package:flutter/foundation.dart'; // Para kIsWeb e defaultTargetPlatform
+
 // IMPORT CONDICIONAL
 // Se não puder usar dart:io (Web), usa o stub. Se puder (Windows), tenta usar o impl.
 import 'services/windows_bridge_stub.dart'
@@ -37,7 +39,10 @@ void main(List<String> args) async {
 
   // Inicializar Notificações (Firebase Messaging)
   try {
-    if (!Platform.isWindows) {
+    // Usar kIsWeb e defaultTargetPlatform evita usar dart:io
+    bool isWindows = !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+
+    if (!isWindows) {
       await NotificationService.init();
     } else {
       print("⚠️ Notificações Push não suportadas nativamente no Windows.");
