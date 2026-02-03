@@ -36,8 +36,13 @@
 
     <script>
         var serviceWorkerVersion = null;
+        
+        // Cache Busting: Forçar download do bootstrap novo a cada load
+        var script = document.createElement('script');
+        script.src = "flutter_bootstrap.js?v=" + new Date().getTime();
+        script.async = true;
+        document.head.appendChild(script);
     </script>
-    <script src="flutter_bootstrap.js" async></script>
 </head>
 
 <body>

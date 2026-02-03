@@ -5,6 +5,7 @@ import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 import '../services/auth_service.dart';
 import '../services/document_validation_service.dart';
 import '../config/app_theme.dart';
+import '../utils/legal_texts.dart';
 
 class AdminRegisterScreen extends StatefulWidget {
   const AdminRegisterScreen({super.key});
@@ -34,6 +35,11 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
+
+  // Variáveis de Aceite Legal
+  bool _termsAccepted = false;
+  bool _privacyAccepted = false;
+
   int _currentStep = 0;
 
   late AnimationController _animationController;
@@ -408,6 +414,27 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
 
     // Avançar para próximo step
     if (_currentStep < 3) {
+      // Validação Step 2 (Senha) - Termos Legais
+      // O Step 2 é o índice 2 (terceiro passo visual)
+      if (_currentStep == 2) {
+        if (!_termsAccepted || !_privacyAccepted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text(
+                'Você deve aceitar os Termos de Uso e Política de Privacidade para continuar.',
+                style: TextStyle(color: Colors.white),
+              ),
+              backgroundColor: AppTheme.accentRed,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          );
+          return;
+        }
+      }
+
       setState(() => _currentStep++);
       _animationController.reset();
       _animationController.forward();
@@ -769,6 +796,27 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
             }
             return null;
           },
+        ),
+        const SizedBox(height: 24),
+
+        // CHECKBOX TERMOS DE USO
+        _buildLegalCheckbox(
+          value: _termsAccepted,
+          label: 'Li e concordo com os ',
+          linkText: 'Termos de Uso',
+          onChanged: (val) => setState(() => _termsAccepted = val ?? false),
+          onTapLink: () =>
+              _showLegalModal('Termos de Uso', LegalTexts.termsOfUse),
+        ),
+
+        // CHECKBOX POLÍTICA DE PRIVACIDADE
+        _buildLegalCheckbox(
+          value: _privacyAccepted,
+          label: 'Li e concordo com a ',
+          linkText: 'Política de Privacidade',
+          onChanged: (val) => setState(() => _privacyAccepted = val ?? false),
+          onTapLink: () => _showLegalModal(
+              'Política de Privacidade', LegalTexts.privacyPolicy),
         ),
       ],
     );
@@ -1247,6 +1295,131 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
                             ),
                           ),
                   ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLegalCheckbox({
+    required bool value,
+    required String label,
+    required String linkText,
+    required ValueChanged<bool?> onChanged,
+    required VoidCallback onTapLink,
+  }) {
+    return Row(
+      children: [
+        Checkbox(
+          value: value,
+          onChanged: onChanged,
+          activeColor: AppTheme.primaryGold,
+          checkColor: Colors.white,
+          side: BorderSide(color: AppTheme.primaryGold, width: 2),
+        ),
+        Expanded(
+          child: RichText(
+            text: TextSpan(
+              text: label,
+              style: GoogleFonts.lato(
+                fontSize: 14,
+                color: AppTheme.primaryText,
+              ),
+              children: [
+                WidgetSpan(
+                  child: InkWell(
+                    onTap: onTapLink,
+                    child: Text(
+                      linkText,
+                      style: GoogleFonts.lato(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.primaryGold,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showLegalModal(String title, String content) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 600, maxHeight: 600),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Cabeçalho
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  border: Border(
+                      bottom: BorderSide(color: Colors.grey[300]!, width: 1)),
+                  color: Colors.grey[50],
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(16)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.gavel_rounded, color: AppTheme.primaryGold),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: GoogleFonts.cinzel(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.primaryText,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context)),
+                  ],
+                ),
+              ),
+              // Conteúdo com Scroll
+              Flexible(
+                child: Scrollbar(
+                  thumbVisibility: true,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      content,
+                      style: GoogleFonts.lato(
+                          fontSize: 14, height: 1.6, color: Colors.grey[800]),
+                    ),
+                  ),
+                ),
+              ),
+              // Botão Fechar Inferior
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryGold,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text('FECHAR DOCUMENTO'),
                 ),
               ),
             ],

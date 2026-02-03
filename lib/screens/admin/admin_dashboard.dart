@@ -12,6 +12,7 @@ import 'assessment_list_screen.dart';
 import 'notice_manager_screen.dart';
 import 'admin_profile_screen.dart';
 import 'subscription_screen.dart'; // Add Import
+import 'support_screen.dart'; // Import Support
 import '../../widgets/responsive_utils.dart';
 
 class AdminDashboard extends StatefulWidget {
@@ -397,6 +398,19 @@ class _AdminDashboardState extends State<AdminDashboard>
                                   MaterialPageRoute(
                                     builder: (context) =>
                                         const SubscriptionScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                            _buildModernFeatureCard(
+                              title: 'Suporte',
+                              icon: Icons.support_agent_rounded,
+                              color: const Color(0xFF455A64), // Blue Grey
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const SupportScreen(),
                                   ),
                                 );
                               },
