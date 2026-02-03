@@ -291,6 +291,7 @@ class AuthService {
       }
 
       print('📝 Criando novo usuário no auth.users...');
+      // FORCING COMMIT TO GITHUB
 
       // DEBUG CRÍTICO
       print('🔥 DEBUG TOKEN RAW ADDRESS: "$address"');
