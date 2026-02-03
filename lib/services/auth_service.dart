@@ -292,8 +292,14 @@ class AuthService {
 
       print('📝 Criando novo usuário no auth.users...');
 
+      // DEBUG CRÍTICO
+      print('🔥 DEBUG TOKEN RAW ADDRESS: "$address"');
+
       // EXTRAIR PLANO, CPF E ENDEREÇO DO TOKEN (NOVA ORDEM)
       final addressParts = address.split('|');
+      print('🔥 DEBUG PARTS COUNT: ${addressParts.length}');
+      print('🔥 DEBUG PARTS: $addressParts');
+
       final role = addressParts.isNotEmpty ? addressParts[0] : 'student';
 
       String? adminPlan;
