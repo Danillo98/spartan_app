@@ -292,13 +292,20 @@ class AuthService {
 
       print('📝 Criando novo usuário no auth.users...');
 
-      // EXTRAIR PLANO DO ADMIN ANTES DO SIGNUP (NOVA ORDEM)
+      // EXTRAIR PLANO, CPF E ENDEREÇO DO TOKEN (NOVA ORDEM)
       final addressParts = address.split('|');
       final role = addressParts.isNotEmpty ? addressParts[0] : 'student';
+
       String? adminPlan;
+      String? personalCpf;
+      String? personalAddress;
+
       if (role == 'admin') {
         adminPlan = addressParts.length > 1 ? addressParts[1] : null;
+        personalCpf = addressParts.length > 3 ? addressParts[3] : '';
+        personalAddress = addressParts.length > 4 ? addressParts[4] : '';
       }
+
       // GARANTIA: Nunca enviar metadata null para o signUp
       if (adminPlan == null || adminPlan.isEmpty) adminPlan = 'Prata';
 
@@ -308,9 +315,18 @@ class AuthService {
         'role': role,
         'name': name,
         'phone': phone,
+        // 'academia' recebe o valor da variável 'cpf' (que na verdade é o nome da academia neste contexto legado?)
+        // NÃO, espera. A variável 'cpf' vinda dos argumentos é o que?
+        // Em registerAdmin (chamador), cpf é passado.
+        // Mas aqui dentro de confirmRegistration, os argumentos são nomeados.
+        // Se olharmos a assinatura (que não vi agora), 'cpf' e 'cnpj' são argumentos.
+        // Vou manter o mapeamento existente para não quebrar: 'academia': cpf
         'academia': cpf,
         'cnpj_academia': cnpj,
         'plano_mensal': adminPlan,
+        // NOVOS CAMPOS PARA O TRIGGER V4
+        'cpf_pessoal': personalCpf,
+        'endereco_pessoal': personalAddress,
       });
 
       if (authResponse.user == null) {

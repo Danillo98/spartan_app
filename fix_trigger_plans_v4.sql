@@ -13,6 +13,10 @@ DECLARE
   -- Campos adicionais para evitar erro NOT NULL
   meta_nome text;
   meta_telefone text;
+  
+  -- Campos Pessoais (Correção Final)
+  meta_cpf text;
+  meta_endereco text;
 BEGIN
   -- TENTA PEGAR DADOS
   user_role := new.raw_user_meta_data->>'role';
@@ -21,12 +25,17 @@ BEGIN
   meta_academia := new.raw_user_meta_data->>'academia';
   meta_nome := new.raw_user_meta_data->>'name';
   meta_telefone := new.raw_user_meta_data->>'phone';
+  
+  -- Novos campos mapeados no AuthService
+  meta_cpf := new.raw_user_meta_data->>'cpf_pessoal';
+  meta_endereco := new.raw_user_meta_data->>'endereco_pessoal';
 
   -- LOG DE ENTRADA
   INSERT INTO public.app_logs (message) 
   VALUES ('Trigger V4 START. ID: ' || new.id || 
           '. Plano: ' || coalesce(meta_plano, 'NULO') ||
-          '. Nome: ' || coalesce(meta_nome, 'NULO'));
+          '. Nome: ' || coalesce(meta_nome, 'NULO') ||
+          '. CPF: ' || coalesce(meta_cpf, 'NULO'));
 
   -- CORREÇÃO DE NULO (Plano)
   IF meta_plano IS NULL OR meta_plano = '' OR meta_plano = 'null' THEN
@@ -37,7 +46,7 @@ BEGIN
   IF user_role = 'admin' THEN
     -- Inserir APENAS se tiver CNPJ (obrigatório)
     IF meta_cnpj IS NOT NULL AND meta_cnpj <> '' THEN
-        insert into public.users_adm (id, email, plano_mensal, cnpj_academia, academia, nome, telefone, email_verified)
+        insert into public.users_adm (id, email, plano_mensal, cnpj_academia, academia, nome, telefone, email_verified, cpf, endereco)
         values (
             new.id, 
             new.email, 
@@ -46,16 +55,20 @@ BEGIN
             meta_academia, 
             coalesce(meta_nome, 'Administrador'), 
             coalesce(meta_telefone, ''), 
-            true
+            true,
+            coalesce(meta_cpf, ''),
+            coalesce(meta_endereco, '')
         )
         ON CONFLICT (id) DO UPDATE
         SET 
             plano_mensal = EXCLUDED.plano_mensal,
             cnpj_academia = EXCLUDED.cnpj_academia,
             academia = EXCLUDED.academia,
-            nome = EXCLUDED.nome;
+            nome = EXCLUDED.nome,
+            cpf = EXCLUDED.cpf,
+            endereco = EXCLUDED.endereco;
         
-        INSERT INTO public.app_logs (message) VALUES ('Success: Users_adm inserted/updated (V4).');
+        INSERT INTO public.app_logs (message) VALUES ('Success: Users_adm inserted/updated (V4 with CPF/Address).');
     ELSE
         INSERT INTO public.app_logs (message) VALUES ('ERROR: CNPJ is missing. Cannot insert into users_adm.');
     END IF;
