@@ -62,10 +62,26 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
     setState(() => _isLoading = true);
 
     try {
+      String finalEmail = _emailController.text.trim();
+      String finalPassword = _passwordController.text;
+
+      // Lógica para campos opcionais de Aluno (Gerar dados provisórios)
+      if (_selectedRole == UserRole.student) {
+        if (finalEmail.isEmpty) {
+          // Gerar email temporário único
+          final uniqueId = DateTime.now().millisecondsSinceEpoch;
+          finalEmail = 'aluno.$uniqueId@spartan.system';
+        }
+        if (finalPassword.isEmpty) {
+          // Gerar senha forte automática
+          finalPassword = 'Spt@${DateTime.now().millisecondsSinceEpoch}';
+        }
+      }
+
       final result = await UserService.createUserByAdmin(
         name: _nameController.text.trim(),
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
+        email: finalEmail,
+        password: finalPassword,
         phone: _phoneController.text.trim(),
         role: _selectedRole,
         birthDate: _selectedBirthDate != null
@@ -640,6 +656,10 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
                   icon: Icons.email_outlined,
                   keyboardType: TextInputType.emailAddress,
                   validator: (value) {
+                    if (_selectedRole == UserRole.student &&
+                        (value == null || value.isEmpty)) {
+                      return null; // Opcional para alunos
+                    }
                     if (value == null || value.isEmpty) {
                       return 'Por favor, insira o email';
                     }
@@ -835,6 +855,10 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
                     },
                   ),
                   validator: (value) {
+                    if (_selectedRole == UserRole.student &&
+                        (value == null || value.isEmpty)) {
+                      return null; // Opcional para alunos
+                    }
                     if (value == null || value.isEmpty) {
                       return 'Por favor, insira a senha';
                     }
@@ -867,6 +891,18 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
                     },
                   ),
                   validator: (value) {
+                    if (_selectedRole == UserRole.student &&
+                        (_passwordController.text.isEmpty)) {
+                      return null; // Se senha vazia (aluno), confirmação também opcional
+                    }
+                    if (_selectedRole == UserRole.student &&
+                        (value == null || value.isEmpty)) {
+                      // Se senha preenchida, mas confirmação vazia -> ERRO (A menos que senha também vazia)
+                      // Correção lógica: Se senha principal preenchida, confirmação é obrigatória.
+                      // Se senha principal vazia, confirmação opcional.
+                      return null;
+                    }
+
                     if (value == null || value.isEmpty) {
                       return 'Por favor, confirme a senha';
                     }
