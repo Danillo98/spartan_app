@@ -114,17 +114,27 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
     try {
       print('🚀 Iniciando cadastro com plano: "$_selectedPlan"'); // DEBUG
 
+      final cnpjValue = _cnpjMask.getUnmaskedText();
+      final cpfValue = _cpfMask.getUnmaskedText();
+      final addressValue = _addressController.text.trim();
+
+      print('📦 DADOS ENVIADOS PARA AUTH SERVICE:');
+      print('   CNPJ: $cnpjValue');
+      print('   CPF: $cpfValue');
+      print('   Endereço: $addressValue');
+
       // Cadastrar admin (envia email de confirmação automaticamente)
       final result = await AuthService.registerAdmin(
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
         password: _passwordController.text,
         phone: _phoneController.text.trim(),
-        cnpjAcademia: _cnpjMask.getUnmaskedText(), // CNPJ sem máscara
+        cnpjAcademia: cnpjValue, // CNPJ da academia
         academia: _academiaController.text.trim(), // Nome da Academia
-        cnpj: '', // CNPJ Pessoal (opcional, não está no form)
-        cpf: _cpfMask.getUnmaskedText(), // CPF sem máscara
-        address: _addressController.text.trim(),
+        cnpj:
+            cnpjValue, // FIX: Preencher CNPJ pessoal com o da empresa para evitar token vazio/quebrado
+        cpf: cpfValue, // CPF do responsável
+        address: addressValue,
         plan: _selectedPlan, // Plano selecionado
       );
 
