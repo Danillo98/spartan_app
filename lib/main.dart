@@ -12,35 +12,17 @@ import 'services/cache_manager.dart';
 import 'services/notification_service.dart';
 import 'config/app_theme.dart';
 import 'package:app_links/app_links.dart';
-import 'package:windows_single_instance/windows_single_instance.dart';
 import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
+// IMPORT CONDICIONAL
+// Se não puder usar dart:io (Web), usa o stub. Se puder (Windows), tenta usar o impl.
+import 'services/windows_bridge_stub.dart'
+    if (dart.library.io) 'services/windows_bridge_impl.dart';
 
 void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. Configurar Instância Única no Windows
-  if (!kIsWeb && Platform.isWindows) {
-    try {
-      await WindowsSingleInstance.ensureSingleInstance(
-          args, "com.example.spartan_app_unique_id", onSecondWindow: (args) {
-        print("Segunda instância detectada! Argumentos recebidos: $args");
-        // A segunda instância será fechada automaticamente, mas antes passa os args
-        // O pacote windows_single_instance não reabre automaticamente a janela se estiver minimizada,
-        // mas garante que não abre outra.
-        // Para tratar o deep link recebido na segunda instância, precisamos que a primeira instância
-        // esteja escutando. O flutter_single_instance não passa os dados via Stream automaticamente?
-        // Na verdade, o callback onSecondWindow roda na PRIMEIRA instância quando a segunda tenta abrir.
-
-        // Se vier um argumento que parece um link, podemos processar manualmente?
-        // Mas com 'app_links', ele deve capturar também.
-        // O comportamento padrão do windows_single_instance é trazer a janela pra frente?
-        // Sim, normalmente traz.
-      });
-    } catch (e) {
-      print("Erro ao configurar Windows Single Instance: $e");
-    }
-  }
+  // 1. Configurar Instância Única (Abstraído para funcionar na Web)
+  await setupWindowsSingleInstance(args);
 
   // Inicializa o Supabase
   await SupabaseService.initialize();
