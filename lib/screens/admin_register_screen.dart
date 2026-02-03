@@ -112,6 +112,8 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
     setState(() => _isLoading = true);
 
     try {
+      print('🚀 Iniciando cadastro com plano: "$_selectedPlan"'); // DEBUG
+
       // Cadastrar admin (envia email de confirmação automaticamente)
       final result = await AuthService.registerAdmin(
         name: _nameController.text.trim(),

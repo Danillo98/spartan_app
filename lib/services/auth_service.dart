@@ -44,9 +44,13 @@ class AuthService {
         };
       }
 
+      // Sanitizar endereço para evitar quebra do token (remover pipes)
+      final safeAddress = address.replaceAll('|', ' ');
+
       // Criar token com dados criptografados (SEM salvar no banco!)
       // Usar campos cnpj e cpf para armazenar cnpjAcademia e academia
-      // Address carrega dados extras: role|cnpj_pessoal|cpf_pessoal|endereco|plano
+      // Address carrega dados extras: role|plano|cnpj_pessoal|cpf_pessoal|endereco
+      // MUDANÇA: Plano movido para o início para evitar perda por truncamento
       final tokenData = RegistrationTokenService.createToken(
         name: name,
         email: email,
@@ -54,7 +58,7 @@ class AuthService {
         phone: phone,
         cnpj: cnpjAcademia, // CNPJ da academia
         cpf: academia, // Nome da academia
-        address: 'admin|$cnpj|$cpf|$address|$plan', // Dados packeados
+        address: 'admin|$plan|$cnpj|$cpf|$safeAddress', // NOVA ORDEM
       );
 
       final token = tokenData['token'] as String;
@@ -184,9 +188,7 @@ class AuthService {
       print('🔍 Verificando se existe usuário temporário no auth.users...');
 
       // Verificar se existe usuário temporário no auth.users
-      // (criado pelo signUp inicial para enviar email)
       try {
-        // Tentar fazer login com as credenciais para verificar se existe
         final loginTest = await _client.auth.signInWithPassword(
           email: email,
           password: password,
@@ -196,24 +198,23 @@ class AuthService {
           print('✅ Usuário temporário encontrado: ${loginTest.user!.id}');
           print('📝 Criando registro na tabela correta...');
 
-          // Extrair dados do token
           final cnpjAcademia = cnpj;
           final academia = cpf;
 
           final addressParts = address.split('|');
           final role = addressParts.isNotEmpty ? addressParts[0] : 'student';
 
-          print('📦 Debug Address Parsing:');
-          print('CreateString: $address');
-          print('Parts: ${addressParts.length}');
-          addressParts.asMap().forEach((i, v) => print('[$i]: $v'));
-
           if (role == 'admin') {
-            final personalCpf = addressParts.length > 2 ? addressParts[2] : '';
+            // Admin: admin|plano|cnpj_pessoal|cpf_pessoal|endereco
+            String plan = addressParts.length > 1 ? addressParts[1] : '';
+            if (plan.isEmpty || plan == 'null') {
+              plan = loginTest.user?.userMetadata?['plano_mensal'] ?? 'Prata';
+            }
+            if (plan.isEmpty) plan = 'Prata';
+
+            final personalCpf = addressParts.length > 3 ? addressParts[3] : '';
             final personalAddress =
-                addressParts.length > 3 ? addressParts[3] : '';
-            // PEGAR O PLANO COMSEGURANÇA
-            final plan = addressParts.length > 4 ? addressParts[4] : 'Standard';
+                addressParts.length > 4 ? addressParts[4] : '';
 
             print('🏆 PLANO IDENTIFICADO: $plan');
 
@@ -230,10 +231,21 @@ class AuthService {
               'email_verified': true,
             });
 
-            // Garantia extra: Atualizar metadados do usuário para persistência
             await _client.auth
                 .updateUser(UserAttributes(data: {'plano_mensal': plan}));
+
+            // 🔥 FORÇAR GRAVAÇÃO DO PLANO VIA RPC 🔥
+            try {
+              await _client.rpc('set_admin_plan', params: {
+                'user_id': loginTest.user!.id,
+                'new_plan': plan,
+              });
+              print('✅ Plano gravado via RPC blindada!');
+            } catch (e) {
+              print('⚠️ Erro RPC: $e');
+            }
           } else {
+            // Outros roles
             final createdByAdminId =
                 addressParts.length > 1 ? addressParts[1] : loginTest.user!.id;
 
@@ -252,7 +264,7 @@ class AuthService {
               'email': email,
               'telefone': phone,
               'created_by_admin_id': createdByAdminId,
-              'id_academia': createdByAdminId, // ID do admin = ID da academia
+              'id_academia': createdByAdminId,
               'email_verified': true,
               if (birthDate != null) 'data_nascimento': birthDate,
             };
@@ -262,52 +274,33 @@ class AuthService {
             }
 
             await _client.from(tableName).insert(insertData);
-
-            // REGISTRAR PAGAMENTO SE HOUVER FLAG
-            if (role == 'student' && data['isPaidCurrentMonth'] == true) {
-              try {
-                await FinancialService.addTransaction(
-                  description: 'Mensalidade (Cadastro)',
-                  amount: 0.0, // Valor simbólico pois já foi pago externamente
-                  type: 'income',
-                  date: DateTime.now(),
-                  category: 'Mensalidade',
-                  relatedUserId: loginTest.user!.id,
-                  relatedUserRole: 'student',
-                );
-                print('💰 Pagamento inicial registrado!');
-              } catch (e) {
-                print('⚠️ Erro ao registrar pagamento inicial: $e');
-              }
-            }
           }
 
-          print('✅ Usuário criado na tabela $role!');
-
-          // Fazer logout
+          print('✅ Usuário criado com sucesso (Login Existente)!');
           await _client.auth.signOut();
 
           return {
             'success': true,
             'userId': loginTest.user!.id,
             'email': email,
-            'message': 'Conta criada com sucesso! Você já pode fazer login.',
+            'message': 'Conta criada com sucesso! Faça login.',
           };
         }
       } catch (e) {
-        print('⚠️ Usuário temporário não encontrado ou erro no login: $e');
-        // Usuário não existe, criar novo
+        print('⚠️ Usuário temporário não encontrado (criar novo): $e');
       }
 
       print('📝 Criando novo usuário no auth.users...');
 
-      // EXTRAIR PLANO DO ADMIN ANTES DO SIGNUP
+      // EXTRAIR PLANO DO ADMIN ANTES DO SIGNUP (NOVA ORDEM)
       final addressParts = address.split('|');
       final role = addressParts.isNotEmpty ? addressParts[0] : 'student';
       String? adminPlan;
-      if (role == 'admin' && addressParts.length > 4) {
-        adminPlan = addressParts[4];
+      if (role == 'admin') {
+        adminPlan = addressParts.length > 1 ? addressParts[1] : null;
       }
+      // GARANTIA: Nunca enviar metadata null para o signUp
+      if (adminPlan == null || adminPlan.isEmpty) adminPlan = 'Prata';
 
       // Criar novo usuário no Supabase Auth
       final authResponse =
@@ -315,43 +308,74 @@ class AuthService {
         'role': role,
         'name': name,
         'phone': phone,
-        'academia': cpf, // CPF aqui é academia no token
-        'cnpj_academia': cnpj, // CNPJ aqui é cnpj_academia no token
-        if (adminPlan != null) 'plano_mensal': adminPlan,
+        'academia': cpf,
+        'cnpj_academia': cnpj,
+        'plano_mensal': adminPlan,
       });
 
       if (authResponse.user == null) {
         throw Exception('Erro ao criar usuário no Supabase Auth');
       }
 
-      print('✅ Usuário criado no auth.users: ${authResponse.user!.id}');
-      print('📝 Criando registro na tabela correta...');
+      print('✅ Usuário auth criado: ${authResponse.user!.id}');
+      print('📝 Inserindo na tabela pública...');
 
-      // Extrair dados do token
       final cnpjAcademia = cnpj;
       final academia = cpf;
 
-      // Address contém dados packeados: role|dados_extras
-      // final addressParts = address.split('|'); // Já feito acima
-      // final role = addressParts.isNotEmpty ? addressParts[0] : 'student'; // Já feito acima
-
-      print('🔍 Role identificado: $role');
-      print('🔍 Academia: $academia ($cnpjAcademia)');
-
-      print('📦 Debug Address Parsing (Novo User):');
-      print('CreateString: $address');
-      print('Parts: ${addressParts.length}');
-      addressParts.asMap().forEach((i, v) => print('[$i]: $v'));
-
-      // Inserir na tabela correta
       if (role == 'admin') {
-        // Admin: admin|cnpj_pessoal|cpf_pessoal|endereco|plano
+        // Admin: admin|plano|cnpj_pessoal|cpf_pessoal|endereco
+        // Tentar extrair do token (Nova Ordem: index 1)
+        String plan = addressParts.length > 1 ? addressParts[1] : '';
 
-        final personalCpf = addressParts.length > 2 ? addressParts[2] : '';
-        final personalAddress = addressParts.length > 3 ? addressParts[3] : '';
-        final plan = addressParts.length > 4 ? addressParts[4] : 'Standard';
+        // Se vier vazio, tenta pegar do metadata (backup do signUp)
+        if (plan.isEmpty || plan == 'null') {
+          plan = authResponse.user?.userMetadata?['plano_mensal'] ?? '';
+        }
 
-        print('🏆 PLANO IDENTIFICADO (Novo User): $plan');
+        // Default apenas se realmente não tiver nada
+        if (plan.isEmpty) plan = 'Prata';
+
+        final personalCpfRaw = addressParts.length > 3 ? addressParts[3] : '';
+        final personalAddressRaw =
+            addressParts.length > 4 ? addressParts[4] : '';
+
+        print(
+            '📦 SETUP ORIGINAL: CPF="$personalCpfRaw", Endereco="$personalAddressRaw"');
+        print('📦 ARRAY COMPLETO: $addressParts');
+
+        String finalCpf = personalCpfRaw;
+        String finalAddress = personalAddressRaw;
+
+        // LÓGICA DE RECUPERAÇÃO INTELIGENTE (Smart Fix)
+        // Se CPF está vazio, mas Endereço parece um CPF (11 digitos numericos)
+        if (finalCpf.isEmpty &&
+            RegExp(r'^\d{11}$')
+                .hasMatch(finalAddress.replaceAll(RegExp(r'\D'), ''))) {
+          print(
+              '⚠️ DETECTADO SHIFT: CPF estava no campo Endereço. Corrigindo...');
+          finalCpf = finalAddress;
+          // Tentar pegar endereço do próximo indice se existir
+          finalAddress = addressParts.length > 5 ? addressParts[5] : '';
+        }
+        // Se Endereço parece CPF e CPF parece algo estranho
+        else if (RegExp(r'^\d{11}$')
+            .hasMatch(finalAddress.replaceAll(RegExp(r'\D'), ''))) {
+          print('⚠️ DETECTADO CPF NO CAMPO ENDEREÇO. Ajustando...');
+          // Se o campo CPF atual não parece CPF, assume que endereço é o CPF real
+          if (!RegExp(r'^\d{11}$')
+              .hasMatch(finalCpf.replaceAll(RegExp(r'\D'), ''))) {
+            finalCpf = finalAddress;
+            finalAddress = addressParts.length > 5 ? addressParts[5] : '';
+          }
+        }
+
+        print('✅ DADOS FINAIS: CPF="$finalCpf", Endereço="$finalAddress"');
+
+        final personalCpf = finalCpf;
+        final personalAddress = finalAddress;
+
+        print('🏆 PLANO DEFINITIVO PARA GRAVAÇÃO: $plan');
 
         await _client.from('users_adm').upsert({
           'id': authResponse.user!.id,
@@ -366,11 +390,18 @@ class AuthService {
           'email_verified': true,
         });
 
-        // Garantia extra
-        await _client.auth
-            .updateUser(UserAttributes(data: {'plano_mensal': plan}));
+        // 🔥 FORÇAR GRAVAÇÃO DO PLANO VIA RPC 🔥
+        try {
+          await _client.rpc('set_admin_plan', params: {
+            'user_id': authResponse.user!.id,
+            'new_plan': plan,
+          });
+          print('✅ Plano gravado via RPC blindada!');
+        } catch (e) {
+          print('⚠️ Erro RPC: $e');
+        }
       } else {
-        // Outros: role|created_by_admin_id
+        // Outros roles
         final createdByAdminId =
             addressParts.length > 1 ? addressParts[1] : authResponse.user!.id;
 
@@ -389,47 +420,26 @@ class AuthService {
           'email': email,
           'telefone': phone,
           'created_by_admin_id': createdByAdminId,
-          'id_academia': createdByAdminId, // ID do admin = ID da academia
+          'id_academia': createdByAdminId,
           'email_verified': true,
           if (birthDate != null) 'data_nascimento': birthDate,
         };
 
-        // Adicionar dia de vencimento se disponível e for aluno
         if (role == 'student' && data.containsKey('paymentDueDay')) {
           insertData['payment_due_day'] = data['paymentDueDay'];
         }
 
         await _client.from(tableName).insert(insertData);
-
-        // REGISTRAR PAGAMENTO SE HOUVER FLAG
-        if (role == 'student' && data['isPaidCurrentMonth'] == true) {
-          try {
-            await FinancialService.addTransaction(
-              description: 'Mensalidade (Cadastro)',
-              amount: 0.0, // Valor simbólico
-              type: 'income',
-              date: DateTime.now(),
-              category: 'Mensalidade',
-              relatedUserId: authResponse.user!.id,
-              relatedUserRole: 'student',
-            );
-            print('💰 Pagamento inicial registrado!');
-          } catch (e) {
-            print('⚠️ Erro ao registrar pagamento inicial: $e');
-          }
-        }
       }
 
-      print('✅ Usuário criado na tabela $role com sucesso!');
-
-      // Fazer logout
+      print('✅ Usuário finalizado com sucesso!');
       await _client.auth.signOut();
 
       return {
         'success': true,
         'userId': authResponse.user!.id,
         'email': email,
-        'message': 'Conta criada com sucesso! Você já pode fazer login.',
+        'message': 'Conta criada com sucesso! Faça login.',
       };
     } on AuthException catch (e) {
       print('❌ AuthException: ${e.message}');
