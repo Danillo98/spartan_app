@@ -73,6 +73,8 @@ class AuthService {
       try {
         print('📧 Tentando enviar email para: $email');
 
+        // SIGNUP INICIAL: Envia TODOS os dados via metadata
+        // O Trigger V4 vai capturar isso imediatamente.
         final response = await _client.auth.signUp(
           email: email,
           password: password,
@@ -82,8 +84,19 @@ class AuthService {
             'name': name,
             'phone': phone,
             'academia': academia,
+            'cnpj': cnpjAcademia, // Trigger usa 'cnpj' ou 'cnpj_academia'
             'cnpj_academia': cnpjAcademia,
-            'plano_mensal': plan, // Agora enviamos o plano para o trigger
+            'plano_mensal': plan,
+            'plan': plan,
+
+            // DADOS QUE FALTAVAM:
+            'cpf': cpf,
+            'meta_cpf': cpf,
+            'cpf_pessoal': cpf,
+
+            'address': address,
+            'meta_endereco': address,
+            'endereco_pessoal': address,
           },
         );
 
