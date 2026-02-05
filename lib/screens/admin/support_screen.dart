@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../config/app_theme.dart';
 import '../../services/auth_service.dart';
-import '../../utils/legal_texts.dart';
 
 class SupportScreen extends StatefulWidget {
   const SupportScreen({super.key});
@@ -127,81 +126,6 @@ $userMessage
     }
   }
 
-  void _showLegalModal(String title, String content) {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 600, maxHeight: 600),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  border: Border(
-                      bottom: BorderSide(color: Colors.grey[300]!, width: 1)),
-                  color: Colors.grey[50],
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(16)),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.gavel_rounded, color: AppTheme.primaryGold),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: GoogleFonts.cinzel(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.primaryText,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.pop(context)),
-                  ],
-                ),
-              ),
-              Flexible(
-                child: Scrollbar(
-                  thumbVisibility: true,
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(24),
-                    child: Text(
-                      content,
-                      style: GoogleFonts.lato(
-                          fontSize: 14, height: 1.6, color: Colors.grey[800]),
-                    ),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primaryGold,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: const Text('FECHAR DOCUMENTO'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -233,37 +157,6 @@ $userMessage
                   constraints: const BoxConstraints(maxWidth: 600),
                   child: Column(
                     children: [
-                      // Botões Legais Sutis
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          TextButton.icon(
-                            onPressed: () => _showLegalModal(
-                                'Termos de Uso', LegalTexts.termsOfUse),
-                            icon: const Icon(Icons.description_outlined,
-                                size: 18),
-                            label: const Text('Termos de Uso'),
-                            style: TextButton.styleFrom(
-                              foregroundColor: Colors.grey[600],
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Text('|', style: TextStyle(color: Colors.grey[300])),
-                          const SizedBox(width: 16),
-                          TextButton.icon(
-                            onPressed: () => _showLegalModal(
-                                'Política de Privacidade',
-                                LegalTexts.privacyPolicy),
-                            icon: const Icon(Icons.lock_outline, size: 18),
-                            label: const Text('Política de Privacidade'),
-                            style: TextButton.styleFrom(
-                              foregroundColor: Colors.grey[600],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 32),
-
                       Container(
                         padding: const EdgeInsets.all(32),
                         decoration: BoxDecoration(
@@ -413,6 +306,43 @@ $userMessage
                             ),
                           ],
                         ),
+                      ),
+
+                      const SizedBox(height: 32),
+
+                      // Botões Legais (Agora no final)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          TextButton.icon(
+                            onPressed: () => launchUrl(
+                              Uri.parse('/termos/'),
+                              mode: LaunchMode.externalApplication,
+                              webOnlyWindowName: '_blank',
+                            ),
+                            icon: const Icon(Icons.description_outlined,
+                                size: 18),
+                            label: const Text('Termos de Uso'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Text('|', style: TextStyle(color: Colors.grey[300])),
+                          const SizedBox(width: 16),
+                          TextButton.icon(
+                            onPressed: () => launchUrl(
+                              Uri.parse('/politicas/'),
+                              mode: LaunchMode.externalApplication,
+                              webOnlyWindowName: '_blank',
+                            ),
+                            icon: const Icon(Icons.lock_outline, size: 18),
+                            label: const Text('Política de Privacidade'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.grey[600],
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
