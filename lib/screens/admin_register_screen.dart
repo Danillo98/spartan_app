@@ -464,25 +464,13 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
                   width: double.infinity,
                   height: 50,
                   child: ElevatedButton(
-                    onPressed: () async {
-                      // Forçar envio de email de verificação agora
-                      try {
-                        // Nota: O email no auth já foi atualizado pelo Webhook para o real.
-                        // Pedimos reenvio de signup confirmation.
-                        await Supabase.instance.client.auth.resend(
-                          type: OtpType.signup,
-                          email: emailForConfirmation,
-                        );
-                        print(
-                            '📧 Email de confirmação reenviado para $emailForConfirmation');
-                      } catch (e) {
-                        print('Erro ao reenviar email: $e');
-                      }
-
+                    onPressed: () {
+                      // Navegação direta e absoluta para o Login
                       if (context.mounted) {
-                        Navigator.of(context).pop(); // Fecha dialog
-                        Navigator.of(context)
-                            .pop(); // Fecha tela de cadastro -> Vai p/ Login
+                        Navigator.of(context).pushNamedAndRemoveUntil(
+                          '/login',
+                          (route) => false,
+                        );
                       }
                     },
                     style: ElevatedButton.styleFrom(
@@ -492,7 +480,7 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12)),
                     ),
-                    child: const Text('ENTENDI',
+                    child: const Text('IR PARA LOGIN',
                         style: TextStyle(
                             fontWeight: FontWeight.bold, color: Colors.white)),
                   ),
