@@ -453,12 +453,6 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
                   style: TextStyle(
                       fontSize: 15, height: 1.5, color: AppTheme.secondaryText),
                 ),
-                const SizedBox(height: 24),
-                const Text(
-                  'Um email de confirmação foi enviado.\nVerifique sua caixa de entrada.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
                 const SizedBox(height: 32),
                 SizedBox(
                   width: double.infinity,
