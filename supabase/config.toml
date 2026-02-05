@@ -1,4 +1,13 @@
-project_id = "spartan_app"
+project_id = "waczgosbsrorcibwfavv"
 
-[functions.send-push]
+[functions.check-payment-status]
+verify_jwt = false
+
+[functions.send-verification-email]
+verify_jwt = false
+
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.send-password-reset]
 verify_jwt = false

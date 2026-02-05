@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+import 'package:flutter/foundation.dart'; // Para kIsWeb
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
@@ -170,7 +172,11 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
             realEmail, // Passamos o email real aqui para o Webhook atualizar
       };
 
-      // 3. Criar Sessão de Checkout
+      // 3. Atualizar o Lead Tracking com o Plano Selecionado (Importante para repescagem)
+      await _updateLeadTracking(
+          step: 4, status: 'payment_pending', plan: _selectedPlan);
+
+      // 4. Criar Sessão de Checkout
       final priceId = PaymentService.getPriceIdByName(_selectedPlan);
 
       print('🔄 Criando sessão de checkout...');
@@ -189,7 +195,7 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
 
       print('💳 URL de Checkout gerada: $checkoutUrl');
 
-      // 4. Redirecionar e Monitorar
+      // 5. Redirecionar e Monitorar
       final uri = Uri.parse(checkoutUrl);
       print('🌐 Tentando abrir URL: $uri');
 
@@ -290,7 +296,8 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
                     child: ElevatedButton(
                       onPressed: () {
                         Navigator.pop(context); // Fecha dialog atual
-                        _showPaymentPendingDialog(_emailController.text.trim());
+                        _showRegistrationSuccessDialog(
+                            _emailController.text.trim());
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.black,
@@ -334,7 +341,7 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
       if (confirmed) {
         // Sucesso Total! Passamos o email real para enviar confirmação agora
         final realEmail = _emailController.text.trim();
-        _showPaymentPendingDialog(realEmail);
+        _showRegistrationSuccessDialog(realEmail);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text(
@@ -372,7 +379,6 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
     return false;
   }
 
-  /// Polling silencioso em background (sem UI bloqueante)
   void _startSilentPolling(String userId, String userEmail) async {
     print('🔍 Iniciando polling silencioso para User ID: $userId');
     _pollingCancelled = false; // Reset flag
@@ -385,23 +391,41 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
       }
 
       try {
+        // TENTATIVA 1: Edge Function (Normal)
         final response = await Supabase.instance.client.functions.invoke(
           'check-payment-status',
           body: {'userId': userId},
         );
 
         if (response.data != null && response.data['confirmed'] == true) {
-          print('✅ Pagamento confirmado! Mostrando popup de sucesso.');
-          if (mounted) {
-            _showPaymentPendingDialog(userEmail);
-          }
+          print('✅ Pagamento confirmado via Edge Function!');
+          if (mounted) _showRegistrationSuccessDialog(userEmail);
           return;
         }
       } catch (e) {
-        print('Erro no polling: $e');
+        print(
+            '⚠️ Edge Function falhou ou retornou 401. Tentando Fallback DB...');
+
+        // TENTATIVA 2: Fallback Direto no Banco (Segurança contra 401/Invalid JWT)
+        // Se o usuário foi criado em users_adm, o pagamento foi confirmado.
+        try {
+          final dbCheck = await Supabase.instance.client
+              .from('users_adm')
+              .select('id')
+              .eq('id', userId)
+              .maybeSingle();
+
+          if (dbCheck != null) {
+            print('✅ Pagamento confirmado via Fallback DB!');
+            if (mounted) _showRegistrationSuccessDialog(userEmail);
+            return;
+          }
+        } catch (dbError) {
+          print('❌ Erro no fallback do banco: $dbError');
+        }
       }
 
-      await Future.delayed(const Duration(seconds: 3));
+      await Future.delayed(const Duration(seconds: 4));
     }
 
     // Timeout
@@ -417,7 +441,12 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
     }
   }
 
-  void _showPaymentPendingDialog(String emailForConfirmation) {
+  void _showRegistrationSuccessDialog(String emailForConfirmation) {
+    // Se houver algum diálogo aberto (ex: por um polling anterior), closes before
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+    }
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -491,192 +520,442 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
     // Validar formulário atual
     if (!_formKey.currentState!.validate()) return;
 
-    // Se estiver no Step 1, validar CPF e CNPJ antes de avançar
+    // --- PASSO 1: DADOS CADASTRAIS (Index 0) ---
     if (_currentStep == 0) {
-      try {
-        // Validar documentos com API
-        final validationResult =
-            await DocumentValidationService.validateDocuments(
-          cpf: _cpfMask.getUnmaskedText(),
-          cnpj: _cnpjMask.getUnmaskedText(),
+      if (!await _validateStep1Documents()) return;
+      // Salvar rascunho em memória ou shared_prefs se quiser persistência local
+      // Por enquanto, apenas avança para pedir o contato
+      setState(() => _currentStep++);
+      _animateToNextStep();
+    }
+    // --- PASSO 2: CONTATO (Index 1) ---
+    else if (_currentStep == 1) {
+      // Aqui acontece A MÁGICA do Funil + Verificação
+      await _handleStep2ContactVerification();
+    }
+    // --- PASSO 3: SENHA (Index 2) ---
+    else if (_currentStep == 2) {
+      // Validar termos
+      if (!_termsAccepted || !_privacyAccepted) {
+        _showErrorSnackBar(
+            'Você deve aceitar os Termos de Uso e Política de Privacidade para continuar.');
+        return;
+      }
+      // Atualizar senha definitiva
+      await _handleStep3PasswordUpdate();
+    }
+    // --- PASSO 4: PLANOS (Index 3) ---
+    else if (_currentStep == 3) {
+      // Finalização é feita pelo _handleRegister no botão de pagamento
+    }
+  }
+
+  // Valida CPF e CNPJ (Logica extraída do antigo _nextStep)
+  Future<bool> _validateStep1Documents() async {
+    try {
+      final validationResult =
+          await DocumentValidationService.validateDocuments(
+        cpf: _cpfMask.getUnmaskedText(),
+        cnpj: _cnpjMask.getUnmaskedText(),
+      );
+
+      if (!mounted) return false;
+
+      final cnpjData = validationResult['cnpj'];
+      if (!cnpjData['valid']) {
+        _showErrorSnackBar(cnpjData['message'] ?? 'CNPJ inválido');
+        return false;
+      }
+
+      if (cnpjData['exists'] == false) {
+        _showErrorSnackBar('CNPJ não encontrado na Receita Federal');
+        return false;
+      }
+
+      if (cnpjData['active'] == false) {
+        final shouldContinue = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('CNPJ Inativo'),
+            content: Text(
+              'O CNPJ informado está inativo na Receita Federal.\n\nDetalhe: ${cnpjData['data']?['situacao']}\nDeseja continuar?',
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Cancelar')),
+              ElevatedButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('Continuar')),
+            ],
+          ),
         );
+        if (shouldContinue != true) return false;
+      }
+
+      final cpfData = validationResult['cpf'];
+      if (!cpfData['valid']) {
+        _showErrorSnackBar(cpfData['message'] ?? 'CPF inválido');
+        return false;
+      }
+
+      return true;
+    } catch (e) {
+      _showErrorSnackBar('Erro ao validar documentos: $e');
+      return false;
+    }
+  }
+
+  // --- LÓGICA DO FUNIL (LEAD TRACKING) ---
+
+  // Passo 2: Cria Auth Provisório, Salva Lead, Envia Email Manual
+  Future<void> _handleStep2ContactVerification() async {
+    final email = _emailController.text.trim();
+
+    final currentUser = Supabase.instance.client.auth.currentUser;
+    if (currentUser != null && currentUser.email == email) {
+      await _updateLeadTracking(step: 2, status: 'verified');
+      setState(() => _currentStep++);
+      _animateToNextStep();
+      return;
+    }
+
+    final tempPassword =
+        'Temp@${DateTime.now().millisecondsSinceEpoch}#Spartan';
+
+    try {
+      showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (c) => const Center(child: CircularProgressIndicator()));
+
+      // 1. Preparar URL de redirecionamento (Backup e Segurança)
+      final origin = kIsWeb ? Uri.base.origin : 'https://spartanapp.com.br';
+      final redirectUrl = '$origin/confirm.html';
+
+      // 2. Criar o usuário no Auth
+      final authResponse = await Supabase.instance.client.auth.signUp(
+        email: email,
+        password: tempPassword,
+        emailRedirectTo: redirectUrl,
+      );
+
+      if (authResponse.user != null) {
+        _createdUserId = authResponse
+            .user!.id; // CRITICAL: Salva o ID para reuso nos próximos passos
+        // 3. Gerar Token Manual
+        final customToken =
+            (100000 + (DateTime.now().millisecondsSinceEpoch % 900000))
+                .toString();
+
+        // 4. Salvar dados (Protegido contra erros de coluna/banco)
+        try {
+          await Supabase.instance.client
+              .from('email_verification_codes')
+              .insert({
+            'email': email,
+            'code': customToken,
+            'user_id': authResponse.user!.id,
+            'expires_at':
+                DateTime.now().add(const Duration(hours: 24)).toIso8601String(),
+            'verified': false,
+          });
+
+          await _saveLeadTrackingInitial(authResponse.user!.id);
+        } catch (dbError) {
+          print('⚠️ Alerta de Banco: $dbError');
+        }
+
+        // 5. Chamar Edge Function para enviar o email via Resend
+        await _sendCustomVerificationEmail(email, customToken);
 
         if (!mounted) return;
+        Navigator.pop(context); // Fecha loading (o círculo girando)
 
-        // Verificar se CNPJ é válido
-        final cnpjData = validationResult['cnpj'];
-        if (!cnpjData['valid']) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                cnpjData['message'] ?? 'CNPJ inválido',
-                style: const TextStyle(color: Colors.white),
-              ),
-              backgroundColor: AppTheme.accentRed,
-              behavior: SnackBarBehavior.floating,
-              duration: const Duration(seconds: 5),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-          );
-          return;
-        }
+        // 6. FORÇAR O POPUP (Mesmo que o Supabase já tenha logado automaticamente)
+        _showEmailVerificationDialog(email);
+      }
+    } on AuthApiException catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // Fecha loading
 
-        // Verificar se CNPJ existe
-        if (cnpjData['exists'] == false) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text(
-                'CNPJ não encontrado na Receita Federal',
-                style: TextStyle(color: Colors.white),
-              ),
-              backgroundColor: AppTheme.accentRed,
-              behavior: SnackBarBehavior.floating,
-              duration: const Duration(seconds: 5),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-          );
-          return;
-        }
+      if (e.statusCode == '429') {
+        _showErrorSnackBar(
+            'Muitas tentativas! Aguarde 1 minuto para enviar o e-mail novamente.');
+      } else if (e.message.contains('already registered')) {
+        _showErrorSnackBar('Este email já está cadastrado. Faça login.');
+      } else {
+        _showErrorSnackBar('Erro no Supabase: ${e.message}');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      _showErrorSnackBar('Erro ao processar verificação: $e');
+    }
+  }
 
-        // Verificar se CNPJ está ativo
-        if (cnpjData['active'] == false) {
-          final shouldContinue = await showDialog<bool>(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('CNPJ Inativo'),
-              content: Text(
-                'O CNPJ informado está inativo na Receita Federal.\n\n'
-                'Situação: ${cnpjData['data']?['situacao'] ?? 'Não ativa'}\n\n'
-                'Deseja continuar mesmo assim?',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('Cancelar'),
-                ),
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.accentRed,
-                  ),
-                  child: const Text('Continuar'),
-                ),
-              ],
-            ),
-          );
+  // Função para chamar a Edge Function de Email
+  Future<void> _sendCustomVerificationEmail(String email, String token) async {
+    try {
+      final origin = kIsWeb ? Uri.base.origin : 'https://spartanapp.com.br';
+      final redirectUrl = '$origin/confirm.html';
 
-          if (shouldContinue != true) {
-            return;
-          }
-        }
+      final response = await Supabase.instance.client.functions.invoke(
+        'send-verification-email',
+        body: {
+          'email': email,
+          'token': token,
+          'redirect_url': redirectUrl,
+        },
+      );
 
-        // Mostrar informações do CNPJ validado
-        if (cnpjData['data'] != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'CNPJ validado: ${cnpjData['data']['razao_social'] ?? 'Empresa'}',
-                style: const TextStyle(color: Colors.white),
-              ),
-              backgroundColor: Colors.green,
-              behavior: SnackBarBehavior.floating,
-              duration: const Duration(seconds: 3),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-          );
-        }
+      print('-------------------------------------------');
+      print('🚀 RESPOSTA DA FUNÇÃO: ${response.data}');
+      print('🚀 LINK DE ATIVAÇÃO EXTERNO: $redirectUrl?token=$token');
+      print('-------------------------------------------');
+    } catch (e) {
+      print(
+          '⚠️ Alerta: Erro ao chamar função de e-mail, mas o link está acima: $e');
+      // Não rethrow para permitir que o popup abra mesmo se a função falhar
+    }
+  }
 
-        // Validação de CPF (apenas matemática, pois API não verifica existência)
-        final cpfData = validationResult['cpf'];
-        if (!cpfData['valid']) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                cpfData['message'] ?? 'CPF inválido',
-                style: const TextStyle(color: Colors.white),
+  // Passo 3: Atualizar Senha Definitiva
+  Future<void> _handleStep3PasswordUpdate() async {
+    final newPassword = _passwordController.text;
+
+    // Verificar se senhas batem
+    if (newPassword != _confirmPasswordController.text) {
+      _showErrorSnackBar('As senhas não coincidem.');
+      return;
+    }
+
+    try {
+      showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (c) => const Center(child: CircularProgressIndicator()));
+
+      // 1. Atualizar senha no Auth
+      await Supabase.instance.client.auth.updateUser(
+        UserAttributes(password: newPassword),
+      );
+
+      // 2. Atualizar Lead Tracking (Step 3)
+      await _updateLeadTracking(step: 3, status: 'password_set');
+
+      if (!mounted) return;
+      Navigator.pop(context); // Fecha loading
+
+      // Avançar para Pagamento
+      setState(() => _currentStep++);
+      _animateToNextStep();
+    } catch (e) {
+      Navigator.pop(context);
+      _showErrorSnackBar('Erro ao definir senha: $e');
+    }
+  }
+
+  // Salva o registro inicial no banco (INSERT)
+  Future<void> _saveLeadTrackingInitial(String userId) async {
+    final leadData = {
+      'id': userId,
+      'email': _emailController.text.trim(),
+      'phone': _phoneController.text.trim(),
+      'gym_name': _academiaController.text.trim(),
+      'cnpj': _cnpjMask.getUnmaskedText(),
+      'full_name': _nameController.text.trim(),
+      'address_street': _addressController.text.trim(),
+      'current_step': 2,
+      'status': 'pending_verification'
+    };
+
+    try {
+      await Supabase.instance.client
+          .from('pending_registrations')
+          .upsert(leadData);
+    } catch (e) {
+      print('⚠️ Alerta de Banco (Lead Tracking): $e');
+    }
+  }
+
+  // Atualiza o registro existente (UPDATE)
+  Future<void> _updateLeadTracking({
+    required int step,
+    required String status,
+    String? plan,
+  }) async {
+    final userId =
+        Supabase.instance.client.auth.currentUser?.id ?? _createdUserId;
+    if (userId == null) return;
+
+    final Map<String, dynamic> updateData = {
+      'current_step': step,
+      'status': status,
+      // 'updated_at': DateTime.now().toIso8601String(), // Removido até que a coluna seja criada no SQL
+    };
+
+    if (plan != null) {
+      updateData['plan'] = plan;
+    }
+
+    try {
+      await Supabase.instance.client
+          .from('pending_registrations')
+          .update(updateData)
+          .eq('id', userId);
+      print('📊 Lead Tracking atualizado: Passo $step ($status)');
+    } catch (e) {
+      print('⚠️ Erro ao atualizar Lead Tracking: $e');
+    }
+  }
+
+  void _showEmailVerificationDialog(String email) async {
+    // Realtime para monitorar o status do lead no banco (Única fonte de verdade)
+    RealtimeChannel? statusChannel;
+
+    // OUVIR REALTIME: Se o status na tabela mudar para 'verified', avança
+    statusChannel = Supabase.instance.client
+        .channel('public:pending_registrations_check')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'pending_registrations',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: _createdUserId, // Usar ID único é mais confiável que email
+          ),
+          callback: (payload) {
+            final newStatus = payload.newRecord['status'];
+            print('🔔 Realtime: Status do Lead mudou para $newStatus');
+            if (newStatus == 'verified' &&
+                mounted &&
+                Navigator.canPop(context)) {
+              Navigator.pop(context, true);
+            }
+          },
+        )
+        .subscribe();
+
+    // FALLBACK POLLING: Caso o Realtime falhe em algumas redes/navegadores
+    bool isDialogStillOpen = true;
+    _startEmailStatusPolling(email).then((_) {
+      if (mounted && isDialogStillOpen && Navigator.canPop(context)) {
+        Navigator.pop(context, true);
+      }
+    });
+
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.mark_email_unread_rounded,
+                  size: 60, color: AppTheme.primaryGold),
+              const SizedBox(height: 24),
+              Text(
+                'Confirme seu Email',
+                style: GoogleFonts.cinzel(
+                    fontSize: 22, fontWeight: FontWeight.bold),
               ),
-              backgroundColor: AppTheme.accentRed,
-              behavior: SnackBarBehavior.floating,
-              duration: const Duration(seconds: 5),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+              const SizedBox(height: 16),
+              Text(
+                'Enviamos um link de confirmação para:\n$email',
+                textAlign: TextAlign.center,
+                style: const TextStyle(height: 1.5, fontSize: 16),
               ),
-            ),
-          );
+              const SizedBox(height: 16),
+              const Text(
+                'Clique no link enviado para continuar automaticamente.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppTheme.secondaryText, fontSize: 13),
+              ),
+              const SizedBox(height: 32),
+              const CircularProgressIndicator(color: Colors.black),
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(dialogContext, false); // Cancelou
+                },
+                child: const Text('Cancelar / Alterar Email',
+                    style: TextStyle(color: Colors.grey)),
+              )
+            ],
+          ),
+        ),
+      ),
+    );
+
+    isDialogStillOpen = false;
+
+    // Cancelar listeners ao sair do dialog
+    if (statusChannel != null) {
+      await Supabase.instance.client.removeChannel(statusChannel);
+    }
+
+    if (result == true && mounted) {
+      // Sucesso confirmado
+      await _updateLeadTracking(step: 2, status: 'verified');
+      setState(() => _currentStep++);
+      _animateToNextStep();
+    }
+  }
+
+  Future<void> _startEmailStatusPolling(String email) async {
+    int attempts = 0;
+    while (attempts < 60 && mounted) {
+      // 2 minutos de polling
+      await Future.delayed(const Duration(seconds: 2));
+      try {
+        final response = await Supabase.instance.client
+            .from('pending_registrations')
+            .select('status')
+            .eq('id', _createdUserId!)
+            .maybeSingle();
+
+        if (response != null && response['status'] == 'verified') {
+          print('✅ Polling: Email verificado com sucesso!');
           return;
         }
       } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Erro ao validar documentos: ${e.toString()}',
-                style: const TextStyle(color: Colors.white),
-              ),
-              backgroundColor: AppTheme.accentRed,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-          );
-        }
-        return;
+        print('⚠️ Erro no polling de email: $e');
       }
+      attempts++;
     }
+  }
 
-    // Avançar para próximo step
-    if (_currentStep < 3) {
-      // Validação Step 2 (Senha) - Termos Legais
-      // O Step 2 é o índice 2 (terceiro passo visual)
-      if (_currentStep == 2) {
-        if (!_termsAccepted || !_privacyAccepted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text(
-                'Você deve aceitar os Termos de Uso e Política de Privacidade para continuar.',
-                style: TextStyle(color: Colors.white),
-              ),
-              backgroundColor: AppTheme.accentRed,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-          );
-          return;
-        }
-      }
+  void _animateToNextStep() {
+    _animationController.reset();
+    _animationController.forward();
+    _focusFirstField();
+  }
 
-      setState(() => _currentStep++);
-      _animationController.reset();
-      _animationController.forward();
-
-      // Focar no primeiro campo do próximo step
-      _focusFirstField();
-    }
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: const TextStyle(color: Colors.white)),
+        backgroundColor: AppTheme.accentRed,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   void _previousStep() {
     if (_currentStep > 0) {
       setState(() => _currentStep--);
-      _animationController.reset();
-      _animationController.forward();
-
-      // Focar no primeiro campo do step anterior
-      _focusFirstField();
+      _animateToNextStep();
     }
   }
 
   // Focar no primeiro campo do step atual
   void _focusFirstField() {
-    // Aguardar a animação terminar antes de focar
     Future.delayed(const Duration(milliseconds: 100), () {
       switch (_currentStep) {
         case 0:
@@ -689,7 +968,6 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
           _passwordFocus.requestFocus();
           break;
         case 3:
-          // Sem foco automático no step 4
           break;
       }
     });
@@ -708,10 +986,8 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
             children: [
               // Header
               _buildHeader(),
-
               // Progress indicator
               _buildProgressIndicator(),
-
               // Form
               Expanded(
                 child: SingleChildScrollView(
@@ -725,7 +1001,6 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
                   ),
                 ),
               ),
-
               // Buttons
               _buildNavigationButtons(),
             ],

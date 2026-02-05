@@ -140,7 +140,25 @@ class AuthService {
       print('🔄 Iniciando confirmação de cadastro...');
       print('🔑 Token recebido: ${token.substring(0, 20)}...');
 
-      // Validar e decodificar token
+      // MUDANÇA: Se o token for numérico de 6 dígitos, tratamos como fluxo de Registro Manual
+      if (RegExp(r'^\d{6}$').hasMatch(token)) {
+        print('🔢 Token numérico detectado. Verificando fluxo manual...');
+        final success = await _verifyManualVerificationToken(token);
+        if (success) {
+          return {
+            'success': true,
+            'message':
+                'Email verificado com sucesso! Volte para a tela de cadastro.',
+          };
+        } else {
+          return {
+            'success': false,
+            'message': 'Código inválido ou já utilizado.',
+          };
+        }
+      }
+
+      // Validar e decodificar token padrão (JWT-like)
       final data = RegistrationTokenService.validateToken(token);
 
       if (data == null) {
@@ -758,11 +776,9 @@ class AuthService {
   /// Enviar email de recuperação de senha
   static Future<void> sendPasswordResetEmail(String email) async {
     try {
-      print('📧 Enviando email de recuperação para: $email');
+      print('📧 Enviando email de recuperação customizado para: $email');
 
-      // Enviar email de recuperação usando Edge Function + Resend
-      print('📧 Chamando Edge Function send-password-reset...');
-
+      // Chamar Edge Function que usa o sistema customizado (RPC + Resend)
       final response = await _client.functions.invoke(
         'send-password-reset',
         body: {'email': email},
@@ -770,21 +786,17 @@ class AuthService {
 
       if (response.status != 200) {
         final error = response.data?['error'] ?? 'Erro desconhecido';
-        throw AuthException('Erro ao enviar email: $error');
+        print('❌ Erro na Edge Function: $error');
+        throw AuthException('Erro ao enviar email customizado: $error');
       }
 
-      final data = response.data;
-      if (data != null && data['success'] == true) {
-        print('✅ ${data['message']}');
-      } else {
-        throw AuthException('Falha ao enviar email');
-      }
+      print('✅ Email de recuperação enviado com sucesso via Edge Function');
     } on AuthException catch (e) {
-      print('❌ Erro ao enviar email: ${e.message}');
+      print('❌ Erro AuthException: ${e.message}');
       throw Exception(_getAuthErrorMessage(e.message));
     } catch (e) {
-      print('❌ Erro geral: $e');
-      throw Exception('Erro ao enviar email de recuperação');
+      print('❌ Erro inesperado ao enviar password reset: $e');
+      throw Exception('Erro ao enviar email de recuperação: ${e.toString()}');
     }
   }
 
@@ -792,31 +804,35 @@ class AuthService {
   static Future<void> resetPassword(
       String accessToken, String newPassword) async {
     try {
-      print('🔐 Redefinindo senha...');
+      print('🔐 Redefinindo senha via RPC customizada...');
 
       // Validar senha
       if (newPassword.length < 6) {
         throw Exception('A senha deve ter no mínimo 6 caracteres');
       }
 
-      // Atualizar senha usando o token de acesso
-      final response = await _client.auth.updateUser(
-        UserAttributes(password: newPassword),
-      );
+      // Chamar a RPC customizada (mesma usada no HTML)
+      final response = await _client.rpc('reset_password_with_token', params: {
+        'reset_token': accessToken,
+        'new_password': newPassword,
+      });
 
-      if (response.user == null) {
-        throw Exception('Erro ao redefinir senha');
+      // A RPC retorna um JSON {success: bool, message: string}
+      if (response != null && response['success'] == true) {
+        print('✅ Senha redefinida com sucesso via RPC');
+        // Opcional: Fazer logout se houver sessão
+        if (_client.auth.currentSession != null) {
+          await _client.auth.signOut();
+        }
+      } else {
+        final errorMsg = response?['message'] ?? 'Erro desconhecido na RPC';
+        throw Exception(errorMsg);
       }
-
-      print('✅ Senha redefinida com sucesso');
-
-      // Fazer logout para forçar novo login
-      await _client.auth.signOut();
     } on AuthException catch (e) {
-      print('❌ Erro ao redefinir senha: ${e.message}');
+      print('❌ Erro AuthException ao redefinir: ${e.message}');
       throw Exception(_getAuthErrorMessage(e.message));
     } catch (e) {
-      print('❌ Erro geral: $e');
+      print('❌ Erro inesperado ao redefinir: $e');
       throw Exception('Erro ao redefinir senha: ${e.toString()}');
     }
   }
@@ -824,6 +840,45 @@ class AuthService {
   // ============================================
   // MENSAGENS DE ERRO
   // ============================================
+
+  static Future<bool> _verifyManualVerificationToken(String code) async {
+    try {
+      // 1. Buscar o token na tabela customizada
+      final response = await _client
+          .from('email_verification_codes')
+          .select()
+          .eq('code', code)
+          .eq('verified', false)
+          .maybeSingle();
+
+      if (response == null) return false;
+
+      final userId = response['user_id'];
+      final expiresAt = DateTime.parse(response['expires_at']);
+
+      if (DateTime.now().isAfter(expiresAt)) {
+        print('❌ Código expirado');
+        return false;
+      }
+
+      // 2. Marcar como verificado
+      await _client
+          .from('email_verification_codes')
+          .update({'verified': true}).eq('code', code);
+
+      // 3. ATUALIZAR STATUS DO LEAD (Isso é o que detrava o Realtime no Flutter)
+      await _client
+          .from('pending_registrations')
+          .update({'status': 'verified'}).eq('id', userId);
+
+      print('✅ Registro manual verificado e lead atualizado para: $userId');
+
+      return true;
+    } catch (e) {
+      print('❌ Erro ao verificar token manual: $e');
+      return false;
+    }
+  }
 
   static String _getAuthErrorMessage(String error) {
     if (error.contains('Invalid login credentials')) {

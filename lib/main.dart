@@ -129,16 +129,18 @@ class _SpartanAppState extends State<SpartanApp> {
       }
     }
 
-    // Caso 2: Fragmento Supabase (Hash)
+    // Caso 2: Fragmento Supabase (Hash ou URL Base na Web)
     final fragment = uri.fragment;
-    if (fragment.contains('type=recovery')) {
-      // Tentativa de parse manual do fragmento
-      // access_token=xxx&refresh_token=yyy&type=recovery...
-      final params = Uri.splitQueryString(fragment);
-      final accessToken = params['access_token'];
+    final queryParams = uri.queryParameters;
+
+    if (fragment.contains('type=recovery') ||
+        queryParams['type'] == 'recovery') {
+      final params =
+          fragment.contains('=') ? Uri.splitQueryString(fragment) : queryParams;
+      final accessToken = params['access_token'] ?? params['token'];
 
       if (accessToken != null) {
-        print('🔐 Recuperação de senha via Fragment detectada!');
+        print('🔐 Recuperação de senha detectada! Token: $accessToken');
         _navigatorKey.currentState?.pushAndRemoveUntil(
           MaterialPageRoute(
             builder: (context) => ResetPasswordScreen(
@@ -188,22 +190,31 @@ class _SpartanAppState extends State<SpartanApp> {
 
       // 2. Outros eventos de login (confirmação de email, etc)
       if (event == AuthChangeEvent.signedIn && session != null) {
-        _startBlockListeners(session.user.id); // <--- Iniciar monitoramento
+        _startBlockListeners(session.user.id);
+
+        final uri = Uri.base;
+        final fragment = uri.fragment;
+
+        // Se estivermos logando via recovery, redirecionar para a tela de reset
+        if (fragment.contains('type=recovery')) {
+          print('🔐 Login via Recovery detectado pelo fragmento!');
+          _navigatorKey.currentState?.pushAndRemoveUntil(
+            MaterialPageRoute(
+              builder: (context) => ResetPasswordScreen(
+                token: session.accessToken,
+              ),
+            ),
+            (route) => false,
+          );
+          return;
+        }
 
         print('📧 Usuário logado. Verificando token de confirmação...');
-
-        // Tentar pegar token da URL base (funciona melhor na Web, mas tentamos aqui)
-        final uri = Uri.base;
         final token = uri.queryParameters['token'];
-
-        // IGNORAR se for rota de reset de senha
         final isResetRoute = uri.path.contains('/reset-password') ||
             uri.fragment.contains('/reset-password');
 
         if (token != null && !isResetRoute) {
-          print(
-              '🔄 Token encontrado na URL base e NÃO é reset. Navegando para confirmação...');
-
           _navigatorKey.currentState?.pushAndRemoveUntil(
             MaterialPageRoute(
               builder: (context) => EmailConfirmationScreen(token: token),
@@ -212,7 +223,7 @@ class _SpartanAppState extends State<SpartanApp> {
           );
         }
       } else if (event == AuthChangeEvent.signedOut) {
-        _cancelBlockListeners(); // <--- Parar monitoramento
+        _cancelBlockListeners();
       }
     });
 

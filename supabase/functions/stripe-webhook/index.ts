@@ -142,7 +142,34 @@ serve(async (req) => {
                 }
             }
 
-            console.log('✅ SUCESSO! Usuário salvo na tabela users_adm:', adminUser.id);
+            console.log('✅ SUCESSO! Usuário salvo na tabela users_adm:', adminUser?.id || metadata.user_id_auth);
+
+            // C. Deletar registros de "Repescagem" (Lead Tracking e Tokens manuais)
+            console.log(`🧹 Limpando dados temporários para o usuário: ${metadata.user_id_auth}`);
+
+            const { error: errorPending } = await supabaseAdmin
+                .from('pending_registrations')
+                .delete()
+                .eq('id', metadata.user_id_auth);
+
+            if (errorPending) {
+                console.error('❌ Erro ao deletar de pending_registrations:', errorPending.message);
+            } else {
+                console.log('✅ Registro removido de pending_registrations');
+            }
+
+            const { error: errorCode } = await supabaseAdmin
+                .from('email_verification_codes')
+                .delete()
+                .eq('user_id', metadata.user_id_auth);
+
+            if (errorCode) {
+                console.error('❌ Erro ao deletar de email_verification_codes:', errorCode.message);
+            } else {
+                console.log('✅ Registro removido de email_verification_codes');
+            }
+
+            console.log('✨ Limpeza de tabelas finalizada.');
 
 
             // B. Registrar Pagamento (Opcional, mas bom para histórico)

@@ -153,12 +153,15 @@
         <div id="success-section" style="display: none;">
             <div class="success-icon">✅</div>
             <h1 style="font-size: 24px; margin-bottom: 10px;">Conta Verificada!</h1>
-            <p style="font-weight: bold; color: #1a1a1a; font-size: 18px; margin-bottom: 30px;">Já pode seguir para o
-                login!</p>
+            <p style="font-weight: bold; color: #1a1a1a; font-size: 18px; margin-bottom: 20px;">
+                O aplicativo Spartan já foi atualizado!</p>
+            <p style="color: #666; margin-bottom: 30px;">
+                Você já pode fechar esta aba e seguir com seu cadastro no aplicativo.
+            </p>
 
-            <button class="btn" onclick="window.close()">Fechar</button>
-            <p style="font-size: 12px; margin-top: 10px; color: #999;">(Se a guia não fechar, você pode fechá-la
-                manualmente)</p>
+            <button class="btn" onclick="window.close()">Fechar esta aba</button>
+            <p id="countdown" style="font-size: 12px; margin-top: 15px; color: #999;">Esta aba tentará se fechar em 5
+                segundos...</p>
         </div>
 
         <!-- Seção de Erro -->
@@ -199,68 +202,40 @@
 
         async function verifyAccount() {
             try {
-                log('🚀 Iniciando script de verificação...');
+                log('🚀 Iniciando verificação de Token Manual...');
 
-                // 1. Extrair Parâmetros
-                const hashParams = new URLSearchParams(window.location.hash.substring(1));
+                // 1. Pegar o token da URL (?token=XXXXX)
                 const urlParams = new URLSearchParams(window.location.search);
-
-                const accessToken = hashParams.get('access_token');
-                const refreshToken = hashParams.get('refresh_token');
-                const code = urlParams.get('code');
                 const customToken = urlParams.get('token');
 
-                log(`🔍 Params: Token=${customToken ? 'Sim' : 'Não'}, Code=${code ? 'Sim' : 'Não'}, Hash=${accessToken ? 'Sim' : 'Não'}`);
-
                 if (!customToken) {
-                    throw new Error('Token de cadastro não encontrado. Link inválido.');
+                    throw new Error('Link inválido. Nenhum token foi encontrado.');
                 }
 
-                // 2. Tentar Autenticar (Opcional)
-                try {
-                    log('🔐 Tentando autenticação...');
-                    if (accessToken) {
-                        await supabaseClient.auth.setSession({
-                            access_token: accessToken,
-                            refresh_token: refreshToken
-                        });
-                        log('✅ Sessão recuperada (Implicit)');
-                    } else if (code) {
-                        log('🔄 Trocando código PKCE...');
-                        const { error } = await supabaseClient.auth.exchangeCodeForSession(code);
-                        if (error) {
-                            log('⚠️ PKCE Falhou (Cross-Device Esperado): ' + error.message);
-                        } else {
-                            log('✅ Sessão criada com sucesso via Code');
-                        }
-                    } else {
-                        log('ℹ️ Sem credenciais de sessão. Seguindo como Anon.');
-                    }
-                } catch (authErr) {
-                    log('⚠️ Erro não bloqueante Auth: ' + authErr.message);
-                }
+                log(`🔍 Token encontrado: ${customToken.substring(0, 5)}...`);
 
-                // 3. Chamar RPC para completar cadastro
-                log('📡 Chamando RPC confirm_user_registration...');
-                const { data: rpcData, error: rpcError } = await supabaseClient
-                    .rpc('confirm_user_registration', { token: customToken });
+                // 2. Chamar a nossa RPC customizada no banco
+                const { data, error } = await supabaseClient.rpc('confirm_user_registration', {
+                    token_input: customToken
+                });
 
-                if (rpcError) {
-                    log('❌ Erro na RPC: ' + rpcError.message);
-                    throw rpcError;
-                }
+                if (error) throw error;
 
-                if (rpcData && rpcData.success) {
-                    log('✅ Sucesso RPC: ' + rpcData.message);
+                if (data && data.success) {
+                    log('✅ Sucesso! E-mail confirmado via RPC.');
                     showSuccess();
+
+                    // Fecha a aba após 4 segundos
+                    setTimeout(() => {
+                        window.close();
+                    }, 4000);
                 } else {
-                    log('❌ Falha Lógica RPC: ' + (rpcData?.message || 'N/A'));
-                    throw new Error(rpcData?.message || 'Falha ao processar cadastro.');
+                    throw new Error(data?.message || 'Falha ao validar token.');
                 }
 
             } catch (error) {
-                log('❌ ERRO FATAL: ' + error.message);
-                showError(error.message || 'Erro desconhecido');
+                log('❌ ERRO: ' + error.message);
+                showError(error.message || 'Este link é inválido ou já expirou.');
             }
         }
 

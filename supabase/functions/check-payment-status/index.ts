@@ -24,14 +24,20 @@ serve(async (req) => {
         // Cliente Admin para ignorar RLS
         const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
 
-        const { userId } = await req.json()
+        // Tentar ler o body com segurança
+        let userId;
+        try {
+            const body = await req.json();
+            userId = body.userId;
+        } catch (e) {
+            throw new Error('Corpo da requisição inválido ou vazio.');
+        }
 
         if (!userId) {
-            throw new Error('UserId obrigatório.')
+            throw new Error('UserId obrigatório.');
         }
 
         // Verificar na tabela users_adm
-        // Removido is_active pois a coluna não existe. A simples existência do ID confirma.
         const { data, error } = await supabaseAdmin
             .from('users_adm')
             .select('id')
@@ -59,7 +65,7 @@ serve(async (req) => {
             JSON.stringify({ error: error.message }),
             {
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-                status: 400,
+                status: 200, // Retornamos 200 para o polling saber que a função respondeu (o erro vem no JSON)
             },
         )
     }

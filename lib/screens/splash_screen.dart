@@ -71,6 +71,14 @@ class _SplashScreenState extends State<SplashScreen>
             return;
           }
 
+          // EXTRA: Verificar fragmento da URL diretamente para garantir que não navegamos para login em caso de recovery
+          if (Uri.base.fragment.contains('type=recovery') ||
+              Uri.base.toString().contains('type=recovery')) {
+            print(
+                '🔐 Detection: Link de recuperação detectado no SplashScreen. Aguardando AuthListener...');
+            return;
+          }
+
           // Se recuperou dados, fluxo normal abaixo
         } catch (e) {
           // Se der erro de rede aqui, vamos deixar cair no catch principal para retry
