@@ -11,7 +11,8 @@ import '../services/document_validation_service.dart';
 import '../config/app_theme.dart';
 
 class AdminRegisterScreen extends StatefulWidget {
-  const AdminRegisterScreen({super.key});
+  final Map<String, dynamic>? initialPendingData;
+  const AdminRegisterScreen({super.key, this.initialPendingData});
 
   @override
   State<AdminRegisterScreen> createState() => _AdminRegisterScreenState();
@@ -80,10 +81,52 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
 
     _animationController.forward();
 
-    // Logout preventivo: Garantir que não há sessão de outra academia "grudada"
-    // Mas CUIDADO: Se fizemos "voltar" de uma tela anterior, podemos perder estado.
-    // Melhor: Supabase.instance.client.auth.signOut() só se não tivermos criado usuário ainda.
-    if (_createdUserId == null) {
+    // Lógica de Resumo de Cadastro
+    if (widget.initialPendingData != null) {
+      final data = widget.initialPendingData!;
+      print('🔄 Resumindo cadastro para: ${data['email']}');
+
+      _createdUserId = data['id'];
+      _emailController.text = data['email'] ?? '';
+      _phoneController.text = data['phone'] ?? '';
+      _academiaController.text = data['gym_name'] ?? '';
+      _nameController.text = data['full_name'] ?? '';
+      _cnpjController.text = data['cnpj'] ?? '';
+      _addressController.text = data['address_street'] ?? '';
+      _selectedPlan = data['plan'] ?? '';
+
+      // CNPJ Mask
+      if (data['cnpj'] != null) {
+        _cnpjMask.updateMask(
+            mask: '##.###.###/####-##', filter: {"#": RegExp(r'[0-9]')});
+        // A máscara será aplicada no build pelo controller
+      }
+
+      // Definir passo atual (Garantir que não passe do limite)
+      final savedStep = data['current_step'] as int? ?? 0;
+      // Remapear passo do banco para o App se necessário
+      // DB Step 1: Contato -> App Index 1
+      // DB Step 2: Dados? (Não, Step 1 do App é Dados)
+
+      // Vamos usar uma lógica simples:
+      _currentStep = savedStep;
+      if (_currentStep > 3) _currentStep = 3;
+
+      // Se o status for 'verified', podemos pular a verificação se o app fechou depois dela
+      if (data['status'] == 'verified' && _currentStep == 1) {
+        _currentStep = 2; // Pula para senha
+      }
+
+      // Se estivermos no passo de contato mas ainda pendente, abrir o dialog de verificação automaticamente
+      if (_currentStep == 1 && data['status'] == 'pending_verification') {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _showEmailVerificationDialog(_emailController.text);
+        });
+      }
+    }
+
+    // Logout preventivo: Apenas se for um cadastro totalmente limpo
+    if (_createdUserId == null && widget.initialPendingData == null) {
       Supabase.instance.client.auth.signOut();
     }
   }
@@ -766,7 +809,7 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
       'cnpj': _cnpjMask.getUnmaskedText(),
       'full_name': _nameController.text.trim(),
       'address_street': _addressController.text.trim(),
-      'current_step': 2,
+      'current_step': 1,
       'status': 'pending_verification'
     };
 

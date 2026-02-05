@@ -8,6 +8,7 @@ import 'admin/admin_dashboard.dart';
 import 'nutritionist/nutritionist_dashboard.dart';
 import 'trainer/trainer_dashboard.dart';
 import 'student/student_dashboard.dart';
+import 'admin_register_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -66,16 +67,34 @@ class _SplashScreenState extends State<SplashScreen>
 
           if (userData == null && AuthService.isLoggedIn()) {
             // Logado mas sem dados no banco = provável recovery ou cadastro incompleto
-            print(
-                '⚠️ Sessão sem dados (possível recovery). Não redirecionando.');
-            return;
-          }
+            final user = AuthService.getCurrentUser();
+            if (user != null) {
+              // Verificar se é registro pendente (Lead Tracking)
+              final pending = await SupabaseService.client
+                  .from('pending_registrations')
+                  .select()
+                  .eq('id', user.id)
+                  .maybeSingle();
 
-          // EXTRA: Verificar fragmento da URL diretamente para garantir que não navegamos para login em caso de recovery
-          if (Uri.base.fragment.contains('type=recovery') ||
-              Uri.base.toString().contains('type=recovery')) {
-            print(
-                '🔐 Detection: Link de recuperação detectado no SplashScreen. Aguardando AuthListener...');
+              if (pending != null) {
+                print('🚀 Cadastro Pendente detectado! Resumindo cadastro...');
+                _navigateToRegisterResume(pending);
+                return;
+              }
+            }
+
+            // EXTRA: Verificar fragmento da URL diretamente para garantir que não navegamos para login em caso de recovery
+            if (Uri.base.fragment.contains('type=recovery') ||
+                Uri.base.toString().contains('type=recovery')) {
+              print(
+                  '🔐 Detection: Link de recuperação detectado no SplashScreen. Aguardando AuthListener...');
+              return;
+            }
+
+            // Se não for nada disso, desloga por segurança
+            print('❌ Usuário sem registro e sem pendência. Deslogando.');
+            await AuthService.logout();
+            _navigateToLogin();
             return;
           }
 
@@ -132,6 +151,22 @@ class _SplashScreenState extends State<SplashScreen>
       context,
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) => targetScreen,
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 800),
+      ),
+    );
+  }
+
+  void _navigateToRegisterResume(Map<String, dynamic> pendingData) {
+    if (!mounted) return;
+
+    Navigator.pushReplacement(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            AdminRegisterScreen(initialPendingData: pendingData),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(opacity: animation, child: child);
         },
