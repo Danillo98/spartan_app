@@ -16,8 +16,8 @@
 
         body {
             font-family: 'Lato', sans-serif;
-            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
-            color: #e0e0e0;
+            background-color: #ffffff;
+            color: #333333;
             line-height: 1.8;
             padding: 20px;
         }
@@ -25,51 +25,50 @@
         .container {
             max-width: 900px;
             margin: 0 auto;
-            background: rgba(255, 255, 255, 0.03);
-            backdrop-filter: blur(10px);
+            background: #ffffff;
             border-radius: 16px;
             padding: 40px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            border: 1px solid #f0f0f0;
         }
 
         h1 {
             font-family: 'Cinzel', serif;
             font-size: 2.5rem;
-            background: linear-gradient(135deg, #D4AF37 0%, #F4E5B0 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            color: #000000;
             margin-bottom: 10px;
             text-align: center;
         }
 
         .subtitle {
             text-align: center;
-            color: #999;
+            color: #666;
             margin-bottom: 40px;
             font-size: 0.9rem;
         }
 
         h2 {
             font-family: 'Cinzel', serif;
-            color: #D4AF37;
+            color: #000000;
             font-size: 1.5rem;
             margin-top: 30px;
             margin-bottom: 15px;
-            border-bottom: 2px solid rgba(212, 175, 55, 0.3);
+            border-bottom: 2px solid #000000;
             padding-bottom: 10px;
+            font-weight: 700;
         }
 
         h3 {
-            color: #F4E5B0;
+            color: #000000;
             font-size: 1.2rem;
             margin-top: 20px;
             margin-bottom: 10px;
+            font-weight: 700;
         }
 
         p {
             margin-bottom: 15px;
-            color: #ccc;
+            color: #333;
         }
 
         ul,
@@ -80,32 +79,34 @@
 
         li {
             margin-bottom: 8px;
-            color: #ccc;
+            color: #333;
         }
 
         .highlight {
-            background: rgba(212, 175, 55, 0.1);
-            border-left: 3px solid #D4AF37;
+            background: #f9f9f9;
+            border-left: 4px solid #000000;
             padding: 15px;
             margin: 20px 0;
             border-radius: 4px;
+            color: #000000;
         }
 
         .back-button {
             display: inline-block;
             margin-top: 30px;
             padding: 12px 30px;
-            background: linear-gradient(135deg, #D4AF37 0%, #F4E5B0 100%);
-            color: #000;
+            background: #000000;
+            color: #ffffff;
             text-decoration: none;
             border-radius: 8px;
             font-weight: bold;
-            transition: transform 0.2s;
+            transition: transform 0.2s, background-color 0.2s;
         }
 
         .back-button:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(212, 175, 55, 0.4);
+            background-color: #333333;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         }
 
         @media (max-width: 768px) {
