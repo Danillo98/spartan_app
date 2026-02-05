@@ -8,6 +8,14 @@
     ],
     "rewrites": [
       {
+        "source": "/termos",
+        "destination": "/termos/index.html"
+      },
+      {
+        "source": "/politicas",
+        "destination": "/politicas/index.html"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
