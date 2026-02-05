@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
-import '../services/auth_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../services/payment_service.dart';
 import '../services/document_validation_service.dart';
 import '../config/app_theme.dart';
 import '../utils/legal_texts.dart';
@@ -34,7 +36,6 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
 
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
-  bool _isLoading = false;
 
   // Variáveis de Aceite Legal
   bool _termsAccepted = false;
@@ -57,6 +58,9 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
   );
 
   String _selectedPlan = ''; // Plano selecionado
+  String?
+      _createdUserId; // Cache do usuário criado para evitar double-submit no Auth
+  bool _pollingCancelled = false; // Flag para cancelar polling
 
   @override
   void initState() {
@@ -74,6 +78,13 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
     );
 
     _animationController.forward();
+
+    // Logout preventivo: Garantir que não há sessão de outra academia "grudada"
+    // Mas CUIDADO: Se fizemos "voltar" de uma tela anterior, podemos perder estado.
+    // Melhor: Supabase.instance.client.auth.signOut() só se não tivermos criado usuário ainda.
+    if (_createdUserId == null) {
+      Supabase.instance.client.auth.signOut();
+    }
   }
 
   @override
@@ -115,142 +126,384 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
       return;
     }
 
-    setState(() => _isLoading = true);
-
     try {
-      print('🚀 Iniciando cadastro com plano: "$_selectedPlan"'); // DEBUG
+      print('🚀 Iniciando fluxo de pagamento com plano: "$_selectedPlan"');
 
-      final cnpjValue = _cnpjMask.getUnmaskedText();
-      final cpfValue = _cpfMask.getUnmaskedText();
-      final addressValue = _addressController.text.trim();
+      // 1. Criar Usuário no Auth (Ou recuperar se já criado nesta sessão)
+      String userId;
+      final realEmail = _emailController.text.trim(); // Email verdadeiro
+      final password = _passwordController.text;
 
-      print('📦 DADOS ENVIADOS PARA AUTH SERVICE:');
-      print('   CNPJ: $cnpjValue');
-      print('   CPF: $cpfValue');
-      print('   Endereço: $addressValue');
+      // Email temporário para não disparar confirmação no email real antes do pagamento
+      final tempEmail =
+          'pending_${DateTime.now().millisecondsSinceEpoch}@temp.spartan.app';
 
-      // Cadastrar admin (envia email de confirmação automaticamente)
-      final result = await AuthService.registerAdmin(
-        name: _nameController.text.trim(),
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-        phone: _phoneController.text.trim(),
-        cnpjAcademia: cnpjValue, // CNPJ da academia
-        academia: _academiaController.text.trim(), // Nome da Academia
-        cnpj:
-            cnpjValue, // FIX: Preencher CNPJ pessoal com o da empresa para evitar token vazio/quebrado
-        cpf: cpfValue, // CPF do responsável
-        address: addressValue,
-        plan: _selectedPlan, // Plano selecionado
+      if (_createdUserId != null) {
+        print('♻️ Reutilizando usuário já criado: $_createdUserId');
+        userId = _createdUserId!;
+      } else {
+        // Cria com email temporário
+        final authResponse = await Supabase.instance.client.auth.signUp(
+          email: tempEmail,
+          password: password,
+        );
+
+        if (authResponse.user == null) {
+          throw Exception('Falha ao criar conta de autenticação.');
+        }
+
+        userId = authResponse.user!.id;
+        _createdUserId = userId;
+        print('✅ Auth criado temporariamente ($tempEmail). ID: $userId');
+      }
+
+      // 2. Preparar Metadados para o Stripe (Isso será salvo no banco DEPOIS do pagamento via Webhook)
+      final metadata = {
+        'nome': _nameController.text.trim(),
+        'telefone': _phoneController.text.trim(),
+        'academia': _academiaController.text.trim(),
+        'cnpj_academia': _cnpjMask.getUnmaskedText(),
+        'cpf_responsavel': _cpfMask.getUnmaskedText(),
+        'endereco': _addressController.text.trim(),
+        'plano_selecionado': _selectedPlan,
+        'user_id_auth': userId,
+        'real_email_to_update':
+            realEmail, // Passamos o email real aqui para o Webhook atualizar
+      };
+
+      // 3. Criar Sessão de Checkout
+      final priceId = PaymentService.getPriceIdByName(_selectedPlan);
+
+      print('🔄 Criando sessão de checkout...');
+      final checkoutUrl = await PaymentService.createCheckoutSession(
+        priceId: priceId,
+        userId: userId,
+        userEmail: realEmail, // Usa o email real para o Stripe (recibo)
+        metadata: metadata,
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw Exception(
+              'Timeout ao criar sessão de pagamento. Tente novamente.');
+        },
       );
 
-      if (!mounted) return;
+      print('💳 URL de Checkout gerada: $checkoutUrl');
 
-      if (result['success'] == true) {
-        // Mostrar mensagem de sucesso
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            title: Row(
-              children: [
-                Icon(Icons.email, color: AppTheme.success, size: 28),
-                const SizedBox(width: 12),
-                const Text('Verifique seu Email'),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Enviamos um link de confirmação para:',
-                  style: TextStyle(color: Colors.grey[600]),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  result['email'],
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.blue[50],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.blue[200]!),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline, color: Colors.blue[700]),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Clique no link do email para ativar sua conta',
-                          style: TextStyle(
-                            color: Colors.blue[900],
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop(); // Fechar dialog
-                  Navigator.of(context).pop(); // Voltar para login
-                },
-                child: const Text('OK, Entendi'),
-              ),
-            ],
-          ),
-        );
+      // 4. Redirecionar e Monitorar
+      final uri = Uri.parse(checkoutUrl);
+      print('🌐 Tentando abrir URL: $uri');
+
+      if (await canLaunchUrl(uri)) {
+        print('✅ URL pode ser aberta. Redirecionando...');
+        final launched =
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+
+        if (!launched) {
+          throw Exception('Falha ao abrir navegador. Tente novamente.');
+        }
+
+        if (mounted) {
+          // Inicia polling SILENCIOSO (sem diálogo de espera)
+          _startSilentPolling(userId, realEmail);
+        }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              result['message'] ?? 'Erro ao cadastrar',
-              style: const TextStyle(color: Colors.white),
-            ),
-            backgroundColor: AppTheme.accentRed,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-        );
+        throw Exception('Não foi possível abrir a página de pagamento.');
       }
     } catch (e) {
+      print('❌ Erro no registro: $e');
       if (mounted) {
+        // Mensagens de erro amigáveis
+        String msg = e.toString().replaceAll("Exception:", "");
+        if (msg.contains('over_email_send_rate_limit')) {
+          msg = 'Muitas tentativas. Aguarde 1 minuto e tente novamente.';
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Erro inesperado: ${e.toString()}',
+              'Erro: $msg',
               style: const TextStyle(color: Colors.white),
             ),
             backgroundColor: AppTheme.accentRed,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
           ),
         );
       }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
+    }
+  }
+
+  /// Exibe um dialog modal que monitora o pagamento
+  // ignore: unused_element
+  void _showWaitingPaymentDialog(String userId) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return WillPopScope(
+          onWillPop: () async => false,
+          child: Dialog(
+            backgroundColor: Colors.white,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            child: Container(
+              padding: const EdgeInsets.all(30),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(
+                      height: 50,
+                      width: 50,
+                      child: CircularProgressIndicator(
+                          color: AppTheme.primaryGold, strokeWidth: 3)),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Pagamento em Andamento',
+                    style: GoogleFonts.cinzel(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.primaryText,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'A aba de pagamento foi aberta.\nContinue nela para finalizar.',
+                    style:
+                        TextStyle(color: AppTheme.secondaryText, height: 1.5),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Esta tela avançará automaticamente\nassim que recebermos a confirmação.',
+                    style: TextStyle(
+                        color: AppTheme.primaryText,
+                        fontWeight: FontWeight.bold,
+                        height: 1.5),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Botão de Confirmação Manual
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context); // Fecha dialog atual
+                        _showPaymentPendingDialog(_emailController.text.trim());
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'CONFIRMAR PAGAMENTO',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    child: const Text('Cancelar Espera',
+                        style: TextStyle(color: Colors.grey)),
+                  )
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    // Inicia o loop de verificação
+    bool confirmed = await _pollForUserCreation(userId);
+
+    if (mounted) {
+      Navigator.pop(context); // Fecha o loading
+
+      if (confirmed) {
+        // Sucesso Total! Passamos o email real para enviar confirmação agora
+        final realEmail = _emailController.text.trim();
+        _showPaymentPendingDialog(realEmail);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text(
+                'Tempo excedido. Verifique se o pagamento foi concluído.')));
       }
     }
+  }
+
+  /// Verifica periodicamente se o usuário foi criado no banco
+  Future<bool> _pollForUserCreation(String userId) async {
+    print('🔍 Polling via Edge Function iniciado para ID: $userId');
+    // Tenta por 5 minutos (100 x 3s)
+    for (int i = 0; i < 100; i++) {
+      if (!mounted) return false;
+
+      try {
+        // Chamada à Edge Function que roda como Admin (ignora RLS)
+        final response = await Supabase.instance.client.functions.invoke(
+          'check-payment-status',
+          body: {'userId': userId},
+        );
+
+        final data = response.data;
+
+        if (data != null && data['confirmed'] == true) {
+          print('✅ Polling Sucesso! Usuário encontrado via Function.');
+          return true;
+        }
+      } catch (e) {
+        print('⏳ Polling tentativa $i falhou: $e');
+      }
+
+      await Future.delayed(const Duration(seconds: 3));
+    }
+    return false;
+  }
+
+  /// Polling silencioso em background (sem UI bloqueante)
+  void _startSilentPolling(String userId, String userEmail) async {
+    print('🔍 Iniciando polling silencioso para User ID: $userId');
+    _pollingCancelled = false; // Reset flag
+
+    // Tenta por 5 minutos (100 x 3s)
+    for (int i = 0; i < 100; i++) {
+      if (!mounted || _pollingCancelled) {
+        print('⏹️ Polling cancelado pelo usuário.');
+        return;
+      }
+
+      try {
+        final response = await Supabase.instance.client.functions.invoke(
+          'check-payment-status',
+          body: {'userId': userId},
+        );
+
+        if (response.data != null && response.data['confirmed'] == true) {
+          print('✅ Pagamento confirmado! Mostrando popup de sucesso.');
+          if (mounted) {
+            _showPaymentPendingDialog(userEmail);
+          }
+          return;
+        }
+      } catch (e) {
+        print('Erro no polling: $e');
+      }
+
+      await Future.delayed(const Duration(seconds: 3));
+    }
+
+    // Timeout
+    print('⏰ Timeout: Polling encerrado sem confirmação.');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content:
+              Text('Tempo excedido. Verifique se o pagamento foi concluído.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
+  }
+
+  void _showPaymentPendingDialog(String emailForConfirmation) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: Container(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFE8F5E9), // Verde claro sucesso
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.check_rounded,
+                      color: Color(0xFF2E7D32), size: 48),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'Cadastro Realizado!',
+                  style: GoogleFonts.cinzel(
+                      fontSize: 22, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Seu pagamento foi confirmado e sua conta de Administrador foi criada com sucesso.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      fontSize: 15, height: 1.5, color: AppTheme.secondaryText),
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'Um email de confirmação foi enviado.\nVerifique sua caixa de entrada.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      // Forçar envio de email de verificação agora
+                      try {
+                        // Nota: O email no auth já foi atualizado pelo Webhook para o real.
+                        // Pedimos reenvio de signup confirmation.
+                        await Supabase.instance.client.auth.resend(
+                          type: OtpType.signup,
+                          email: emailForConfirmation,
+                        );
+                        print(
+                            '📧 Email de confirmação reenviado para $emailForConfirmation');
+                      } catch (e) {
+                        print('Erro ao reenviar email: $e');
+                      }
+
+                      if (context.mounted) {
+                        Navigator.of(context).pop(); // Fecha dialog
+                        Navigator.of(context)
+                            .pop(); // Fecha tela de cadastro -> Vai p/ Login
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.black,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('ENTENDI',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, color: Colors.white)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _nextStep() async {
@@ -259,8 +512,6 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
 
     // Se estiver no Step 1, validar CPF e CNPJ antes de avançar
     if (_currentStep == 0) {
-      setState(() => _isLoading = true);
-
       try {
         // Validar documentos com API
         final validationResult =
@@ -274,8 +525,6 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
         // Verificar se CNPJ é válido
         final cnpjData = validationResult['cnpj'];
         if (!cnpjData['valid']) {
-          setState(() => _isLoading = false);
-
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
@@ -295,8 +544,6 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
 
         // Verificar se CNPJ existe
         if (cnpjData['exists'] == false) {
-          setState(() => _isLoading = false);
-
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: const Text(
@@ -316,8 +563,6 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
 
         // Verificar se CNPJ está ativo
         if (cnpjData['active'] == false) {
-          setState(() => _isLoading = false);
-
           final shouldContinue = await showDialog<bool>(
             context: context,
             builder: (context) => AlertDialog(
@@ -344,7 +589,6 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
           );
 
           if (shouldContinue != true) {
-            setState(() => _isLoading = false);
             return;
           }
         }
@@ -370,8 +614,6 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
         // Validação de CPF (apenas matemática, pois API não verifica existência)
         final cpfData = validationResult['cpf'];
         if (!cpfData['valid']) {
-          setState(() => _isLoading = false);
-
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
@@ -388,12 +630,8 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
           );
           return;
         }
-
-        setState(() => _isLoading = false);
       } catch (e) {
         if (mounted) {
-          setState(() => _isLoading = false);
-
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
@@ -1233,7 +1471,7 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
               if (_currentStep > 0)
                 Expanded(
                   child: TextButton(
-                    onPressed: _isLoading ? null : _previousStep,
+                    onPressed: _previousStep,
                     style: TextButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                     ),
@@ -1262,9 +1500,7 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
                     ],
                   ),
                   child: ElevatedButton(
-                    onPressed: _isLoading
-                        ? null
-                        : (_currentStep == 3 ? _handleRegister : _nextStep),
+                    onPressed: _currentStep == 3 ? _handleRegister : _nextStep,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.transparent,
                       shadowColor: Colors.transparent,
@@ -1273,27 +1509,15 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(Colors.white),
-                              strokeWidth: 2,
-                            ),
-                          )
-                        : Text(
-                            _currentStep == 3
-                                ? 'FINALIZAR CADASTRO'
-                                : 'CONTINUAR',
-                            style: GoogleFonts.cinzel(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              letterSpacing: 1,
-                            ),
-                          ),
+                    child: Text(
+                      _currentStep == 3 ? 'FINALIZAR CADASTRO' : 'CONTINUAR',
+                      style: GoogleFonts.cinzel(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        letterSpacing: 1,
+                      ),
+                    ),
                   ),
                 ),
               ),

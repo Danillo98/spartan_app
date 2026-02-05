@@ -39,13 +39,12 @@ void main(List<String> args) async {
 
   // Inicializar Notificações (Firebase Messaging)
   try {
-    // Usar kIsWeb e defaultTargetPlatform evita usar dart:io
-    bool isWindows = !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
-
-    if (!isWindows) {
+    // Firebase na Web requer index.html script setup, que às vezes falha em debug local
+    // Vamos pular na Web local para evitar travamento se não estiver configurado
+    if (!kIsWeb && defaultTargetPlatform != TargetPlatform.windows) {
       await NotificationService.init();
     } else {
-      print("⚠️ Notificações Push não suportadas nativamente no Windows.");
+      print("⚠️ Notificações puladas (Web ou Windows detectado).");
     }
   } catch (e) {
     print("Erro ao inicializar notificações: $e");
