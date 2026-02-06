@@ -712,13 +712,15 @@ class AuthService {
     // Desinscrever do tópico da academia antes de dar signOut
     // Isso evita que o dispositivo continue recebendo push para a academia antiga
     try {
-      // Precisamos dos dados antes de sair
-      final userData = await getCurrentUserData();
+      // Precisamos dos dados antes de sair (com timeout para não travar o logout)
+      final userData =
+          await getCurrentUserData().timeout(const Duration(seconds: 3));
       if (userData != null && userData['cnpj_academia'] != null) {
         await NotificationService.logoutUser(userData['cnpj_academia']);
       }
     } catch (e) {
-      print("Erro ao desinscrever notificações: $e");
+      print(
+          "Aviso: Falha ao desinscrever notificações no logout (prosseguindo): $e");
     }
 
     await _client.auth.signOut();

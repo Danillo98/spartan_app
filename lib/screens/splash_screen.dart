@@ -106,13 +106,42 @@ class _SplashScreenState extends State<SplashScreen>
       }
 
       if (AuthService.isLoggedIn()) {
-        final userData = await AuthService.getCurrentUserData();
+        try {
+          // Adicionando timeout para evitar travamento infinito na Splash
+          final userData = await AuthService.getCurrentUserData()
+              .timeout(const Duration(seconds: 10));
 
-        if (userData != null) {
-          _navigateToDashboard(userData);
-        } else {
-          // Usuário existe no Auth mas não nas tabelas => Inconsistência
-          print('❌ Usuário sem registro nas tabelas (e não é recovery).');
+          if (userData != null) {
+            _navigateToDashboard(userData);
+          } else {
+            // Verificar registro pendente (Escape Hatch)
+            final user = AuthService.getCurrentUser();
+            if (user != null) {
+              final pending = await SupabaseService.client
+                  .from('pending_registrations')
+                  .select()
+                  .eq('id', user.id)
+                  .maybeSingle()
+                  .timeout(const Duration(seconds: 5));
+
+              if (pending != null) {
+                print('🚀 Cadastro Pendente detectado! Resumindo cadastro...');
+                _navigateToRegisterResume(pending);
+                return;
+              }
+            }
+
+            // Usuário existe no Auth mas não nas tabelas => Inconsistência
+            print('❌ Usuário sem registro nas tabelas (e não é recovery).');
+            await AuthService.logout().timeout(const Duration(seconds: 5));
+            _navigateToLogin();
+          }
+        } on TimeoutException catch (_) {
+          print('⏰ Timeout na SplashScreen. Forçando logout para destravar.');
+          await AuthService.logout();
+          _navigateToLogin();
+        } catch (e) {
+          print('❌ Erro na SplashScreen: $e');
           await AuthService.logout();
           _navigateToLogin();
         }

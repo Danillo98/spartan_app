@@ -742,7 +742,8 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
   // Função para chamar a Edge Function de Email
   Future<void> _sendCustomVerificationEmail(String email, String token) async {
     try {
-      final origin = kIsWeb ? Uri.base.origin : 'https://spartanapp.com.br';
+      final origin =
+          kIsWeb ? Uri.base.origin : 'https://spartan-app-f8a98.web.app';
       final redirectUrl = '$origin/confirm.html';
 
       final response = await Supabase.instance.client.functions.invoke(
