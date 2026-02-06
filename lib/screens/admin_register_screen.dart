@@ -9,6 +9,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../services/payment_service.dart';
 import '../services/document_validation_service.dart';
 import '../config/app_theme.dart';
+import '../services/auth_service.dart';
+import 'login_screen.dart';
 
 class AdminRegisterScreen extends StatefulWidget {
   final Map<String, dynamic>? initialPendingData;
@@ -924,10 +926,17 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
               const CircularProgressIndicator(color: Colors.black),
               const SizedBox(height: 16),
               TextButton(
-                onPressed: () {
-                  Navigator.pop(dialogContext, false); // Cancelou
+                onPressed: () async {
+                  // Logout preventivo para destravar o app
+                  await AuthService.logout();
+                  if (!mounted) return;
+                  Navigator.of(dialogContext).pop(false);
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    (route) => false,
+                  );
                 },
-                child: const Text('Cancelar / Alterar Email',
+                child: const Text('Sair e Voltar ao Login',
                     style: TextStyle(color: Colors.grey)),
               )
             ],

@@ -25,16 +25,7 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
             
-            <!-- Deep Link para confirmação de email -->
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW"/>
-                <category android:name="android.intent.category.DEFAULT"/>
-                <category android:name="android.intent.category.BROWSABLE"/>
-                <!-- Suporta io.supabase.spartanapp://confirm -->
-                <!-- Suporta io.supabase.spartanapp://reset-password -->
-                <!-- Suporta io.supabase.spartanapp://* (genérico) -->
-                <data android:scheme="io.supabase.spartanapp"/>
-            </intent-filter>
+
 
 
         </activity>
