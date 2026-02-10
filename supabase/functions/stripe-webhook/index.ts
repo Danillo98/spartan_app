@@ -2,7 +2,7 @@ import { serve } from 'https://deno.land/std@0.177.1/http/server.ts'
 import Stripe from 'https://esm.sh/stripe@12.0.0?target=deno'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-console.log("Stripe Webhook Function Initialized")
+console.log("Stripe Webhook Function Initialized v2 (Smart Merge)")
 
 serve(async (req) => {
     const signature = req.headers.get('Stripe-Signature')
@@ -20,8 +20,6 @@ serve(async (req) => {
         httpClient: Stripe.createFetchHttpClient(),
     })
 
-    // Para validar webhook no Edge Runtime, precisamos do body como texto bruto
-    // Mas como ler o body consome o stream, vamos ler como ArrayBuffer e decodificar
     const bodyBuffer = await req.arrayBuffer()
     const bodyText = new TextDecoder().decode(bodyBuffer)
 
@@ -47,16 +45,11 @@ serve(async (req) => {
         // 3. Inicializar Supabase Admin (Service Role)
         const supabaseUrl = Deno.env.get('SUPABASE_URL')!
         const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-
         const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
 
         // 3.B Se houver email real para atualizar (Fluxo de Email Tardio)
         if (metadata.real_email_to_update) {
             console.log(`📧 Processando email para usuário ${metadata.user_id_auth}`);
-
-            let targetEmail = metadata.real_email_to_update;
-
-            // Tentar atualizar email no Auth
             try {
                 const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
                     metadata.user_id_auth,
@@ -68,10 +61,6 @@ serve(async (req) => {
 
                 if (updateError) {
                     console.error('⚠️ Falha ao atualizar email (pode já estar em uso):', updateError.message);
-                    // Se falhou, vamos buscar o email atual do usuário
-                    const { data: userData } = await supabaseAdmin.auth.admin.getUserById(metadata.user_id_auth);
-                    targetEmail = userData?.user?.email || targetEmail;
-                    console.log(`Usando email atual do usuário: ${targetEmail}`);
                 } else {
                     console.log('✅ Email atualizado com sucesso para:', metadata.real_email_to_update);
                 }
@@ -80,31 +69,79 @@ serve(async (req) => {
             }
         }
 
-        // 4. Executar Lógica de Criação da Academia (Upsert Robusto)
+        // 4. Executar Lógica de Criação/Atualização da Academia (Upsert com Smart Merge)
         try {
             console.log('Iniciando operação de banco para User ID:', metadata.user_id_auth);
 
-            // A. Inserir/Atualizar Academia (Upsert)
-            // Usamos upsert para garantir que se o usuario ja existe (ex: auth trigger), atualizamos os dados
-            // Nota: users_adm geralmente tem id como Primary Key referenciando auth.users.id
+            // A. Buscar dados existentes para EVITAR SOBRESCRITA COM '00'
+            const { data: existingUser } = await supabaseAdmin
+                .from('users_adm')
+                .select('*')
+                .eq('id', metadata.user_id_auth)
+                .single();
 
-            // TENTATIVA 1: Payload Completo
-            const dbPayload = {
-                id: metadata.user_id_auth,
-                nome: metadata.nome,
-                email: session.customer_details?.email || metadata.userEmail,
-                telefone: metadata.telefone,
-                cnpj_academia: metadata.cnpj_academia,
-                cpf: metadata.cpf_responsavel,
-                academia: metadata.academia,
-                endereco: metadata.endereco,
-                plano_mensal: metadata.plano_selecionado,
-                email_verified: true,
-                is_blocked: false,
-                updated_at: new Date().toISOString()
+            // Helper para decidir qual valor usar
+            // Se metadata existir (e não for vazio), usa metadata.
+            // Se não, usa valor do banco.
+            // Se banco não tiver, usa '00' ou default.
+            const getField = (metaValue: any, dbValue: any, defaultValue: any) => {
+                if (metaValue && metaValue !== '' && metaValue !== 'undefined' && metaValue !== null) return metaValue;
+                if (dbValue && dbValue !== '' && dbValue !== '00' && dbValue !== null) return dbValue;
+                return defaultValue;
             };
 
-            console.log('Dados a inserir (TENTATIVA 1):', JSON.stringify(dbPayload));
+            const nomeFinal = getField(metadata.nome, existingUser?.nome, 'Admin');
+            const emailFinal = session.customer_details?.email || getField(metadata.userEmail, existingUser?.email, null);
+            const telefoneFinal = getField(metadata.telefone, existingUser?.telefone, '00');
+            const cnpjFinal = getField(metadata.cnpj_academia, existingUser?.cnpj_academia, '00');
+            const cpfFinal = getField(metadata.cpf_responsavel, existingUser?.cpf, '00');
+            const academiaFinal = getField(metadata.academia, existingUser?.academia, 'Academia');
+            const enderecoFinal = getField(metadata.endereco, existingUser?.endereco, 'Endereço');
+            const planoFinal = getField(metadata.plano_selecionado, existingUser?.plano_mensal, 'padrao');
+            const stripeCustomerFinal = session.customer || existingUser?.stripe_customer_id;
+
+            // SISTEMA DE ASSINATURA HÍBRIDO - Cálculo de Datas
+            const now = new Date();
+            const assinaturaIniciada = now.toISOString();
+
+            const expiracaoDate = new Date(now);
+            expiracaoDate.setDate(expiracaoDate.getDate() + 30);
+            const assinaturaExpirada = expiracaoDate.toISOString();
+
+            const toleranciaDate = new Date(now);
+            toleranciaDate.setDate(toleranciaDate.getDate() + 31);
+            const assinaturaTolerancia = toleranciaDate.toISOString();
+
+            const delecaoDate = new Date(now);
+            delecaoDate.setDate(delecaoDate.getDate() + 91);
+            const assinaturaDeletada = delecaoDate.toISOString();
+
+            console.log(`📅 Assinatura (Renovação/Criação): Início=${assinaturaIniciada}, Expira=${assinaturaExpirada}`);
+
+            // B. Payload Definitivo (Merge Inteligente)
+            const dbPayload = {
+                id: metadata.user_id_auth,
+                nome: nomeFinal,
+                email: emailFinal,
+                telefone: telefoneFinal,
+                cnpj_academia: cnpjFinal,
+                cpf: cpfFinal,
+                academia: academiaFinal,
+                endereco: enderecoFinal,
+                plano_mensal: planoFinal,
+                email_verified: true,
+                is_blocked: false,
+                updated_at: new Date().toISOString(),
+                // NOVOS CAMPOS DE ASSINATURA (Sempre atualiza datas no pagamento)
+                assinatura_status: 'active',
+                assinatura_iniciada: assinaturaIniciada,
+                assinatura_expirada: assinaturaExpirada,
+                assinatura_tolerancia: assinaturaTolerancia,
+                assinatura_deletada: assinaturaDeletada,
+                stripe_customer_id: stripeCustomerFinal,
+            };
+
+            console.log('Dados a inserir (SMART MERGE):', JSON.stringify(dbPayload));
 
             let { data: adminUser, error: adminError } = await supabaseAdmin
                 .from('users_adm')
@@ -113,72 +150,131 @@ serve(async (req) => {
                 .single();
 
             if (adminError) {
-                console.error("ERRO TENTATIVA 1:", adminError);
-
-                // TENTATIVA 2: Payload Mínimo (Salva-Vidas)
-                console.log("Tentando Payload Mínimo para não travar cadastro...");
-                const minimalPayload = {
-                    id: metadata.user_id_auth,
-                    nome: metadata.nome || 'Admin',
-                    email: session.customer_details?.email || metadata.userEmail,
-                    // Preencher campos not-null com placeholders se necessario
-                    telefone: metadata.telefone || '00',
-                    cnpj_academia: metadata.cnpj_academia || '00',
-                    cpf: metadata.cpf_responsavel || '00',
-                    academia: metadata.academia || 'Academia',
-                    endereco: metadata.endereco || 'Endereço',
-                    plano_mensal: metadata.plano_selecionado || 'padrao',
-                    email_verified: true,
-                    is_blocked: false
-                };
-
-                const { error: error2 } = await supabaseAdmin
-                    .from('users_adm')
-                    .upsert(minimalPayload);
-
-                if (error2) {
-                    console.error("ERRO TENTATIVA 2 (FATAL):", error2);
-                    throw error2; // Desiste
-                }
+                console.error("ERRO POSTRGRES NO UPSERT:", adminError);
+                throw adminError;
             }
 
-            console.log('✅ SUCESSO! Usuário salvo na tabela users_adm:', adminUser?.id || metadata.user_id_auth);
+            console.log('✅ SUCESSO! Usuário salvo/atualizado em users_adm:', adminUser?.id);
 
-            // C. Deletar registros de "Repescagem" (Lead Tracking e Tokens manuais)
-            console.log(`🧹 Limpando dados temporários para o usuário: ${metadata.user_id_auth}`);
-
-            const { error: errorPending } = await supabaseAdmin
-                .from('pending_registrations')
-                .delete()
-                .eq('id', metadata.user_id_auth);
-
-            if (errorPending) {
-                console.error('❌ Erro ao deletar de pending_registrations:', errorPending.message);
-            } else {
-                console.log('✅ Registro removido de pending_registrations');
-            }
-
-            const { error: errorCode } = await supabaseAdmin
-                .from('email_verification_codes')
-                .delete()
-                .eq('user_id', metadata.user_id_auth);
-
-            if (errorCode) {
-                console.error('❌ Erro ao deletar de email_verification_codes:', errorCode.message);
-            } else {
-                console.log('✅ Registro removido de email_verification_codes');
-            }
-
-            console.log('✨ Limpeza de tabelas finalizada.');
-
-
-            // B. Registrar Pagamento (Opcional, mas bom para histórico)
-            // await supabaseAdmin.from('financial_transactions').insert(...)
+            // C. Limpeza de Temporários
+            console.log(`🧹 Limpando dados temporários...`);
+            await supabaseAdmin.from('pending_registrations').delete().eq('id', metadata.user_id_auth);
+            await supabaseAdmin.from('email_verification_codes').delete().eq('user_id', metadata.user_id_auth);
 
         } catch (dbError) {
             console.error('Erro ao salvar no banco:', dbError)
             return new Response('Database Error', { status: 500 })
         }
+    }
+
+    // ============================================
+    // EVENTO: PAGAMENTO FALHOU (invoice.payment_failed)
+    // ============================================
+    if (event.type === 'invoice.payment_failed') {
+        // (Mantido igual - Lógica de Grace Period)
+        const invoice = event.data.object;
+        const customerId = invoice.customer;
+        console.log(`❌ Pagamento Falhou! Customer: ${customerId}`);
+
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+        const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+        const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+        try {
+            const { data: admin } = await supabaseAdmin.from('users_adm').select('id').eq('stripe_customer_id', customerId).single();
+            if (admin) {
+                await supabaseAdmin.from('users_adm').update({ assinatura_status: 'grace_period', updated_at: new Date().toISOString() }).eq('id', admin.id);
+            }
+        } catch (e) {
+            console.error('Erro invoice.payment_failed:', e);
+        }
+    }
+
+    // ============================================
+    // EVENTO: ASSINATURA ATUALIZADA (customer.subscription.updated)
+    // ============================================
+    if (event.type === 'customer.subscription.updated') {
+        const subscription = event.data.object;
+        const customerId = subscription.customer;
+        const stripeStatus = subscription.status;
+
+        console.log(`🔄 Assinatura Atualizada! Customer: ${customerId}, Status: ${stripeStatus}`);
+
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+        const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+        const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+        try {
+            let novoStatus = 'active';
+            let isBlocked = false;
+
+            switch (stripeStatus) {
+                case 'active': novoStatus = 'active'; isBlocked = false; break;
+                case 'past_due': novoStatus = 'grace_period'; isBlocked = false; break;
+                case 'unpaid': case 'canceled': novoStatus = 'suspended'; isBlocked = true; break;
+            }
+
+            const { data: admin } = await supabaseAdmin.from('users_adm').select('*').eq('stripe_customer_id', customerId).single();
+
+            if (admin) {
+                let updatePayload: any = {
+                    assinatura_status: novoStatus,
+                    is_blocked: isBlocked,
+                    updated_at: new Date().toISOString(),
+                };
+
+                // Se voltou a ser ativo, atualiza datas
+                if (stripeStatus === 'active') {
+                    const now = new Date();
+                    const expiracaoDate = new Date(now); expiracaoDate.setDate(expiracaoDate.getDate() + 30);
+                    const toleranciaDate = new Date(now); toleranciaDate.setDate(toleranciaDate.getDate() + 31);
+                    const delecaoDate = new Date(now); delecaoDate.setDate(delecaoDate.getDate() + 91);
+
+                    updatePayload = {
+                        ...updatePayload,
+                        assinatura_iniciada: now.toISOString(),
+                        assinatura_expirada: expiracaoDate.toISOString(),
+                        assinatura_tolerancia: toleranciaDate.toISOString(),
+                        assinatura_deletada: delecaoDate.toISOString(),
+                    };
+                }
+
+                await supabaseAdmin.from('users_adm').update(updatePayload).eq('id', admin.id);
+                console.log(`✅ Status atualizado para ${novoStatus}: ${admin.id}`);
+            }
+        } catch (e) {
+            console.error('Erro subscription.updated:', e);
+        }
+    }
+
+    // ============================================
+    // EVENTO: ASSINATURA CANCELADA (customer.subscription.deleted)
+    // ============================================
+    if (event.type === 'customer.subscription.deleted') {
+        // (Mantido igual)
+        const subscription = event.data.object;
+        const customerId = subscription.customer;
+        console.log(`🗑️ Assinatura Cancelada (Evento Stripe)! Customer: ${customerId}`);
+
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+        const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+        const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+        try {
+            const { data: admin } = await supabaseAdmin.from('users_adm').select('id').eq('stripe_customer_id', customerId).single();
+            if (admin) {
+                const now = new Date();
+                const delecaoDate = new Date(now);
+                delecaoDate.setDate(delecaoDate.getDate() + 60);
+
+                await supabaseAdmin.from('users_adm').update({
+                    assinatura_status: 'suspended',
+                    is_blocked: true,
+                    assinatura_deletada: delecaoDate.toISOString(),
+                    updated_at: now.toISOString(),
+                }).eq('id', admin.id);
+            }
+        } catch (e) { console.error('Error subs deleted:', e); }
     }
 
     return new Response(JSON.stringify({ received: true }), {

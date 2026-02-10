@@ -1,7 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:async';
 import '../../config/app_theme.dart';
 import '../../services/user_service.dart';
+import '../../services/payment_service.dart';
+import '../../services/auth_service.dart';
+import 'admin_dashboard.dart';
+
+// Conditional import for web
+import 'subscription_screen_web_helper.dart'
+    if (dart.library.io) 'subscription_screen_stub.dart' as web_helper;
 
 class SubscriptionScreen extends StatefulWidget {
   const SubscriptionScreen({super.key});
@@ -10,26 +21,95 @@ class SubscriptionScreen extends StatefulWidget {
   State<SubscriptionScreen> createState() => _SubscriptionScreenState();
 }
 
-class _SubscriptionScreenState extends State<SubscriptionScreen> {
+class _SubscriptionScreenState extends State<SubscriptionScreen>
+    with WidgetsBindingObserver {
   String _currentPlan = '';
   String? _selectedPlan; // Para controlar qual card está selecionado
   bool _isLoading = true;
+  DateTime? _expiresAt;
+  bool _wentToStripe = false; // Flag para saber se foi para o Stripe
+  StreamSubscription? _focusSubscription;
 
   @override
   void initState() {
     super.initState();
-    _loadCurrentPlan();
+    WidgetsBinding.instance.addObserver(this);
+    _setupWebFocusListener();
+    _loadSubscriptionData();
   }
 
-  Future<void> _loadCurrentPlan() async {
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _focusSubscription?.cancel();
+    super.dispose();
+  }
+
+  // Configura listener de foco para Web
+  void _setupWebFocusListener() {
+    if (kIsWeb) {
+      _focusSubscription = web_helper.onWindowFocus().listen((_) {
+        if (_wentToStripe) {
+          _onReturnFromStripe();
+        }
+      });
+    }
+  }
+
+  // Detecta quando o app volta ao foco (usuário voltou do Stripe) - Mobile
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _wentToStripe) {
+      _onReturnFromStripe();
+    }
+  }
+
+  // Chamado quando o usuário volta do Stripe (web ou mobile)
+  void _onReturnFromStripe() {
+    _wentToStripe = false;
+    _loadSubscriptionData();
+
+    // Mostrar mensagem informando que está verificando
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+              SizedBox(width: 12),
+              Text('Verificando status do pagamento...'),
+            ],
+          ),
+          duration: Duration(seconds: 3),
+          backgroundColor: Colors.blue,
+        ),
+      );
+    }
+  }
+
+  Future<void> _loadSubscriptionData() async {
+    if (mounted) setState(() => _isLoading = true);
+
     try {
-      final status = await UserService.checkPlanLimitStatus();
+      final planStatus = await UserService.checkPlanLimitStatus();
+      final subStatus = await UserService.getSubscriptionStatus();
+
       if (mounted) {
         setState(() {
-          _currentPlan = status['plan'] ?? 'Bronze';
-          // Não selecionamos nenhum automaticamente para forçar o clique,
-          // ou podemos selecionar o atual? O usuário disse "só ativar se o card for selecionado".
-          // Vou deixar null para o usuário ter a ação de clicar.
+          _currentPlan = planStatus['plan'] ?? 'Prata';
+
+          // Parse da data de vencimento
+          if (subStatus['expirada'] != null) {
+            _expiresAt = DateTime.tryParse(subStatus['expirada']);
+          }
+
           _isLoading = false;
         });
       }
@@ -44,6 +124,171 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     });
   }
 
+  // Formatar data para exibição
+  String _formatDate(DateTime? date) {
+    if (date == null) return 'Não definido';
+    return DateFormat('dd/MM/yyyy', 'pt_BR').format(date);
+  }
+
+  // Popup de confirmação para upgrade/downgrade/renovação
+  Future<void> _showPlanChangeConfirmation(String newPlan) async {
+    final bool isMyPlan = _currentPlan.toLowerCase() == newPlan.toLowerCase();
+    final String actionText = isMyPlan ? 'RENOVAR' : 'TROCAR PARA';
+
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Icon(Icons.warning_amber_rounded,
+                  color: Colors.orange[700], size: 28),
+              const SizedBox(width: 12),
+              const Expanded(
+                  child: Text('Atenção!',
+                      style: TextStyle(fontWeight: FontWeight.bold))),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              RichText(
+                text: TextSpan(
+                  style: const TextStyle(
+                      color: Colors.black87, fontSize: 15, height: 1.5),
+                  children: [
+                    const TextSpan(text: 'Seu plano atual: '),
+                    TextSpan(
+                      text: _currentPlan.toUpperCase(),
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              RichText(
+                text: TextSpan(
+                  style: const TextStyle(
+                      color: Colors.black87, fontSize: 15, height: 1.5),
+                  children: [
+                    const TextSpan(text: 'Vencimento: '),
+                    TextSpan(
+                      text: _formatDate(_expiresAt),
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.primaryRed),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isMyPlan
+                          ? 'Ao confirmar a RENOVAÇÃO:'
+                          : 'Ao confirmar a troca para ${newPlan.toUpperCase()}:',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text('• Seu plano atual será cancelado imediatamente',
+                        style: TextStyle(fontSize: 13)),
+                    Text(
+                      '• Novo vencimento será: ${_formatDate(DateTime.now().add(const Duration(days: 30)))} (30 dias)',
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                    if (!isMyPlan)
+                      const Text('• Não há reembolso do período não utilizado',
+                          style: TextStyle(fontSize: 13, color: Colors.red)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child:
+                  const Text('Cancelar', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1D1D1F),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
+              ),
+              child: Text('$actionText e Pagar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      await _initiateCheckout(newPlan);
+    }
+  }
+
+  // Iniciar checkout do Stripe
+  Future<void> _initiateCheckout(String planName) async {
+    try {
+      setState(() => _isLoading = true);
+
+      final user = AuthService.getCurrentUser();
+      if (user == null) throw Exception('Usuário não autenticado');
+
+      final priceId = PaymentService.getPriceIdByName(planName);
+
+      final checkoutUrl = await PaymentService.createCheckoutSession(
+        priceId: priceId,
+        userId: user.id,
+        userEmail: user.email ?? '',
+        metadata: {
+          'plano_selecionado': planName,
+          'is_upgrade':
+              (_currentPlan.toLowerCase() != planName.toLowerCase()).toString(),
+        },
+      );
+
+      if (checkoutUrl.isNotEmpty) {
+        final uri = Uri.parse(checkoutUrl);
+        if (await canLaunchUrl(uri)) {
+          // Marcar que foi para o Stripe para fazer refresh ao voltar
+          _wentToStripe = true;
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        } else {
+          throw Exception('Não foi possível abrir o link de pagamento');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao iniciar pagamento: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -53,7 +298,18 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.close, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            // Verifica se pode voltar, senão vai para dashboard
+            if (Navigator.of(context).canPop()) {
+              Navigator.pop(context);
+            } else {
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => const AdminDashboard()),
+                (route) => false,
+              );
+            }
+          },
         ),
         title: Text(
           'ASSINATURA SPARTAN',
@@ -102,7 +358,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                       textAlign: TextAlign.center,
                     ),
                   ),
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 24),
 
                   // LISTA HORIZONTAL
                   SingleChildScrollView(
@@ -182,10 +438,288 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     ),
                   ),
                   const SizedBox(height: 40),
+
+                  // === BOTÕES LEGAIS E CANCELAMENTO ===
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        // Política de Privacidade
+                        TextButton.icon(
+                          onPressed: () => launchUrl(
+                            Uri.parse('/politicas/'),
+                            mode: LaunchMode.externalApplication,
+                            webOnlyWindowName: '_blank',
+                          ),
+                          icon: const Icon(Icons.lock_outline, size: 16),
+                          label: const Text('Política de Privacidade'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.grey[600],
+                            textStyle: const TextStyle(fontSize: 13),
+                          ),
+                        ),
+                        Text('|', style: TextStyle(color: Colors.grey[300])),
+                        // Termos de Uso
+                        TextButton.icon(
+                          onPressed: () => launchUrl(
+                            Uri.parse('/termos/'),
+                            mode: LaunchMode.externalApplication,
+                            webOnlyWindowName: '_blank',
+                          ),
+                          icon:
+                              const Icon(Icons.description_outlined, size: 16),
+                          label: const Text('Termos de Uso'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.grey[600],
+                            textStyle: const TextStyle(fontSize: 13),
+                          ),
+                        ),
+                        Text('|', style: TextStyle(color: Colors.grey[300])),
+                        // Cancelar Assinatura (Vermelho)
+                        TextButton.icon(
+                          onPressed: _showCancelSubscriptionDialog,
+                          icon: const Icon(Icons.cancel_outlined, size: 16),
+                          label: const Text('Cancelar Assinatura'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.red[700],
+                            textStyle: const TextStyle(
+                                fontSize: 13, fontWeight: FontWeight.w500),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 40),
                 ],
               ),
             ),
     );
+  }
+
+  // Popup de confirmação de cancelamento
+  void _showCancelSubscriptionDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red[700], size: 32),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'Cancelar Assinatura',
+                style:
+                    TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Você tem certeza que deseja cancelar sua assinatura?',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.money_off, color: Colors.red, size: 20),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Não haverá reembolso de dias restantes.',
+                          style: TextStyle(color: Colors.red, fontSize: 13),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Icon(Icons.delete_forever,
+                          color: Colors.red, size: 20),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Todas as informações relacionadas ao Proprietário e sua Academia serão deletadas PERMANENTEMENTE do sistema.',
+                          style: TextStyle(color: Colors.red, fontSize: 13),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Esta ação é irreversível!',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.red,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _confirmCancelSubscription();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Confirmar Cancelamento'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Confirmação final de cancelamento
+  Future<void> _confirmCancelSubscription() async {
+    // Mostrar loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(
+        child: CircularProgressIndicator(color: Colors.white),
+      ),
+    );
+
+    try {
+      // Buscar ID do usuário atual
+      final userData = await AuthService.getCurrentUserData();
+      final userId = userData?['id'];
+
+      if (userId == null) {
+        throw Exception('Usuário não encontrado');
+      }
+
+      // Chamar serviço de cancelamento
+      final result = await PaymentService.cancelSubscription(userId: userId);
+
+      // Fechar loading
+      if (mounted) Navigator.of(context).pop();
+
+      if (result['success'] == true) {
+        // Mostrar sucesso e fazer logout
+        if (mounted) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (ctx) => AlertDialog(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
+              title: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green[700], size: 32),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'Assinatura Cancelada',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Sua assinatura foi cancelada com sucesso.',
+                    style: TextStyle(fontSize: 15),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.info_outline,
+                            color: Colors.orange, size: 24),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Foi um prazer ter você conosco e é uma pena te perder. Esperamos te ver por aqui novamente!😢',
+                            style: TextStyle(
+                                color: Colors.orange[800],
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                ElevatedButton(
+                  onPressed: () async {
+                    Navigator.of(ctx).pop();
+                    // Fazer logout
+                    await AuthService.signOut();
+                    if (mounted) {
+                      Navigator.of(context)
+                          .pushNamedAndRemoveUntil('/', (route) => false);
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryGold,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Entendi'),
+                ),
+              ],
+            ),
+          );
+        }
+      } else {
+        throw Exception(result['message'] ?? 'Erro desconhecido');
+      }
+    } catch (e) {
+      // Fechar loading se ainda estiver aberto
+      if (mounted) Navigator.of(context).pop();
+
+      // Mostrar erro
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao cancelar: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildInteractableCard({
@@ -398,10 +932,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     child: ElevatedButton(
                       onPressed: isSelected
                           ? () {
-                              // Ação do botão
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                      content: Text('Iniciando Upgrade...')));
+                              // Chamar popup de confirmação
+                              _showPlanChangeConfirmation(cardColorName);
                             }
                           : null, // Visualmente desativado (null onPressed faz o estilo disabled)
                       style: ElevatedButton.styleFrom(
@@ -450,11 +982,13 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   ],
                 ),
                 child: Text(
-                  'PLANO ATUAL',
+                  _expiresAt != null
+                      ? 'PLANO ATUAL - VENCIMENTO: ${_formatDate(_expiresAt)}'
+                      : 'PLANO ATUAL',
                   style: GoogleFonts.inter(
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: FontWeight.w900,
-                    color: Colors.white, // Contraste
+                    color: Colors.white,
                     letterSpacing: 0.5,
                   ),
                 ),

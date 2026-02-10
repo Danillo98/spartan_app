@@ -6,6 +6,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../models/user_role.dart';
 import '../../services/user_service.dart';
 import '../../config/app_theme.dart';
+import '../../widgets/subscription_check.dart';
 import 'subscription_screen.dart';
 
 class CreateUserScreen extends StatefulWidget {
@@ -48,6 +49,10 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
 
   Future<void> _handleCreate() async {
     if (!_formKey.currentState!.validate()) return;
+
+    // 0. VERIFICAR SE ASSINATURA ESTÁ ATIVA
+    final canProceed = await checkSubscription(context);
+    if (!canProceed) return; // Bloqueado - popup já exibido
 
     // 1. CHECAGEM PRÉVIA DE LIMITE (Antes de tentar cadastrar)
     if (_selectedRole == UserRole.student) {

@@ -5,6 +5,7 @@ import 'login_screen.dart';
 import '../services/auth_service.dart';
 import '../services/supabase_service.dart';
 import 'admin/admin_dashboard.dart';
+import 'admin/subscription_screen.dart';
 import 'nutritionist/nutritionist_dashboard.dart';
 import 'trainer/trainer_dashboard.dart';
 import 'student/student_dashboard.dart';
@@ -155,11 +156,42 @@ class _SplashScreenState extends State<SplashScreen>
     }
   }
 
-  void _navigateToDashboard(Map<String, dynamic> userData) {
+  Future<void> _navigateToDashboard(Map<String, dynamic> userData) async {
     if (!mounted) return;
 
-    Widget targetScreen = const LoginScreen();
     final role = userData['role'];
+    final userId = userData['id'];
+    final idAcademia = userData['id_academia'];
+
+    // VERIFICAÇÃO DE ASSINATURA PARA ADMIN
+    if (role == 'admin') {
+      final subStatus = await AuthService.verificarStatusAssinatura(userId);
+      final status = subStatus['status'];
+
+      if (status == 'suspended' || status == 'pending_deletion') {
+        // Admin suspenso -> Ir direto para tela de assinatura com popup
+        _navigateToSubscriptionWithWarning(subStatus);
+        return;
+      } else if (status == 'grace_period') {
+        // Período de graça -> Mostrar aviso mas deixar entrar
+        _showGracePeriodWarning(subStatus);
+        // Continua para o dashboard normalmente após o aviso
+      }
+    }
+
+    // VERIFICAÇÃO PARA SUBORDINADOS (nutri, personal, aluno)
+    else if (idAcademia != null) {
+      final academiaStatus =
+          await AuthService.verificarAcademiaSuspensa(idAcademia);
+
+      if (academiaStatus['suspended'] == true) {
+        _showAcademiaSuspendedDialog(academiaStatus);
+        return;
+      }
+    }
+
+    // Navegação normal
+    Widget targetScreen = const LoginScreen();
 
     switch (role) {
       case 'admin':
@@ -184,6 +216,177 @@ class _SplashScreenState extends State<SplashScreen>
           return FadeTransition(opacity: animation, child: child);
         },
         transitionDuration: const Duration(milliseconds: 800),
+      ),
+    );
+  }
+
+  // ADMIN SUSPENSO -> Tela de assinatura com aviso
+  void _navigateToSubscriptionWithWarning(Map<String, dynamic> status) {
+    if (!mounted) return;
+
+    final diasRestantes = status['dias_para_exclusao'] ?? 60;
+
+    // Mostrar popup primeiro, depois navegar
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red[700], size: 32),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text('Conta Suspensa',
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold, color: Colors.red)),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Sua assinatura está vencida e o acesso ao sistema está bloqueado.',
+              style: TextStyle(fontSize: 15),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.timer, color: Colors.red),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Você tem $diasRestantes dias para renovar antes da exclusão permanente de todos os dados.',
+                      style: const TextStyle(
+                          color: Colors.red, fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await AuthService.logout();
+              if (mounted) _navigateToLogin();
+            },
+            child: const Text('Sair', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const SubscriptionScreen()),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryRed,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Renovar Assinatura'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // PERÍODO DE GRAÇA -> Aviso mas deixa entrar
+  void _showGracePeriodWarning(Map<String, dynamic> status) {
+    if (!mounted) return;
+
+    final message = status['message'] ?? 'Período de graça ativo';
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Colors.white),
+            const SizedBox(width: 12),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: Colors.orange[700],
+        duration: const Duration(seconds: 5),
+        action: SnackBarAction(
+          label: 'Renovar',
+          textColor: Colors.white,
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SubscriptionScreen()),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  // SUBORDINADO DE ACADEMIA SUSPENSA -> Popup de bloqueio
+  void _showAcademiaSuspendedDialog(Map<String, dynamic> status) {
+    if (!mounted) return;
+
+    final nomeAcademia = status['academia'] ?? 'Academia';
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.block, color: Colors.red[700], size: 32),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text('Acesso Bloqueado',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.fitness_center, size: 48, color: Colors.grey),
+            const SizedBox(height: 16),
+            Text(
+              'A academia "$nomeAcademia" está com pagamento pendente.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 15),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Entre em contato com o administrador da academia para regularizar o acesso.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey, fontSize: 13),
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await AuthService.logout();
+              if (mounted) _navigateToLogin();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1D1D1F),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Entendi, Sair'),
+          ),
+        ],
       ),
     );
   }

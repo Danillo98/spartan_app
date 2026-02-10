@@ -511,4 +511,28 @@ class UserService {
       return {'count': 0, 'limit': 200, 'isAtLimit': false, 'plan': 'Prata'};
     }
   }
+
+  // Buscar status de assinatura do administrador
+  static Future<Map<String, dynamic>> getSubscriptionStatus() async {
+    try {
+      final adminDetails = await _getCurrentAdminDetails();
+
+      return {
+        'success': true,
+        'plano': adminDetails['plano_mensal'] ?? 'Prata',
+        'status': adminDetails['assinatura_status'] ?? 'active',
+        'iniciada': adminDetails['assinatura_iniciada'],
+        'expirada': adminDetails['assinatura_expirada'],
+        'tolerancia': adminDetails['assinatura_tolerancia'],
+        'deletada': adminDetails['assinatura_deletada'],
+        'stripeCustomerId': adminDetails['stripe_customer_id'],
+      };
+    } catch (e) {
+      print('Erro ao buscar status de assinatura: $e');
+      return {
+        'success': false,
+        'error': e.toString(),
+      };
+    }
+  }
 }

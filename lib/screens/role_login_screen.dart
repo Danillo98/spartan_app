@@ -5,7 +5,9 @@ import '../services/auth_service.dart';
 import '../config/app_theme.dart';
 import 'admin_register_screen.dart';
 import 'forgot_password_screen.dart';
+import 'login_screen.dart';
 import 'admin/admin_dashboard.dart';
+import 'admin/subscription_screen.dart';
 import 'nutritionist/nutritionist_dashboard.dart';
 import 'trainer/trainer_dashboard.dart';
 import 'student/student_dashboard.dart';
@@ -113,8 +115,32 @@ class _RoleLoginScreenState extends State<RoleLoginScreen>
           return;
         }
 
-        // A verificação financeira agora é feita dentro do AuthService.
-        // Se passar daqui, o usuário está apto a logar.
+        // =============================================
+        // VERIFICAÇÃO DE ASSINATURA PARA ADMIN
+        // =============================================
+        if (widget.role == UserRole.admin && result['user'] != null) {
+          final userId = result['user']['id'];
+          final subStatus = await AuthService.verificarStatusAssinatura(userId);
+          final status = subStatus['status'];
+
+          if (status == 'suspended' || status == 'pending_deletion') {
+            // Admin suspenso -> Ir direto para tela de assinatura com popup
+            _showSuspendedDialogAndNavigate(subStatus);
+            return;
+          } else if (status == 'grace_period') {
+            // Período de graça -> Mostrar aviso mas deixar entrar
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content:
+                      Text(subStatus['message'] ?? 'Período de graça ativo'),
+                  backgroundColor: Colors.orange,
+                  duration: const Duration(seconds: 5),
+                ),
+              );
+            }
+          }
+        }
 
         Widget dashboard;
         switch (widget.role) {
@@ -218,6 +244,97 @@ class _RoleLoginScreenState extends State<RoleLoginScreen>
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  // Mostra popup de conta suspensa e navega para tela de assinatura
+  void _showSuspendedDialogAndNavigate(Map<String, dynamic> status) {
+    if (!mounted) return;
+
+    setState(() => _isLoading = false);
+
+    final diasRestantes = status['dias_para_exclusao'] ?? 60;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red[700], size: 32),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'Conta Suspensa',
+                style:
+                    TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Sua assinatura está vencida e o acesso ao sistema está bloqueado.',
+              style: TextStyle(fontSize: 15),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.schedule, color: Colors.red),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Você tem $diasRestantes dias para renovar antes da exclusão permanente de todos os dados.',
+                      style: const TextStyle(
+                          color: Colors.red, fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await AuthService.signOut();
+              if (mounted) {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  (route) => false,
+                );
+              }
+            },
+            child: const Text('Sair', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const SubscriptionScreen()),
+                (route) => false,
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryGold,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Renovar Assinatura'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _navigateToRegister() {

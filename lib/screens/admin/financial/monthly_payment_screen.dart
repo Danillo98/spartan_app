@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../config/app_theme.dart';
 import '../../../services/financial_service.dart';
+import '../../../widgets/subscription_check.dart';
 
 class MonthlyPaymentScreen extends StatefulWidget {
   const MonthlyPaymentScreen({super.key});
@@ -13,6 +14,7 @@ class MonthlyPaymentScreen extends StatefulWidget {
 
 class _MonthlyPaymentScreenState extends State<MonthlyPaymentScreen> {
   bool _isLoading = true;
+  bool _isBlocked = false; // Flag para saber se está bloqueado
   List<Map<String, dynamic>> _students = [];
   DateTime _currentDate = DateTime.now();
   String _currentFilter = 'all'; // 'all', 'paid', 'pending', 'overdue'
@@ -21,6 +23,25 @@ class _MonthlyPaymentScreenState extends State<MonthlyPaymentScreen> {
   @override
   void initState() {
     super.initState();
+    // Usar addPostFrameCallback para garantir que o context esteja pronto
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndLoad();
+    });
+  }
+
+  Future<void> _checkAndLoad() async {
+    // Verifica assinatura antes de carregar a tela
+    final canProceed = await checkSubscription(context);
+    if (!canProceed) {
+      // Marcar como bloqueado para impedir voltar pelo navegador
+      if (mounted) {
+        setState(() {
+          _isBlocked = true;
+          _isLoading = false;
+        });
+      }
+      return;
+    }
     _loadData();
   }
 
@@ -219,114 +240,118 @@ class _MonthlyPaymentScreenState extends State<MonthlyPaymentScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.lightGrey,
-      appBar: AppBar(
-        title: Text(
-          'Mensalidades',
-          style: GoogleFonts.cinzel(
-            color: AppTheme.primaryText,
-            fontWeight: FontWeight.bold,
+    return PopScope(
+      canPop: !_isBlocked, // Impede voltar se bloqueado
+      child: Scaffold(
+        backgroundColor: AppTheme.lightGrey,
+        appBar: AppBar(
+          title: Text(
+            'Mensalidades',
+            style: GoogleFonts.cinzel(
+              color: AppTheme.primaryText,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          centerTitle: true,
+          backgroundColor: AppTheme.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_rounded,
+                color: AppTheme.secondaryText),
+            onPressed: () => Navigator.pop(context),
+          ),
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(1.0),
+            child: Container(color: AppTheme.borderGrey, height: 1.0),
           ),
         ),
-        centerTitle: true,
-        backgroundColor: AppTheme.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded,
-              color: AppTheme.secondaryText),
-          onPressed: () => Navigator.pop(context),
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1.0),
-          child: Container(color: AppTheme.borderGrey, height: 1.0),
-        ),
-      ),
-      body: Column(
-        children: [
-          // Header: Mês e Pesquisa
-          Container(
-            padding: const EdgeInsets.all(16),
-            color: AppTheme.white,
-            child: Column(
-              children: [
-                // Seletor de Mês
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.chevron_left_rounded),
-                      onPressed: () => _changeMonth(-1),
-                    ),
-                    Text(
-                      DateFormat('MMMM yyyy', 'pt_BR')
-                          .format(_currentDate)
-                          .toUpperCase(),
-                      style: GoogleFonts.lato(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.primaryText,
+        body: Column(
+          children: [
+            // Header: Mês e Pesquisa
+            Container(
+              padding: const EdgeInsets.all(16),
+              color: AppTheme.white,
+              child: Column(
+                children: [
+                  // Seletor de Mês
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.chevron_left_rounded),
+                        onPressed: () => _changeMonth(-1),
                       ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.chevron_right_rounded),
-                      onPressed: () => _changeMonth(1),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                // Pesquisa
-                TextField(
-                  decoration: InputDecoration(
-                    hintText: 'Pesquisar Aluno...',
-                    prefixIcon: const Icon(Icons.search, size: 20),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    filled: true,
-                    fillColor: AppTheme.lightGrey,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                      Text(
+                        DateFormat('MMMM yyyy', 'pt_BR')
+                            .format(_currentDate)
+                            .toUpperCase(),
+                        style: GoogleFonts.lato(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.primaryText,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.chevron_right_rounded),
+                        onPressed: () => _changeMonth(1),
+                      ),
+                    ],
                   ),
-                  onChanged: (val) => setState(() => _searchQuery = val),
-                ),
-              ],
-            ),
-          ),
-
-          // Filtros
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                _buildFilterChip('Todos', 'all'),
-                const SizedBox(width: 8),
-                _buildFilterChip('Pagos', 'paid', Colors.green),
-                const SizedBox(width: 8),
-                _buildFilterChip('Pendentes', 'pending', Colors.orange),
-                const SizedBox(width: 8),
-                _buildFilterChip('Vencidos', 'overdue', Colors.red),
-              ],
-            ),
-          ),
-
-          // Lista
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _filteredList.isEmpty
-                    ? const Center(child: Text('Nenhum aluno encontrado'))
-                    : ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: _filteredList.length,
-                        itemBuilder: (context, index) {
-                          return _buildStudentCard(_filteredList[index]);
-                        },
+                  const SizedBox(height: 16),
+                  // Pesquisa
+                  TextField(
+                    decoration: InputDecoration(
+                      hintText: 'Pesquisar Aluno...',
+                      prefixIcon: const Icon(Icons.search, size: 20),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
                       ),
-          ),
-        ],
-      ),
+                      filled: true,
+                      fillColor: AppTheme.lightGrey,
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 16),
+                    ),
+                    onChanged: (val) => setState(() => _searchQuery = val),
+                  ),
+                ],
+              ),
+            ),
+
+            // Filtros
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  _buildFilterChip('Todos', 'all'),
+                  const SizedBox(width: 8),
+                  _buildFilterChip('Pagos', 'paid', Colors.green),
+                  const SizedBox(width: 8),
+                  _buildFilterChip('Pendentes', 'pending', Colors.orange),
+                  const SizedBox(width: 8),
+                  _buildFilterChip('Vencidos', 'overdue', Colors.red),
+                ],
+              ),
+            ),
+
+            // Lista
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _filteredList.isEmpty
+                      ? const Center(child: Text('Nenhum aluno encontrado'))
+                      : ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: _filteredList.length,
+                          itemBuilder: (context, index) {
+                            return _buildStudentCard(_filteredList[index]);
+                          },
+                        ),
+            ),
+          ],
+        ),
+      ), // Fecha PopScope
     );
   }
 

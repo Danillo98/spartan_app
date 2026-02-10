@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../models/user_role.dart';
 import '../../services/user_service.dart';
 import '../../config/app_theme.dart';
+import '../../widgets/subscription_check.dart';
 import 'create_user_screen.dart';
 import 'edit_user_screen.dart';
 import 'subscription_screen.dart';
@@ -19,6 +20,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen>
   List<Map<String, dynamic>> _users = [];
   List<Map<String, dynamic>> _filteredUsers = [];
   bool _isLoading = true;
+  bool _isBlocked = false; // Flag para saber se está bloqueado
   String _searchQuery = '';
   UserRole? _filterRole;
 
@@ -40,8 +42,27 @@ class _AdminUsersScreenState extends State<AdminUsersScreen>
       ),
     );
 
-    _loadUsers();
+    // Usar addPostFrameCallback para garantir que o context esteja pronto
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndLoad();
+    });
     _animationController.forward();
+  }
+
+  Future<void> _checkAndLoad() async {
+    // Verifica assinatura antes de carregar a tela
+    final canProceed = await checkSubscription(context);
+    if (!canProceed) {
+      // Marcar como bloqueado para impedir voltar pelo navegador
+      if (mounted) {
+        setState(() {
+          _isBlocked = true;
+          _isLoading = false;
+        });
+      }
+      return;
+    }
+    _loadUsers();
   }
 
   @override
@@ -275,204 +296,220 @@ class _AdminUsersScreenState extends State<AdminUsersScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.lightGrey,
-      appBar: AppBar(
-        backgroundColor: AppTheme.white,
-        elevation: 0,
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded,
-              color: AppTheme.secondaryText),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          'Painel de Usuários',
-          style: GoogleFonts.cinzel(
-            color: AppTheme.primaryText,
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
+    return PopScope(
+      canPop: !_isBlocked, // Impede voltar se bloqueado
+      child: Scaffold(
+        backgroundColor: AppTheme.lightGrey,
+        appBar: AppBar(
+          backgroundColor: AppTheme.white,
+          elevation: 0,
+          centerTitle: true,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_rounded,
+                color: AppTheme.secondaryText),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: Text(
+            'Painel de Usuários',
+            style: GoogleFonts.cinzel(
+              color: AppTheme.primaryText,
+              fontWeight: FontWeight.bold,
+              fontSize: 20,
+            ),
+          ),
+          iconTheme: const IconThemeData(color: AppTheme.secondaryText),
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(1.0),
+            child: Container(
+              color: AppTheme.borderGrey,
+              height: 1.0,
+            ),
           ),
         ),
-        iconTheme: const IconThemeData(color: AppTheme.secondaryText),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1.0),
-          child: Container(
-            color: AppTheme.borderGrey,
-            height: 1.0,
-          ),
-        ),
-      ),
-      body: FadeTransition(
-        opacity: _fadeAnimation,
-        child: Column(
-          children: [
-            // Barra de pesquisa e filtros
-            Container(
-              color: AppTheme.white,
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  // Campo de pesquisa
-                  TextField(
-                    decoration: InputDecoration(
-                      hintText: 'Pesquisar por nome...',
-                      prefixIcon:
-                          const Icon(Icons.search, color: Color(0xFF1A1A1A)),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: AppTheme.borderGrey),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
-                            color: Color(0xFF1A1A1A), width: 2),
-                      ),
-                      filled: true,
-                      fillColor: AppTheme.lightGrey,
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
-                    ),
-                    onChanged: _onSearchChanged,
-                    cursorColor: const Color(0xFF1A1A1A),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Filtros por role
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        _buildFilterChip('Todos', null),
-                        const SizedBox(width: 8),
-                        _buildFilterChip('Admins', UserRole.admin),
-                        const SizedBox(width: 8),
-                        _buildFilterChip(
-                            'Nutricionistas', UserRole.nutritionist),
-                        const SizedBox(width: 8),
-                        _buildFilterChip('Personals', UserRole.trainer),
-                        const SizedBox(width: 8),
-                        _buildFilterChip('Alunos', UserRole.student),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Divisor com sombra
-            Container(
-              height: 1,
-              decoration: BoxDecoration(
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
-              ),
-            ),
-
-            // Estatísticas
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _buildStatCard(
-                      'Total de Usuários',
-                      _users.length.toString(),
-                      Icons.people_alt_rounded,
-                      const Color(0xFF1A1A1A),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildStatCard(
-                      'Exibindo Agora',
-                      _filteredUsers.length.toString(),
-                      Icons.filter_list_alt,
-                      AppTheme.primaryText,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Lista de usuários
-            Expanded(
-              child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                        color: AppTheme.primaryGold,
-                      ),
-                    )
-                  : _filteredUsers.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.person_search_rounded,
-                                size: 60,
-                                color: AppTheme.borderGrey,
-                              ),
-                              const SizedBox(height: 15),
-                              Text(
-                                'Nenhum usuário encontrado',
-                                style: GoogleFonts.lato(
-                                  fontSize: 16,
-                                  color: AppTheme.secondaryText,
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                      : RefreshIndicator(
-                          onRefresh: _loadUsers,
-                          color: const Color(0xFF1A1A1A),
-                          child: ListView.builder(
-                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 80),
-                            itemCount: _filteredUsers.length,
-                            itemBuilder: (context, index) {
-                              final user = _filteredUsers[index];
-                              return _buildUserCard(user);
-                            },
-                          ),
+        body: FadeTransition(
+          opacity: _fadeAnimation,
+          child: Column(
+            children: [
+              // Barra de pesquisa e filtros
+              Container(
+                color: AppTheme.white,
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    // Campo de pesquisa
+                    TextField(
+                      decoration: InputDecoration(
+                        hintText: 'Pesquisar por nome...',
+                        prefixIcon:
+                            const Icon(Icons.search, color: Color(0xFF1A1A1A)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
                         ),
-            ),
-          ],
-        ),
-      ),
-      floatingActionButton: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(30),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF1A1A1A).withOpacity(0.4),
-              blurRadius: 15,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: FloatingActionButton.extended(
-          onPressed: () async {
-            // Verificar limite ANTES de navegar
-            try {
-              final limitStatus = await UserService.checkPlanLimitStatus();
-              final isAtLimit = limitStatus['isAtLimit'] ?? false;
-              // final plan = limitStatus['plan'] ?? 'Bronze'; // Se precisar mostrar o plano
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: AppTheme.borderGrey),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                              color: Color(0xFF1A1A1A), width: 2),
+                        ),
+                        filled: true,
+                        fillColor: AppTheme.lightGrey,
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
+                      ),
+                      onChanged: _onSearchChanged,
+                      cursorColor: const Color(0xFF1A1A1A),
+                    ),
+                    const SizedBox(height: 16),
 
-              if (isAtLimit && mounted) {
-                // Mostrar Popup de Bloqueio Imediato
-                _showUpgradeDialog();
-              } else {
-                // Navegar para Criar Usuário
+                    // Filtros por role
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _buildFilterChip('Todos', null),
+                          const SizedBox(width: 8),
+                          _buildFilterChip('Admins', UserRole.admin),
+                          const SizedBox(width: 8),
+                          _buildFilterChip(
+                              'Nutricionistas', UserRole.nutritionist),
+                          const SizedBox(width: 8),
+                          _buildFilterChip('Personals', UserRole.trainer),
+                          const SizedBox(width: 8),
+                          _buildFilterChip('Alunos', UserRole.student),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Divisor com sombra
+              Container(
+                height: 1,
+                decoration: BoxDecoration(
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Estatísticas
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _buildStatCard(
+                        'Total de Usuários',
+                        _users.length.toString(),
+                        Icons.people_alt_rounded,
+                        const Color(0xFF1A1A1A),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildStatCard(
+                        'Exibindo Agora',
+                        _filteredUsers.length.toString(),
+                        Icons.filter_list_alt,
+                        AppTheme.primaryText,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Lista de usuários
+              Expanded(
+                child: _isLoading
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                          color: AppTheme.primaryGold,
+                        ),
+                      )
+                    : _filteredUsers.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.person_search_rounded,
+                                  size: 60,
+                                  color: AppTheme.borderGrey,
+                                ),
+                                const SizedBox(height: 15),
+                                Text(
+                                  'Nenhum usuário encontrado',
+                                  style: GoogleFonts.lato(
+                                    fontSize: 16,
+                                    color: AppTheme.secondaryText,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : RefreshIndicator(
+                            onRefresh: _loadUsers,
+                            color: const Color(0xFF1A1A1A),
+                            child: ListView.builder(
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 80),
+                              itemCount: _filteredUsers.length,
+                              itemBuilder: (context, index) {
+                                final user = _filteredUsers[index];
+                                return _buildUserCard(user);
+                              },
+                            ),
+                          ),
+              ),
+            ],
+          ),
+        ),
+        floatingActionButton: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(30),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF1A1A1A).withOpacity(0.4),
+                blurRadius: 15,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: FloatingActionButton.extended(
+            onPressed: () async {
+              // Verificar limite ANTES de navegar
+              try {
+                final limitStatus = await UserService.checkPlanLimitStatus();
+                final isAtLimit = limitStatus['isAtLimit'] ?? false;
+                // final plan = limitStatus['plan'] ?? 'Bronze'; // Se precisar mostrar o plano
+
+                if (isAtLimit && mounted) {
+                  // Mostrar Popup de Bloqueio Imediato
+                  _showUpgradeDialog();
+                } else {
+                  // Navegar para Criar Usuário
+                  if (mounted) {
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const CreateUserScreen(),
+                      ),
+                    );
+                    if (result == true) {
+                      _loadUsers();
+                    }
+                  }
+                }
+              } catch (e) {
+                // Fallback: se der erro na verificação, deixa tentar entrar (o backend barra depois)
                 if (mounted) {
                   final result = await Navigator.push(
                     context,
@@ -480,35 +517,22 @@ class _AdminUsersScreenState extends State<AdminUsersScreen>
                       builder: (context) => const CreateUserScreen(),
                     ),
                   );
-                  if (result == true) {
-                    _loadUsers();
-                  }
+                  if (result == true) _loadUsers();
                 }
               }
-            } catch (e) {
-              // Fallback: se der erro na verificação, deixa tentar entrar (o backend barra depois)
-              if (mounted) {
-                final result = await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const CreateUserScreen(),
-                  ),
-                );
-                if (result == true) _loadUsers();
-              }
-            }
-          },
-          icon: const Icon(Icons.add_rounded, color: Colors.white),
-          label: Text('NOVO USUÁRIO',
-              style: GoogleFonts.lato(
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1,
-                color: Colors.white,
-              )),
-          backgroundColor: const Color(0xFF1A1A1A),
-          elevation: 0,
+            },
+            icon: const Icon(Icons.add_rounded, color: Colors.white),
+            label: Text('NOVO USUÁRIO',
+                style: GoogleFonts.lato(
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1,
+                  color: Colors.white,
+                )),
+            backgroundColor: const Color(0xFF1A1A1A),
+            elevation: 0,
+          ),
         ),
-      ),
+      ), // Fecha PopScope
     );
   }
 

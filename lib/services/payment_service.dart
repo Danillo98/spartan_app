@@ -79,4 +79,43 @@ class PaymentService {
         throw Exception('Plano desconhecido: $planName');
     }
   }
+
+  /// Cancela a assinatura do usuário no Stripe
+  /// Retorna um Map com success, message e deletionDate
+  static Future<Map<String, dynamic>> cancelSubscription({
+    required String userId,
+  }) async {
+    const functionName = 'cancel-subscription';
+
+    try {
+      print('🗑️ Iniciando cancelamento via Edge Function...');
+
+      final response = await Supabase.instance.client.functions.invoke(
+        functionName,
+        body: {
+          'userId': userId,
+          'confirmCancellation': true,
+        },
+      );
+
+      final data = response.data;
+
+      if (data != null && data['success'] == true) {
+        print('✅ Cancelamento bem-sucedido: ${data['message']}');
+        return {
+          'success': true,
+          'message': data['message'] ?? 'Assinatura cancelada com sucesso',
+          'deletionDate': data['deletionDate'],
+        };
+      } else {
+        throw Exception(data?['error'] ?? 'Erro desconhecido no cancelamento');
+      }
+    } catch (e) {
+      print('❌ Erro no cancelamento: $e');
+      return {
+        'success': false,
+        'message': 'Erro ao cancelar assinatura: $e',
+      };
+    }
+  }
 }

@@ -643,8 +643,10 @@ class AuthService {
       // VERIFICAÇÃO DE BLOQUEIO E ACESSO FINANCEIRO
       // ===============================================
 
-      // 1. Bloqueio Manual (is_blocked = true) tem prioridade absoluta
-      if (userData['is_blocked'] == true) {
+      // 1. Bloqueio Manual (is_blocked = true)
+      // Para ADMINS: Permite login, mas será redirecionado para tela de assinatura no SplashScreen
+      // Para SUBORDINADOS: Bloqueia completamente
+      if (userData['is_blocked'] == true && userData['role'] != 'admin') {
         await _client.auth.signOut();
         return {
           'success': false,
@@ -724,6 +726,264 @@ class AuthService {
     }
 
     await _client.auth.signOut();
+  }
+
+  // ============================================
+  // VERIFICAÇÃO DE STATUS DE ASSINATURA (NO LOGIN)
+  // ============================================
+  /// Verifica e atualiza o status da assinatura do admin
+  /// Retorna: { 'status': 'active'|'grace_period'|'suspended'|'deleted', 'message': ... }
+  static Future<Map<String, dynamic>> verificarStatusAssinatura(
+      String adminId) async {
+    try {
+      // Buscar dados do admin
+      final admin = await _client
+          .from('users_adm')
+          .select(
+              'assinatura_status, assinatura_expirada, assinatura_tolerancia, assinatura_deletada, is_blocked')
+          .eq('id', adminId)
+          .maybeSingle();
+
+      if (admin == null) {
+        return {'status': 'not_found', 'message': 'Admin não encontrado'};
+      }
+
+      final statusAtual = admin['assinatura_status'] ?? 'active';
+      final isBlocked = admin['is_blocked'] ?? false;
+
+      // =============================================
+      // PRIORIDADE 1: Status já definido pelo webhook
+      // =============================================
+      // Se o webhook do Stripe já marcou como suspended/pending_deletion, respeita
+      if (statusAtual == 'suspended' ||
+          statusAtual == 'pending_deletion' ||
+          isBlocked == true) {
+        // Calcular dias restantes baseado na data de exclusão
+        int diasRestantes = 60; // fallback
+        if (admin['assinatura_deletada'] != null) {
+          final deletadaEm = DateTime.parse(admin['assinatura_deletada']);
+          diasRestantes = deletadaEm.difference(DateTime.now()).inDays;
+          if (diasRestantes < 0) diasRestantes = 0;
+        }
+
+        return {
+          'status': statusAtual == 'pending_deletion'
+              ? 'pending_deletion'
+              : 'suspended',
+          'message': statusAtual == 'pending_deletion'
+              ? 'Conta marcada para exclusão.'
+              : 'Assinatura suspensa. Renove para continuar acessando.',
+          'deletada_em': admin['assinatura_deletada'],
+          'dias_para_exclusao': diasRestantes,
+        };
+      }
+
+      if (statusAtual == 'grace_period') {
+        final tolerancia = admin['assinatura_tolerancia'] != null
+            ? DateTime.parse(admin['assinatura_tolerancia'])
+            : null;
+        final horasRestantes = tolerancia != null
+            ? tolerancia.difference(DateTime.now()).inHours
+            : 24;
+        return {
+          'status': 'grace_period',
+          'message': 'Período de graça: $horasRestantes horas para renovar.',
+          'expira_graca_em': admin['assinatura_tolerancia'],
+        };
+      }
+
+      // =============================================
+      // PRIORIDADE 2: Se não tem datas, assume ativo (legado)
+      // =============================================
+      if (admin['assinatura_expirada'] == null) {
+        return {'status': 'active', 'message': 'Assinatura válida (legado)'};
+      }
+
+      // =============================================
+      // PRIORIDADE 3: Verificação baseada em datas (fallback)
+      // =============================================
+      final now = DateTime.now();
+      final expirada = DateTime.parse(admin['assinatura_expirada']);
+      final tolerancia = admin['assinatura_tolerancia'] != null
+          ? DateTime.parse(admin['assinatura_tolerancia'])
+          : expirada.add(const Duration(days: 1));
+      final deletada = admin['assinatura_deletada'] != null
+          ? DateTime.parse(admin['assinatura_deletada'])
+          : tolerancia.add(const Duration(days: 60));
+
+      // Verificar se precisa mudar status baseado em datas
+      if (now.isAfter(deletada)) {
+        // Passou dos 60 dias - marcar para deleção (você faz manualmente)
+        await _client.from('users_adm').update({
+          'assinatura_status': 'pending_deletion',
+          'is_blocked': true,
+          'updated_at': now.toIso8601String(),
+        }).eq('id', adminId);
+
+        return {
+          'status': 'pending_deletion',
+          'message':
+              'Conta marcada para exclusão. Período de 60 dias expirado.',
+          'deletada_em': deletada.toIso8601String(),
+        };
+      } else if (now.isAfter(tolerancia)) {
+        // Passou do período de graça - SUSPENSO
+        if (statusAtual != 'suspended') {
+          await _client.from('users_adm').update({
+            'assinatura_status': 'suspended',
+            'is_blocked': true,
+            'updated_at': now.toIso8601String(),
+          }).eq('id', adminId);
+        }
+
+        final diasRestantes = deletada.difference(now).inDays;
+        return {
+          'status': 'suspended',
+          'message': 'Assinatura suspensa. Renove para continuar acessando.',
+          'dias_para_exclusao': diasRestantes,
+          'deletada_em': deletada.toIso8601String(),
+        };
+      } else if (now.isAfter(expirada)) {
+        // Ainda dentro do período de graça
+        if (statusAtual != 'grace_period') {
+          await _client.from('users_adm').update({
+            'assinatura_status': 'grace_period',
+            'updated_at': now.toIso8601String(),
+          }).eq('id', adminId);
+        }
+
+        final horasRestantes = tolerancia.difference(now).inHours;
+        return {
+          'status': 'grace_period',
+          'message': 'Período de graça: $horasRestantes horas para renovar.',
+          'expira_graca_em': tolerancia.toIso8601String(),
+        };
+      } else {
+        // Assinatura válida
+        return {
+          'status': 'active',
+          'message': 'Assinatura ativa',
+          'expira_em': expirada.toIso8601String(),
+        };
+      }
+    } catch (e) {
+      print('Erro ao verificar assinatura: $e');
+      // Em caso de erro, deixa passar para não travar (fail open)
+      return {
+        'status': 'active',
+        'message': 'Verificação falhou, acesso liberado'
+      };
+    }
+  }
+
+  /// Verifica se a academia de um subordinado está suspensa
+  static Future<Map<String, dynamic>> verificarAcademiaSuspensa(
+      String idAcademia) async {
+    try {
+      final admin = await _client
+          .from('users_adm')
+          .select('assinatura_status, academia')
+          .eq('id', idAcademia)
+          .maybeSingle();
+
+      if (admin == null) {
+        return {'suspended': false, 'message': 'Academia não encontrada'};
+      }
+
+      final status = admin['assinatura_status'] ?? 'active';
+      final isSuspended = status == 'suspended' || status == 'pending_deletion';
+
+      return {
+        'suspended': isSuspended,
+        'status': status,
+        'academia': admin['academia'] ?? 'Academia',
+        'message': isSuspended
+            ? 'A academia está com pagamento pendente. Contate o administrador.'
+            : 'Academia ativa',
+      };
+    } catch (e) {
+      print('Erro ao verificar academia: $e');
+      return {'suspended': false, 'message': 'Erro na verificação'};
+    }
+  }
+
+  /// Verificação RÁPIDA de status de assinatura (lê do banco sem atualizar)
+  /// Retorna: { 'ativo': bool, 'status': string, 'message': string }
+  /// Use antes de ações críticas: criar usuário, acessar financeiro, etc.
+  static Future<Map<String, dynamic>> verificarAssinaturaAtiva() async {
+    try {
+      final userData = await getCurrentUserData();
+      if (userData == null) {
+        return {
+          'ativo': false,
+          'status': 'not_found',
+          'message': 'Usuário não encontrado'
+        };
+      }
+
+      // Se não for admin, verificar academia
+      if (userData['role'] != 'admin') {
+        final idAcademia = userData['id_academia'];
+        if (idAcademia != null) {
+          final academiaStatus = await verificarAcademiaSuspensa(idAcademia);
+          if (academiaStatus['suspended'] == true) {
+            return {
+              'ativo': false,
+              'status': academiaStatus['status'],
+              'message': academiaStatus['message'],
+            };
+          }
+        }
+        return {
+          'ativo': true,
+          'status': 'active',
+          'message': 'Acesso permitido'
+        };
+      }
+
+      // Para admin, buscar status direto do banco
+      final admin = await _client
+          .from('users_adm')
+          .select('assinatura_status, is_blocked')
+          .eq('id', userData['id'])
+          .maybeSingle();
+
+      if (admin == null) {
+        return {'ativo': true, 'status': 'active', 'message': 'Admin legado'};
+      }
+
+      final status = admin['assinatura_status'] ?? 'active';
+      final isBlocked = admin['is_blocked'] ?? false;
+
+      if (status == 'suspended' ||
+          status == 'pending_deletion' ||
+          isBlocked == true) {
+        return {
+          'ativo': false,
+          'status': status,
+          'message': 'Sua assinatura está suspensa. Renove para continuar.',
+        };
+      }
+
+      if (status == 'grace_period') {
+        return {
+          'ativo': true, // Ainda pode usar, mas com aviso
+          'status': status,
+          'message': 'Período de graça ativo. Renove em breve!',
+          'aviso': true,
+        };
+      }
+
+      return {'ativo': true, 'status': 'active', 'message': 'Assinatura ativa'};
+    } catch (e) {
+      print('Erro ao verificar assinatura ativa: $e');
+      // Em caso de erro, deixa passar
+      return {
+        'ativo': true,
+        'status': 'active',
+        'message': 'Verificação falhou'
+      };
+    }
   }
 
   // Alias para compatibilidade
