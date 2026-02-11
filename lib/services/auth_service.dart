@@ -515,12 +515,12 @@ class AuthService {
   // ============================================
 
   // Método auxiliar para buscar endereço da academia
-  static Future<String?> _getAcademyAddress(String cnpjAcademia) async {
+  static Future<String?> _getAcademyAddress(String idAcademia) async {
     try {
       final admin = await _client
           .from('users_adm')
           .select('endereco')
-          .eq('cnpj_academia', cnpjAcademia)
+          .eq('id', idAcademia)
           .maybeSingle();
       return admin?['endereco'] as String?;
     } catch (_) {
@@ -534,7 +534,8 @@ class AuthService {
       // 1. Verificar users_adm
       final admin = await _client
           .from('users_adm')
-          .select()
+          .select(
+              'id, nome, email, telefone, cnpj_academia, academia, cpf, endereco, plano_mensal, is_blocked')
           .eq('id', userId)
           .maybeSingle();
       if (admin != null) {
@@ -550,13 +551,13 @@ class AuthService {
       // 2. Verificar users_nutricionista
       final nutri = await _client
           .from('users_nutricionista')
-          .select()
+          .select('id, nome, email, telefone, id_academia, is_blocked')
           .eq('id', userId)
           .maybeSingle();
       if (nutri != null) {
         String? address;
-        if (nutri['cnpj_academia'] != null) {
-          address = await _getAcademyAddress(nutri['cnpj_academia']);
+        if (nutri['id_academia'] != null) {
+          address = await _getAcademyAddress(nutri['id_academia']);
         }
         return {
           ...nutri,
@@ -568,13 +569,13 @@ class AuthService {
       // 3. Verificar users_personal
       final personal = await _client
           .from('users_personal')
-          .select()
+          .select('id, nome, email, telefone, id_academia, is_blocked')
           .eq('id', userId)
           .maybeSingle();
       if (personal != null) {
         String? address;
-        if (personal['cnpj_academia'] != null) {
-          address = await _getAcademyAddress(personal['cnpj_academia']);
+        if (personal['id_academia'] != null) {
+          address = await _getAcademyAddress(personal['id_academia']);
         }
         return {
           ...personal,
@@ -586,13 +587,14 @@ class AuthService {
       // 4. Verificar users_alunos
       final aluno = await _client
           .from('users_alunos')
-          .select()
+          .select(
+              'id, nome, email, telefone, id_academia, is_blocked, payment_due')
           .eq('id', userId)
           .maybeSingle();
       if (aluno != null) {
         String? address;
-        if (aluno['cnpj_academia'] != null) {
-          address = await _getAcademyAddress(aluno['cnpj_academia']);
+        if (aluno['id_academia'] != null) {
+          address = await _getAcademyAddress(aluno['id_academia']);
         }
         return {
           ...aluno,
@@ -614,10 +616,13 @@ class AuthService {
     required String password,
   }) async {
     try {
+      print('🔐 [DEBUG] Tentando autenticação Auth com email: $email');
       final response = await _client.auth.signInWithPassword(
         email: email,
         password: password,
       );
+      print(
+          '✅ [DEBUG] Autenticação Auth bem sucedida! User ID: ${response.user?.id}');
 
       if (response.user == null) {
         return {
@@ -627,7 +632,9 @@ class AuthService {
       }
 
       // Buscar dados completos do usuário em todas as tabelas
+      print('🔍 [DEBUG] Buscando dados complementares em _findUserInTables...');
       final userData = await _findUserInTables(response.user!.id);
+      print('✅ [DEBUG] Dados encontrados: ${userData != null ? "Sim" : "Não"}');
 
       if (userData == null) {
         // Usuário autenticado mas sem registro nas tabelas
@@ -658,7 +665,7 @@ class AuthService {
       // 2. Bloqueio Financeiro (Apenas para Alunos)
       // Se não pagou no mês atual e já passou da data de vencimento -> BLOQUEIA
       if (userData['role'] == 'student') {
-        final paymentDueDay = userData['payment_due_day'] as int?;
+        final paymentDueDay = userData['payment_due'] as int?;
         // Tentar obter id_academia de várias formas possíveis (id_academia ou created_by_admin_id)
         final idAcademia = userData['id_academia'] as String? ??
             userData['created_by_admin_id'] as String?;

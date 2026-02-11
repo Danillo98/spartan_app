@@ -1,0 +1,797 @@
+﻿import 'package:supabase_flutter/supabase_flutter.dart';
+import 'supabase_service.dart';
+import 'registration_token_service.dart';
+import '../models/user_role.dart';
+import 'notification_service.dart';
+import 'financial_service.dart';
+
+class AuthService {
+  static final SupabaseClient _client = SupabaseService.client;
+
+  /// Retorna o usu├írio autenticado atualmente (se houver)
+  static User? get currentUser => _client.auth.currentUser;
+
+  // ============================================
+  // CADASTRO COM TOKEN CRIPTOGRAFADO
+  // ============================================
+
+  /// Inicia cadastro de administrador
+  /// N├âO cria conta ainda - apenas gera token e envia email
+  static Future<Map<String, dynamic>> registerAdmin({
+    required String name,
+    required String email,
+    required String password,
+    required String phone,
+    required String cnpjAcademia,
+    required String academia,
+    required String cnpj,
+    required String cpf,
+    required String address,
+    required String plan, // NOVO: Plano selecionado
+  }) async {
+    try {
+      // Verificar se email j├í existe em users_adm
+      final existingUser = await _client
+          .from('users_adm')
+          .select('email')
+          .eq('email', email)
+          .maybeSingle();
+
+      if (existingUser != null) {
+        return {
+          'success': false,
+          'message': 'Este email j├í est├í cadastrado',
+        };
+      }
+
+      // Criar token com dados criptografados (SEM salvar no banco!)
+      // Usar campos cnpj e cpf para armazenar cnpjAcademia e academia
+      // Address carrega dados extras: role|cnpj_pessoal|cpf_pessoal|endereco|plano
+      final tokenData = RegistrationTokenService.createToken(
+        name: name,
+        email: email,
+        password: password,
+        phone: phone,
+        cnpj: cnpjAcademia, // CNPJ da academia
+        cpf: academia, // Nome da academia
+        address: 'admin|$cnpj|$cpf|$address|$plan', // Dados packeados
+      );
+
+      final token = tokenData['token'] as String;
+
+      // URL de confirma├º├úo com deep link para abrir o app
+      final confirmationUrl =
+          'https://spartanapp.com.br/confirm.html?token=$token';
+
+      print('­ƒöÉ Token criado: ${token.substring(0, 20)}...');
+      print('­ƒöù URL de confirma├º├úo: $confirmationUrl');
+
+      try {
+        print('­ƒôº Tentando enviar email para: $email');
+
+        final response = await _client.auth.signUp(
+          email: email,
+          password: password,
+          emailRedirectTo: confirmationUrl,
+          data: {
+            'role': 'admin',
+            'name': name,
+            'phone': phone,
+            'academia': academia,
+            'cnpj_academia': cnpjAcademia,
+            'plano_mensal': plan, // Agora enviamos o plano para o trigger
+          },
+        );
+
+        print('Ô£à SignUp executado com sucesso');
+        print('­ƒôº User ID: ${response.user?.id}');
+        print('­ƒôº Email confirmado: ${response.user?.emailConfirmedAt}');
+
+        // Fazer logout imediatamente (n├úo queremos que o usu├írio fique logado)
+        await _client.auth.signOut();
+        print('Ô£à Logout realizado');
+
+        return {
+          'success': true,
+          'email': email,
+          'message': 'Verifique seu email para confirmar o cadastro.',
+          'requiresVerification': true,
+        };
+      } catch (e) {
+        print('ÔØî Erro ao enviar email: $e');
+        // Se falhar, retornar token para teste manual
+        return {
+          'success': true,
+          'email': email,
+          'token': token, // Para testes
+          'message': 'Cadastro iniciado! Use o token para testar: $token',
+          'requiresVerification': true,
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Erro ao iniciar cadastro: ${e.toString()}',
+      };
+    }
+  }
+
+  /// Confirmar cadastro usando token do email
+  /// AGORA SIM cria a conta no Supabase
+  static Future<Map<String, dynamic>> confirmRegistration(String token) async {
+    try {
+      print('­ƒöä Iniciando confirma├º├úo de cadastro...');
+      print('­ƒöæ Token recebido: ${token.substring(0, 20)}...');
+
+      // Validar e decodificar token
+      final data = RegistrationTokenService.validateToken(token);
+
+      if (data == null) {
+        print('ÔØî Token inv├ílido ou expirado');
+        return {
+          'success': false,
+          'message': 'Link inv├ílido ou expirado. Tente cadastrar novamente.',
+        };
+      }
+
+      print('Ô£à Token v├ílido!');
+
+      // Extrair dados do token
+      final name = data['name'] as String;
+      final email = data['email'] as String;
+      final password = data['password'] as String;
+      final phone = data['phone'] as String;
+      final cnpj = data['cnpj'] as String;
+      final cpf = data['cpf'] as String;
+      final address = data['address'] as String;
+      final birthDate = data['birthDate'] as String?;
+
+      print('­ƒôº Email: $email');
+
+      // Verificar se email j├í foi cadastrado em qualquer tabela
+      var existingUser = await _client
+          .from('users_adm')
+          .select('email')
+          .eq('email', email)
+          .maybeSingle();
+      if (existingUser == null)
+        existingUser = await _client
+            .from('users_nutricionista')
+            .select('email')
+            .eq('email', email)
+            .maybeSingle();
+      if (existingUser == null)
+        existingUser = await _client
+            .from('users_personal')
+            .select('email')
+            .eq('email', email)
+            .maybeSingle();
+      if (existingUser == null)
+        existingUser = await _client
+            .from('users_alunos')
+            .select('email')
+            .eq('email', email)
+            .maybeSingle();
+
+      if (existingUser != null) {
+        print('ÔÜá´©Å Usu├írio j├í existe na tabela users');
+        return {
+          'success': false,
+          'message': 'Este email j├í est├í cadastrado. Fa├ºa login.',
+        };
+      }
+
+      print('­ƒöì Verificando se existe usu├írio tempor├írio no auth.users...');
+
+      // Verificar se existe usu├írio tempor├írio no auth.users
+      // (criado pelo signUp inicial para enviar email)
+      try {
+        // Tentar fazer login com as credenciais para verificar se existe
+        final loginTest = await _client.auth.signInWithPassword(
+          email: email,
+          password: password,
+        );
+
+        if (loginTest.user != null) {
+          print('Ô£à Usu├írio tempor├írio encontrado: ${loginTest.user!.id}');
+          print('­ƒôØ Criando registro na tabela correta...');
+
+          // Extrair dados do token
+          final cnpjAcademia = cnpj;
+          final academia = cpf;
+
+          final addressParts = address.split('|');
+          final role = addressParts.isNotEmpty ? addressParts[0] : 'student';
+
+          print('­ƒôª Debug Address Parsing:');
+          print('CreateString: $address');
+          print('Parts: ${addressParts.length}');
+          addressParts.asMap().forEach((i, v) => print('[$i]: $v'));
+
+          if (role == 'admin') {
+            final personalCpf = addressParts.length > 2 ? addressParts[2] : '';
+            final personalAddress =
+                addressParts.length > 3 ? addressParts[3] : '';
+            // PEGAR O PLANO COMSEGURAN├çA
+            final plan = addressParts.length > 4 ? addressParts[4] : 'Standard';
+
+            print('­ƒÅå PLANO IDENTIFICADO: $plan');
+
+            await _client.from('users_adm').upsert({
+              'id': loginTest.user!.id,
+              'cnpj_academia': cnpjAcademia,
+              'academia': academia,
+              'nome': name,
+              'email': email,
+              'telefone': phone,
+              'cpf': personalCpf,
+              'endereco': personalAddress,
+              'plano_mensal': plan,
+              'email_verified': true,
+            });
+
+            // Garantia extra: Atualizar metadados do usu├írio para persist├¬ncia
+            await _client.auth
+                .updateUser(UserAttributes(data: {'plano_mensal': plan}));
+          } else {
+            final createdByAdminId =
+                addressParts.length > 1 ? addressParts[1] : loginTest.user!.id;
+
+            String tableName = 'users_alunos';
+            if (role == 'nutritionist')
+              tableName = 'users_nutricionista';
+            else if (role == 'trainer')
+              tableName = 'users_personal';
+            else if (role == 'student') tableName = 'users_alunos';
+
+            final insertData = {
+              'id': loginTest.user!.id,
+              'cnpj_academia': cnpjAcademia,
+              'academia': academia,
+              'nome': name,
+              'email': email,
+              'telefone': phone,
+              'created_by_admin_id': createdByAdminId,
+              'id_academia': createdByAdminId, // ID do admin = ID da academia
+              'email_verified': true,
+              if (birthDate != null) 'data_nascimento': birthDate,
+            };
+
+            if (role == 'student' && data.containsKey('paymentDueDay')) {
+              insertData['payment_due_day'] = data['paymentDueDay'];
+            }
+
+            await _client.from(tableName).insert(insertData);
+
+            // REGISTRAR PAGAMENTO SE HOUVER FLAG
+            if (role == 'student' && data['isPaidCurrentMonth'] == true) {
+              try {
+                await FinancialService.addTransaction(
+                  description: 'Mensalidade (Cadastro)',
+                  amount: 0.0, // Valor simb├│lico pois j├í foi pago externamente
+                  type: 'income',
+                  date: DateTime.now(),
+                  category: 'Mensalidade',
+                  relatedUserId: loginTest.user!.id,
+                  relatedUserRole: 'student',
+                );
+                print('­ƒÆ░ Pagamento inicial registrado!');
+              } catch (e) {
+                print('ÔÜá´©Å Erro ao registrar pagamento inicial: $e');
+              }
+            }
+          }
+
+          print('Ô£à Usu├írio criado na tabela $role!');
+
+          // Fazer logout
+          await _client.auth.signOut();
+
+          return {
+            'success': true,
+            'userId': loginTest.user!.id,
+            'email': email,
+            'message': 'Conta criada com sucesso! Voc├¬ j├í pode fazer login.',
+          };
+        }
+      } catch (e) {
+        print('ÔÜá´©Å Usu├írio tempor├írio n├úo encontrado ou erro no login: $e');
+        // Usu├írio n├úo existe, criar novo
+      }
+
+      print('­ƒôØ Criando novo usu├írio no auth.users...');
+
+      // EXTRAIR PLANO DO ADMIN ANTES DO SIGNUP
+      final addressParts = address.split('|');
+      final role = addressParts.isNotEmpty ? addressParts[0] : 'student';
+      String? adminPlan;
+      if (role == 'admin' && addressParts.length > 4) {
+        adminPlan = addressParts[4];
+      }
+
+      // Criar novo usu├írio no Supabase Auth
+      final authResponse =
+          await _client.auth.signUp(email: email, password: password, data: {
+        'role': role,
+        'name': name,
+        'phone': phone,
+        'academia': cpf, // CPF aqui ├® academia no token
+        'cnpj_academia': cnpj, // CNPJ aqui ├® cnpj_academia no token
+        if (adminPlan != null) 'plano_mensal': adminPlan,
+      });
+
+      if (authResponse.user == null) {
+        throw Exception('Erro ao criar usu├írio no Supabase Auth');
+      }
+
+      print('Ô£à Usu├írio criado no auth.users: ${authResponse.user!.id}');
+      print('­ƒôØ Criando registro na tabela correta...');
+
+      // Extrair dados do token
+      final cnpjAcademia = cnpj;
+      final academia = cpf;
+
+      // Address cont├®m dados packeados: role|dados_extras
+      // final addressParts = address.split('|'); // J├í feito acima
+      // final role = addressParts.isNotEmpty ? addressParts[0] : 'student'; // J├í feito acima
+
+      print('­ƒöì Role identificado: $role');
+      print('­ƒöì Academia: $academia ($cnpjAcademia)');
+
+      print('­ƒôª Debug Address Parsing (Novo User):');
+      print('CreateString: $address');
+      print('Parts: ${addressParts.length}');
+      addressParts.asMap().forEach((i, v) => print('[$i]: $v'));
+
+      // Inserir na tabela correta
+      if (role == 'admin') {
+        // Admin: admin|cnpj_pessoal|cpf_pessoal|endereco|plano
+
+        final personalCpf = addressParts.length > 2 ? addressParts[2] : '';
+        final personalAddress = addressParts.length > 3 ? addressParts[3] : '';
+        final plan = addressParts.length > 4 ? addressParts[4] : 'Standard';
+
+        print('­ƒÅå PLANO IDENTIFICADO (Novo User): $plan');
+
+        await _client.from('users_adm').upsert({
+          'id': authResponse.user!.id,
+          'cnpj_academia': cnpjAcademia,
+          'academia': academia,
+          'nome': name,
+          'email': email,
+          'telefone': phone,
+          'cpf': personalCpf,
+          'endereco': personalAddress,
+          'plano_mensal': plan,
+          'email_verified': true,
+        });
+
+        // Garantia extra
+        await _client.auth
+            .updateUser(UserAttributes(data: {'plano_mensal': plan}));
+      } else {
+        // Outros: role|created_by_admin_id
+        final createdByAdminId =
+            addressParts.length > 1 ? addressParts[1] : authResponse.user!.id;
+
+        String tableName = 'users_alunos';
+        if (role == 'nutritionist')
+          tableName = 'users_nutricionista';
+        else if (role == 'trainer')
+          tableName = 'users_personal';
+        else if (role == 'student') tableName = 'users_alunos';
+
+        final insertData = {
+          'id': authResponse.user!.id,
+          'cnpj_academia': cnpjAcademia,
+          'academia': academia,
+          'nome': name,
+          'email': email,
+          'telefone': phone,
+          'created_by_admin_id': createdByAdminId,
+          'id_academia': createdByAdminId, // ID do admin = ID da academia
+          'email_verified': true,
+          if (birthDate != null) 'data_nascimento': birthDate,
+        };
+
+        // Adicionar dia de vencimento se dispon├¡vel e for aluno
+        if (role == 'student' && data.containsKey('paymentDueDay')) {
+          insertData['payment_due_day'] = data['paymentDueDay'];
+        }
+
+        await _client.from(tableName).insert(insertData);
+
+        // REGISTRAR PAGAMENTO SE HOUVER FLAG
+        if (role == 'student' && data['isPaidCurrentMonth'] == true) {
+          try {
+            await FinancialService.addTransaction(
+              description: 'Mensalidade (Cadastro)',
+              amount: 0.0, // Valor simb├│lico
+              type: 'income',
+              date: DateTime.now(),
+              category: 'Mensalidade',
+              relatedUserId: authResponse.user!.id,
+              relatedUserRole: 'student',
+            );
+            print('­ƒÆ░ Pagamento inicial registrado!');
+          } catch (e) {
+            print('ÔÜá´©Å Erro ao registrar pagamento inicial: $e');
+          }
+        }
+      }
+
+      print('Ô£à Usu├írio criado na tabela $role com sucesso!');
+
+      // Fazer logout
+      await _client.auth.signOut();
+
+      return {
+        'success': true,
+        'userId': authResponse.user!.id,
+        'email': email,
+        'message': 'Conta criada com sucesso! Voc├¬ j├í pode fazer login.',
+      };
+    } on AuthException catch (e) {
+      print('ÔØî AuthException: ${e.message}');
+      return {
+        'success': false,
+        'message': _getAuthErrorMessage(e.message),
+      };
+    } catch (e) {
+      print('ÔØî Erro geral: $e');
+      return {
+        'success': false,
+        'message': 'Erro ao confirmar cadastro: ${e.toString()}',
+      };
+    }
+  }
+
+  // ============================================
+  // LOGIN
+  // ============================================
+
+  // M├®todo auxiliar para buscar endere├ºo da academia
+  static Future<String?> _getAcademyAddress(String cnpjAcademia) async {
+    try {
+      final admin = await _client
+          .from('users_adm')
+          .select('endereco')
+          .eq('cnpj_academia', cnpjAcademia)
+          .maybeSingle();
+      return admin?['endereco'] as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // M├®todo auxiliar para buscar usu├írio em todas as tabelas
+  static Future<Map<String, dynamic>?> _findUserInTables(String userId) async {
+    try {
+      // 1. Verificar users_adm
+      final admin = await _client
+          .from('users_adm')
+          .select()
+          .eq('id', userId)
+          .maybeSingle();
+      if (admin != null) {
+        // Admin j├í tem o pr├│prio endere├ºo
+        return {
+          ...admin,
+          'role': 'admin',
+          'endereco_academia':
+              admin['endereco'], // Mapear para usar a mesma chave
+        };
+      }
+
+      // 2. Verificar users_nutricionista
+      final nutri = await _client
+          .from('users_nutricionista')
+          .select()
+          .eq('id', userId)
+          .maybeSingle();
+      if (nutri != null) {
+        String? address;
+        if (nutri['cnpj_academia'] != null) {
+          address = await _getAcademyAddress(nutri['cnpj_academia']);
+        }
+        return {
+          ...nutri,
+          'role': 'nutritionist',
+          'endereco_academia': address,
+        };
+      }
+
+      // 3. Verificar users_personal
+      final personal = await _client
+          .from('users_personal')
+          .select()
+          .eq('id', userId)
+          .maybeSingle();
+      if (personal != null) {
+        String? address;
+        if (personal['cnpj_academia'] != null) {
+          address = await _getAcademyAddress(personal['cnpj_academia']);
+        }
+        return {
+          ...personal,
+          'role': 'trainer',
+          'endereco_academia': address,
+        };
+      }
+
+      // 4. Verificar users_alunos
+      final aluno = await _client
+          .from('users_alunos')
+          .select()
+          .eq('id', userId)
+          .maybeSingle();
+      if (aluno != null) {
+        String? address;
+        if (aluno['cnpj_academia'] != null) {
+          address = await _getAcademyAddress(aluno['cnpj_academia']);
+        }
+        return {
+          ...aluno,
+          'role': 'student',
+          'endereco_academia': address,
+        };
+      }
+
+      return null;
+    } catch (e) {
+      print('Erro ao buscar usu├írio nas tabelas: $e');
+      rethrow;
+    }
+  }
+
+  // Login com email e senha
+  static Future<Map<String, dynamic>> login({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final response = await _client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+
+      if (response.user == null) {
+        return {
+          'success': false,
+          'message': 'Erro ao fazer login',
+        };
+      }
+
+      // Buscar dados completos do usu├írio em todas as tabelas
+      final userData = await _findUserInTables(response.user!.id);
+
+      if (userData == null) {
+        // Usu├írio autenticado mas sem registro nas tabelas
+        // Isso pode acontecer se o cadastro falhou na etapa de inser├º├úo no banco
+        await _client.auth.signOut();
+        return {
+          'success': false,
+          'message': 'Cadastro incompleto. Entre em contato com o suporte.',
+        };
+      }
+
+      // ===============================================
+      // VERIFICA├ç├âO DE BLOQUEIO E ACESSO FINANCEIRO
+      // ===============================================
+
+      // 1. Bloqueio Manual (is_blocked = true) tem prioridade absoluta
+      if (userData['is_blocked'] == true) {
+        await _client.auth.signOut();
+        return {
+          'success': false,
+          'message':
+              'Conta bloqueada. Entre em contato com a administra├º├úo da academia.',
+        };
+      }
+
+      // 2. Bloqueio Financeiro (Apenas para Alunos)
+      // Se n├úo pagou no m├¬s atual e j├í passou da data de vencimento -> BLOQUEIA
+      if (userData['role'] == 'student') {
+        final paymentDueDay = userData['payment_due_day'] as int?;
+        // Tentar obter id_academia de v├írias formas poss├¡veis (id_academia ou created_by_admin_id)
+        final idAcademia = userData['id_academia'] as String? ??
+            userData['created_by_admin_id'] as String?;
+
+        if (idAcademia != null && paymentDueDay != null) {
+          final isOverdue = await FinancialService.isStudentOverdue(
+            studentId: userData['id'],
+            idAcademia: idAcademia,
+            paymentDueDay: paymentDueDay,
+          );
+
+          if (isOverdue) {
+            await _client.auth.signOut();
+            return {
+              'success': false,
+              'message':
+                  'Mensalidade vencida. Realize o pagamento para restaurar o acesso.',
+            };
+          }
+        }
+      }
+
+      // ­ƒöö Configurar Notifica├º├Áes (T├│pico da Academia)
+      try {
+        await NotificationService.loginUser(userData['cnpj_academia']);
+        print(
+            "­ƒöö Notifica├º├Áes configuradas para academia: ${userData['cnpj_academia']}");
+      } catch (e) {
+        print("Erro ao configurar notifica├º├Áes no login: $e");
+      }
+
+      return {
+        'success': true,
+        'user': userData,
+        'session': response.session,
+      };
+    } on AuthException catch (e) {
+      return {
+        'success': false,
+        'message': _getAuthErrorMessage(e.message),
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Erro ao fazer login: ${e.toString()}',
+      };
+    }
+  }
+
+  // Logout
+  // Logout
+  static Future<void> logout() async {
+    // Desinscrever do t├│pico da academia antes de dar signOut
+    // Isso evita que o dispositivo continue recebendo push para a academia antiga
+    try {
+      // Precisamos dos dados antes de sair
+      final userData = await getCurrentUserData();
+      if (userData != null && userData['cnpj_academia'] != null) {
+        await NotificationService.logoutUser(userData['cnpj_academia']);
+      }
+    } catch (e) {
+      print("Erro ao desinscrever notifica├º├Áes: $e");
+    }
+
+    await _client.auth.signOut();
+  }
+
+  // Alias para compatibilidade
+  static Future<void> signOut() async {
+    await logout();
+  }
+
+  // Alias para compatibilidade com signIn
+  static Future<Map<String, dynamic>> signIn({
+    required String email,
+    required String password,
+  }) async {
+    return await login(email: email, password: password);
+  }
+
+  // Verificar se usu├írio est├í logado
+  static bool isLoggedIn() {
+    return _client.auth.currentUser != null;
+  }
+
+  // Obter usu├írio atual
+  static User? getCurrentUser() {
+    return _client.auth.currentUser;
+  }
+
+  // Obter dados completos do usu├írio atual
+  static Future<Map<String, dynamic>?> getCurrentUserData() async {
+    final user = getCurrentUser();
+    if (user == null) return null;
+
+    return await _findUserInTables(user.id);
+  }
+
+  // Obter role do usu├írio atual
+  static Future<UserRole?> getCurrentUserRole() async {
+    final userData = await getCurrentUserData();
+    if (userData == null) return null;
+
+    final roleString = userData['role'] as String?;
+    if (roleString == null) return null;
+
+    return UserRole.values.firstWhere(
+      (role) => role.toString().split('.').last == roleString,
+      orElse: () => UserRole.student,
+    );
+  }
+
+  // ============================================
+  // RECUPERA├ç├âO DE SENHA
+  // ============================================
+
+  /// Enviar email de recupera├º├úo de senha
+  static Future<void> sendPasswordResetEmail(String email) async {
+    try {
+      print('­ƒôº Enviando email de recupera├º├úo para: $email');
+
+      // Enviar email de recupera├º├úo usando Edge Function + Resend
+      print('­ƒôº Chamando Edge Function send-password-reset...');
+
+      final response = await _client.functions.invoke(
+        'send-password-reset',
+        body: {'email': email},
+      );
+
+      if (response.status != 200) {
+        final error = response.data?['error'] ?? 'Erro desconhecido';
+        throw AuthException('Erro ao enviar email: $error');
+      }
+
+      final data = response.data;
+      if (data != null && data['success'] == true) {
+        print('Ô£à ${data['message']}');
+      } else {
+        throw AuthException('Falha ao enviar email');
+      }
+    } on AuthException catch (e) {
+      print('ÔØî Erro ao enviar email: ${e.message}');
+      throw Exception(_getAuthErrorMessage(e.message));
+    } catch (e) {
+      print('ÔØî Erro geral: $e');
+      throw Exception('Erro ao enviar email de recupera├º├úo');
+    }
+  }
+
+  /// Redefinir senha usando token do email
+  static Future<void> resetPassword(
+      String accessToken, String newPassword) async {
+    try {
+      print('­ƒöÉ Redefinindo senha...');
+
+      // Validar senha
+      if (newPassword.length < 6) {
+        throw Exception('A senha deve ter no m├¡nimo 6 caracteres');
+      }
+
+      // Atualizar senha usando o token de acesso
+      final response = await _client.auth.updateUser(
+        UserAttributes(password: newPassword),
+      );
+
+      if (response.user == null) {
+        throw Exception('Erro ao redefinir senha');
+      }
+
+      print('Ô£à Senha redefinida com sucesso');
+
+      // Fazer logout para for├ºar novo login
+      await _client.auth.signOut();
+    } on AuthException catch (e) {
+      print('ÔØî Erro ao redefinir senha: ${e.message}');
+      throw Exception(_getAuthErrorMessage(e.message));
+    } catch (e) {
+      print('ÔØî Erro geral: $e');
+      throw Exception('Erro ao redefinir senha: ${e.toString()}');
+    }
+  }
+
+  // ============================================
+  // MENSAGENS DE ERRO
+  // ============================================
+
+  static String _getAuthErrorMessage(String error) {
+    if (error.contains('Invalid login credentials')) {
+      return 'Email ou senha incorretos';
+    } else if (error.contains('Email not confirmed')) {
+      return 'Por favor, confirme seu email antes de fazer login';
+    } else if (error.contains('User already registered')) {
+      return 'Este email j├í est├í cadastrado';
+    } else if (error.contains('Invalid email')) {
+      return 'Email inv├ílido';
+    } else if (error.contains('Password should be at least 6 characters')) {
+      return 'A senha deve ter pelo menos 6 caracteres';
+    } else {
+      return error;
+    }
+  }
+}

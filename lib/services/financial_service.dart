@@ -411,7 +411,7 @@ class FinancialService {
 
     for (var student in students) {
       final studentId = student['id'];
-      final dueDay = student['payment_due_day'] as int?;
+      final dueDay = student['payment_due'] as int?;
       final createdAtStr = student['created_at'] as String?;
 
       // Ignorar alunos sem data de criação (banco inconsistente) ou tratar como novos

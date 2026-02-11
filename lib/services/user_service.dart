@@ -117,6 +117,9 @@ class UserService {
     if (user.containsKey('nome')) normalized['name'] = user['nome'];
     if (user.containsKey('telefone')) normalized['phone'] = user['telefone'];
     normalized['is_blocked'] = user['is_blocked'] ?? false;
+    if (user.containsKey('payment_due')) {
+      normalized['payment_due_day'] = user['payment_due'];
+    }
     if (user.containsKey('payment_due_day')) {
       normalized['payment_due_day'] = user['payment_due_day'];
     }
@@ -270,6 +273,16 @@ class UserService {
       else
         tableName = 'users_alunos';
 
+      // Se o email foi alterado, atualizar em auth.users também
+      if (email != null) {
+        print('📧 [DEBUG] Atualizando email em auth.users via RPC...');
+        await _client.rpc('admin_update_user_credentials', params: {
+          'target_user_id': userId,
+          'new_email': email,
+          'new_password': null,
+        });
+      }
+
       final Map<String, dynamic> updates = {};
       if (name != null) updates['nome'] = name; // Agora é 'nome' em todas
       if (email != null) updates['email'] = email;
@@ -278,7 +291,7 @@ class UserService {
 
       // Se for aluno e tiver dia de vencimento, atualiza
       if (tableName == 'users_alunos' && paymentDueDay != null) {
-        updates['payment_due_day'] = paymentDueDay;
+        updates['payment_due'] = paymentDueDay;
       }
 
       final response = await _client
@@ -469,8 +482,9 @@ class UserService {
       print('🔐 Admin alterando senha do usuário: $userId');
 
       // Chama RPC para atualizar senha no auth.users sem enviar email
-      await _client.rpc('admin_update_password', params: {
+      await _client.rpc('admin_update_user_credentials', params: {
         'target_user_id': userId,
+        'new_email': null,
         'new_password': newPassword,
       });
 

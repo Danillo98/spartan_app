@@ -252,13 +252,13 @@ class NoticeService {
     try {
       final student = await _client
           .from('users_alunos')
-          .select('payment_due_day')
+          .select('payment_due')
           .eq('id', userId)
           .maybeSingle();
 
       if (student == null) return;
 
-      final dueDay = student['payment_due_day'] as int?;
+      final dueDay = student['payment_due'] as int?;
       if (dueDay == null) return;
 
       final now = DateTime.now();
