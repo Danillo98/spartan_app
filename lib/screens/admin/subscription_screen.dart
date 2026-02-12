@@ -416,7 +416,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
             'nome': pendingRes['full_name'] ?? '',
             'academia': pendingRes['gym_name'] ?? '',
             'telefone': pendingRes['phone'] ?? '',
-            'cnpj_academia': pendingRes['cnpj'] ?? '',
             'cpf_responsavel': pendingRes['cpf'] ?? '',
             'endereco': pendingRes['address_street'] ?? '',
           });

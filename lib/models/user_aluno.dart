@@ -1,7 +1,7 @@
 /// Model para Aluno
 class UserAluno {
   final String id;
-  final String cnpjAcademia;
+  final String? cnpjAcademia;
   final String academia;
   final String nome;
   final String email;
@@ -13,7 +13,7 @@ class UserAluno {
 
   UserAluno({
     required this.id,
-    required this.cnpjAcademia,
+    this.cnpjAcademia,
     required this.academia,
     required this.nome,
     required this.email,
@@ -27,7 +27,7 @@ class UserAluno {
   factory UserAluno.fromJson(Map<String, dynamic> json) {
     return UserAluno(
       id: json['id'] as String,
-      cnpjAcademia: json['cnpj_academia'] as String,
+      cnpjAcademia: json['cnpj_academia'] as String?,
       academia: json['academia'] as String,
       nome: json['nome'] as String,
       email: json['email'] as String,

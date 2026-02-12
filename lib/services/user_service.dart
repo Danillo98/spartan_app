@@ -14,7 +14,7 @@ class UserService {
     // 1. Tentar Admin
     final admin = await _client
         .from('users_adm')
-        .select('id, academia, cnpj_academia') // Seleciona campos necessários
+        .select('id, academia') // Seleciona campos necessários
         .eq('id', currentUser.id)
         .maybeSingle();
     if (admin != null) {
@@ -22,7 +22,6 @@ class UserService {
         'id_academia': admin['id'],
         'role': 'admin',
         'academia_name': admin['academia'],
-        'cnpj_academia': admin['cnpj_academia'],
       };
     }
 
@@ -37,7 +36,7 @@ class UserService {
       final academyDetails = await _client
           .from(
               'users_adm') // Assumindo que users_adm contém os dados da academia
-          .select('academia, cnpj_academia')
+          .select('academia')
           .eq('id', nutri['id_academia'])
           .maybeSingle();
       if (academyDetails != null) {
@@ -45,7 +44,6 @@ class UserService {
           'id_academia': nutri['id_academia'],
           'role': 'nutritionist',
           'academia_name': academyDetails['academia'],
-          'cnpj_academia': academyDetails['cnpj_academia'],
         };
       }
     }
@@ -59,7 +57,7 @@ class UserService {
     if (personal != null && personal['id_academia'] != null) {
       final academyDetails = await _client
           .from('users_adm')
-          .select('academia, cnpj_academia')
+          .select('academia')
           .eq('id', personal['id_academia'])
           .maybeSingle();
       if (academyDetails != null) {
@@ -67,7 +65,6 @@ class UserService {
           'id_academia': personal['id_academia'],
           'role': 'trainer',
           'academia_name': academyDetails['academia'],
-          'cnpj_academia': academyDetails['cnpj_academia'],
         };
       }
     }
@@ -92,7 +89,6 @@ class UserService {
       final academyContext = await _getAcademyContext();
       final idAcademia = academyContext['id_academia'];
       final academiaName = academyContext['academia_name'];
-      final cnpjAcademia = academyContext['cnpj_academia'];
       final createdByAdminId =
           _client.auth.currentUser!.id; // ID do usuário logado que está criando
       final roleString = role.toString().split('.').last;
@@ -112,7 +108,6 @@ class UserService {
           'phone': phone.trim(),
           'academia': academiaName,
           'id_academia': idAcademia,
-          'cnpj_academia': cnpjAcademia,
           'created_by_admin_id': createdByAdminId,
           if (paymentDueDay != null) 'paymentDueDay': paymentDueDay,
           if (isPaidCurrentMonth) 'isPaidCurrentMonth': true,

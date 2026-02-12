@@ -86,8 +86,8 @@ class AuthService {
             'name': name,
             'phone': phone,
             'academia': academia,
-            'cnpj': cnpjAcademia, // Trigger usa 'cnpj' ou 'cnpj_academia'
-            'cnpj_academia': cnpjAcademia,
+            'id_academia':
+                null, // Será preenchido pelo trigger com o ID do user
             'plano_mensal': plan,
             'plan': plan,
 
@@ -537,7 +537,7 @@ class AuthService {
       final admin = await _client
           .from('users_adm')
           .select(
-              'id, nome, email, telefone, cnpj_academia, academia, cpf, endereco, plano_mensal, is_blocked')
+              'id, nome, email, telefone, academia, cpf, endereco, plano_mensal, is_blocked')
           .eq('id', userId)
           .maybeSingle();
       if (admin != null) {
@@ -688,8 +688,8 @@ class AuthService {
       if (userData['role'] == 'student') {
         final paymentDueDay = userData['payment_due'] as int?;
         // Tentar obter id_academia de várias formas possíveis (id_academia ou created_by_admin_id)
-        final idAcademia = userData['id_academia'] as String? ??
-            userData['created_by_admin_id'] as String?;
+        final idAcademia =
+            userData['id_academia'] ?? userData['created_by_admin_id'] ?? '';
 
         if (idAcademia != null && paymentDueDay != null) {
           final isOverdue = await FinancialService.isStudentOverdue(
@@ -711,9 +711,10 @@ class AuthService {
 
       // 🔔 Configurar Notificações (Tópico da Academia)
       try {
-        await NotificationService.loginUser(userData['cnpj_academia']);
+        await NotificationService.loginUser(
+            userData['id_academia'] ?? userData['id']);
         print(
-            "🔔 Notificações configuradas para academia: ${userData['cnpj_academia']}");
+            "🔔 Notificações configuradas para academia: ${userData['id_academia'] ?? userData['id']}");
       } catch (e) {
         print("Erro ao configurar notificações no login: $e");
       }
@@ -745,8 +746,9 @@ class AuthService {
       // Precisamos dos dados antes de sair (com timeout para não travar o logout)
       final userData =
           await getCurrentUserData().timeout(const Duration(seconds: 3));
-      if (userData != null && userData['cnpj_academia'] != null) {
-        await NotificationService.logoutUser(userData['cnpj_academia']);
+      if (userData != null) {
+        await NotificationService.logoutUser(
+            userData['id_academia'] ?? userData['id']);
       }
     } catch (e) {
       print(

@@ -301,8 +301,6 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
 
                     _buildReadOnlyField('Nome da Academia',
                         _userData?['academia'] ?? '', Icons.business),
-                    _buildReadOnlyField('CNPJ Academia',
-                        _userData?['cnpj_academia'] ?? '', Icons.numbers),
                     _buildReadOnlyField('Nome Responsável',
                         _userData?['nome'] ?? '', Icons.person),
                     _buildReadOnlyField(

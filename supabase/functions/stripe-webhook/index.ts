@@ -95,7 +95,6 @@ serve(async (req) => {
             const nomeFinal = getField(metadata.nome, pendingData?.full_name, existingUser?.nome, 'Admin');
             const emailFinal = session.customer_details?.email || getField(metadata.userEmail, pendingData?.email, existingUser?.email, null);
             const telefoneFinal = getField(metadata.telefone, pendingData?.phone, existingUser?.telefone, '00');
-            const cnpjFinal = getField(metadata.cnpj_academia, pendingData?.cnpj, existingUser?.cnpj_academia, '00');
             const cpfFinal = getField(metadata.cpf_responsavel, pendingData?.cpf, existingUser?.cpf, '00');
             const academiaFinal = getField(metadata.academia, pendingData?.gym_name, existingUser?.academia, 'Academia');
             const enderecoFinal = getField(metadata.endereco, pendingData?.address_street, existingUser?.endereco, 'Endereço');
@@ -126,7 +125,6 @@ serve(async (req) => {
                 nome: nomeFinal,
                 email: emailFinal,
                 telefone: telefoneFinal,
-                cnpj_academia: cnpjFinal,
                 cpf: cpfFinal,
                 academia: academiaFinal,
                 endereco: enderecoFinal,
@@ -143,7 +141,7 @@ serve(async (req) => {
                 stripe_customer_id: stripeCustomerFinal,
             };
 
-            console.log('Dados a inserir (SMART MERGE v3):', JSON.stringify(dbPayload));
+            console.log('Dados a inserir (SMART MERGE v4 - No CNPJ):', JSON.stringify(dbPayload));
 
             let { data: adminUser, error: adminError } = await supabaseAdmin
                 .from('users_adm')

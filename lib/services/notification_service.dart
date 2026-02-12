@@ -70,33 +70,27 @@ class NotificationService {
   }
 
   /// Inscreve o usuário no Tópico da Academia ao Logar
-  static Future<void> loginUser(String? cnpjAcademia) async {
+  static Future<void> loginUser(String? idAcademia) async {
     // 1. Garantir que o token está salvo (caso o usuario tenha logado agora)
     String? token = await _messaging.getToken();
     if (token != null) await _saveTokenToSupabase(token);
 
     // 2. Inscrever no tópico da academia
-    if (cnpjAcademia != null) {
-      final topic =
-          'academy_${cnpjAcademia.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '')}';
+    if (idAcademia != null) {
+      final topic = 'academy_${idAcademia.replaceAll('-', '')}';
       await _messaging.subscribeToTopic(topic);
       print("📢 Inscrito no tópico: $topic");
     }
   }
 
   /// Remove inscrição ao deslogar
-  static Future<void> logoutUser(String? oldCnpjAcademia) async {
+  static Future<void> logoutUser(String? oldIdAcademia) async {
     try {
-      if (oldCnpjAcademia != null) {
-        final topic =
-            'academy_${oldCnpjAcademia.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '')}';
+      if (oldIdAcademia != null) {
+        final topic = 'academy_${oldIdAcademia.replaceAll('-', '')}';
         await _messaging.unsubscribeFromTopic(topic);
         print("🔕 Desinscrito do tópico: $topic");
       }
-
-      // Opcional: Remover token do Supabase ao deslogar para não enviar para quem saiu
-      // Mas geralmente mantemos para re-login.
-      // await _supabase.from('user_fcm_tokens').delete().eq('fcm_token', token);
     } catch (e) {
       print("❌ Erro ao deslogar notificações: $e");
     }
@@ -137,8 +131,6 @@ class NotificationService {
 
   // --- USE CASES ---
 
-  // --- USE CASES ---
-
   // 1. Treino (Já existe)
   static Future<void> notifyNewWorkout(
       String studentId, String personalName) async {
@@ -162,7 +154,7 @@ class NotificationService {
 
   // 3. Avisos (Já existe)
   static Future<void> notifyNotice(String title, String authorRole,
-      {String? targetStudentId, String? academyCnpj}) async {
+      {String? targetStudentId, String? idAcademia}) async {
     if (targetStudentId != null) {
       await sendPush(
         title: "Novo Aviso 📌",
@@ -170,9 +162,8 @@ class NotificationService {
         targetPlayerIds: [targetStudentId],
         data: {"type": "notice"},
       );
-    } else if (academyCnpj != null) {
-      final topic =
-          'academy_${academyCnpj.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '')}';
+    } else if (idAcademia != null) {
+      final topic = 'academy_${idAcademia.replaceAll('-', '')}';
       await sendPush(
         title: "Aviso da Academia 📢",
         content: title,

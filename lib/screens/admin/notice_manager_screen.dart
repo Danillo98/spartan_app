@@ -413,7 +413,7 @@ class _NoticeFormModalState extends State<_NoticeFormModal> {
           (await AuthService.getCurrentUserRole()).toString().split('.').last;
 
       final authorLabel = _isAdmin
-          ? 'Gestão da Academia'
+          ? 'Administração da academia'
           : (myRoleStr == 'trainer' ? 'Seu Personal' : 'Seu Nutricionista');
 
       if (widget.noticeToEdit != null) {
@@ -437,10 +437,12 @@ class _NoticeFormModalState extends State<_NoticeFormModal> {
       }
 
       try {
-        String? targetCnpj;
+        String? targetIdAcademia;
         if (_selectedUserIds.isEmpty) {
-          final adminData = await AuthService.getCurrentUserData();
-          targetCnpj = adminData?['cnpj_academia'];
+          final userData = await AuthService.getCurrentUserData();
+          // Se for admin, o id_academia é o seu próprio id.
+          // Se for nutri/personal, está no campo id_academia
+          targetIdAcademia = userData?['id_academia'] ?? userData?['id'];
         }
 
         if (_selectedUserIds.isNotEmpty) {
@@ -471,7 +473,7 @@ class _NoticeFormModalState extends State<_NoticeFormModal> {
           await NotificationService.notifyNotice(
             _titleController.text.trim(),
             authorLabel,
-            academyCnpj: targetCnpj,
+            idAcademia: targetIdAcademia,
           );
         }
       } catch (e) {
