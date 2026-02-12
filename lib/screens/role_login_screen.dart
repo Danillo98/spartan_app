@@ -97,29 +97,45 @@ class _RoleLoginScreenState extends State<RoleLoginScreen>
         );
 
         if (userRole != widget.role) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Este login é exclusivo para ${widget.roleTitle}',
-                style: const TextStyle(color: Colors.white),
+          // Exceção: Se o usuário é visitate, ele é um admin em potencial (pendente)
+          if (userRole == UserRole.visitor && widget.role == UserRole.admin) {
+            // Permitir prosseguir para a verificação de assinatura
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Este login é exclusivo para ${widget.roleTitle}',
+                  style: const TextStyle(color: Colors.white),
+                ),
+                backgroundColor: AppTheme.accentRed,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
-              backgroundColor: AppTheme.accentRed,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-          );
-          await AuthService.signOut();
-          setState(() => _isLoading = false);
-          return;
+            );
+            await AuthService.signOut();
+            setState(() => _isLoading = false);
+            return;
+          }
         }
 
         // =============================================
-        // VERIFICAÇÃO DE ASSINATURA PARA ADMIN
+        // VERIFICAÇÃO DE ASSINATURA PARA ADMIN / VISITANTE
         // =============================================
-        if (widget.role == UserRole.admin && result['user'] != null) {
+        if ((widget.role == UserRole.admin || userRole == UserRole.visitor) &&
+            result['user'] != null) {
           final userId = result['user']['id'];
+
+          // Se for visitante, ele obrigatoriamente vai para a tela de assinatura
+          if (userRole == UserRole.visitor) {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => const SubscriptionScreen()),
+              (route) => false,
+            );
+            return;
+          }
+
           final subStatus = await AuthService.verificarStatusAssinatura(userId);
           final status = subStatus['status'];
 
@@ -146,6 +162,9 @@ class _RoleLoginScreenState extends State<RoleLoginScreen>
         switch (widget.role) {
           case UserRole.admin:
             dashboard = const AdminDashboard();
+            break;
+          case UserRole.visitor:
+            dashboard = const SubscriptionScreen();
             break;
           case UserRole.nutritionist:
             dashboard = const NutritionistDashboard();
@@ -367,6 +386,8 @@ class _RoleLoginScreenState extends State<RoleLoginScreen>
         return AppTheme.primaryRed;
       case UserRole.student:
         return const Color(0xFF457B9D);
+      case UserRole.visitor:
+        return AppTheme.primaryGold;
     }
   }
 
@@ -380,6 +401,8 @@ class _RoleLoginScreenState extends State<RoleLoginScreen>
         return Icons.fitness_center_rounded;
       case UserRole.student:
         return Icons.person_rounded;
+      case UserRole.visitor:
+        return Icons.rocket_launch_rounded;
     }
   }
 

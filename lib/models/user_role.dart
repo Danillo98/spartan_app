@@ -3,6 +3,7 @@ enum UserRole {
   nutritionist,
   trainer,
   student,
+  visitor,
 }
 
 extension UserRoleExtension on UserRole {
@@ -16,6 +17,8 @@ extension UserRoleExtension on UserRole {
         return 'Personal Trainer';
       case UserRole.student:
         return 'Aluno';
+      case UserRole.visitor:
+        return 'Visitante';
     }
   }
 }

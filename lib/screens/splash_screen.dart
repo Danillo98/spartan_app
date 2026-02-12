@@ -163,7 +163,16 @@ class _SplashScreenState extends State<SplashScreen>
     final userId = userData['id'];
     final idAcademia = userData['id_academia'];
 
-    // VERIFICAÇÃO DE ASSINATURA PARA ADMIN
+    // 1. VERIFICAÇÃO PARA VISITANTES (Cadastro Pendente)
+    if (role == 'visitor') {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const SubscriptionScreen()),
+      );
+      return;
+    }
+
+    // 2. VERIFICAÇÃO DE ASSINATURA PARA ADMIN
     if (role == 'admin') {
       final subStatus = await AuthService.verificarStatusAssinatura(userId);
       final status = subStatus['status'];

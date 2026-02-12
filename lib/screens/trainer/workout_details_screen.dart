@@ -277,10 +277,11 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
 
       // Forçar refresh visual setando loading
       if (mounted) {
-        setState(() {
-          _workout = null;
-          _isLoading = true;
-        });
+        // Limpar cache ao abrir para garantir dados frescos e com nome do personal
+        if (widget.workoutId != null) {
+          await CacheManager()
+              .invalidate(CacheKeys.workoutDetail(widget.workoutId!));
+        }
       }
 
       await _loadDetails();
@@ -295,7 +296,13 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
       final printData = {
         'name': _workout!['name'] ?? widget.workoutName,
         'description': _workout!['description'],
-        'student_name': _workout!['student']?['name'],
+        'student_name': _workout!['student']?['name'] ??
+            _workout!['student']?['nome'] ??
+            'Aluno',
+        'personal_name': _workout!['personal']?['name'] ??
+            _workout!['personal']?['nome'] ??
+            _workout!['personal']?['full_name'] ??
+            'Instrutor Spartan',
         'goal': _workout!['goal'],
         'difficulty_level': _workout!['difficulty_level'],
         'start_date': _workout!['start_date'],
@@ -309,6 +316,9 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
 
       final baseUrl = html.window.location.origin;
       final timestamp = DateTime.now().millisecondsSinceEpoch;
+
+      print('🖨️ Enviando para PDF: $printData');
+
       final printUrl = '$baseUrl/print-workout.html?v=$timestamp&dataUrl=$url';
 
       if (mounted) setState(() => _isPrinting = false);

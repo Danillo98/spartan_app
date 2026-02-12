@@ -73,31 +73,33 @@ serve(async (req) => {
         try {
             console.log('Iniciando operação de banco para User ID:', metadata.user_id_auth);
 
-            // A. Buscar dados existentes para EVITAR SOBRESCRITA COM '00'
-            const { data: existingUser } = await supabaseAdmin
-                .from('users_adm')
-                .select('*')
-                .eq('id', metadata.user_id_auth)
-                .single();
+            // A. Buscar dados existentes e dados pendentes para EVITAR SOBRESCRITA COM '00'
+            const [{ data: existingUser }, { data: pendingData }] = await Promise.all([
+                supabaseAdmin.from('users_adm').select('*').eq('id', metadata.user_id_auth).maybeSingle(),
+                supabaseAdmin.from('pending_registrations').select('*').eq('id', metadata.user_id_auth).maybeSingle()
+            ]);
+
+            console.log('Dados recuperados - Existente:', !!existingUser, 'Pendente:', !!pendingData);
 
             // Helper para decidir qual valor usar
-            // Se metadata existir (e não for vazio), usa metadata.
-            // Se não, usa valor do banco.
-            // Se banco não tiver, usa '00' ou default.
-            const getField = (metaValue: any, dbValue: any, defaultValue: any) => {
-                if (metaValue && metaValue !== '' && metaValue !== 'undefined' && metaValue !== null) return metaValue;
-                if (dbValue && dbValue !== '' && dbValue !== '00' && dbValue !== null) return dbValue;
+            // Prioridade: 1. Metadata Stripe, 2. Dados de Registro Pendente, 3. Dados do Banco, 4. Default
+            const getField = (metaValue: any, pendingValue: any, dbValue: any, defaultValue: any) => {
+                const isValid = (val: any) => val && val !== '' && val !== '00' && val !== 'undefined' && val !== 'null' && val !== null;
+
+                if (isValid(metaValue)) return metaValue;
+                if (isValid(pendingValue)) return pendingValue;
+                if (isValid(dbValue)) return dbValue;
                 return defaultValue;
             };
 
-            const nomeFinal = getField(metadata.nome, existingUser?.nome, 'Admin');
-            const emailFinal = session.customer_details?.email || getField(metadata.userEmail, existingUser?.email, null);
-            const telefoneFinal = getField(metadata.telefone, existingUser?.telefone, '00');
-            const cnpjFinal = getField(metadata.cnpj_academia, existingUser?.cnpj_academia, '00');
-            const cpfFinal = getField(metadata.cpf_responsavel, existingUser?.cpf, '00');
-            const academiaFinal = getField(metadata.academia, existingUser?.academia, 'Academia');
-            const enderecoFinal = getField(metadata.endereco, existingUser?.endereco, 'Endereço');
-            const planoFinal = getField(metadata.plano_selecionado, existingUser?.plano_mensal, 'padrao');
+            const nomeFinal = getField(metadata.nome, pendingData?.full_name, existingUser?.nome, 'Admin');
+            const emailFinal = session.customer_details?.email || getField(metadata.userEmail, pendingData?.email, existingUser?.email, null);
+            const telefoneFinal = getField(metadata.telefone, pendingData?.phone, existingUser?.telefone, '00');
+            const cnpjFinal = getField(metadata.cnpj_academia, pendingData?.cnpj, existingUser?.cnpj_academia, '00');
+            const cpfFinal = getField(metadata.cpf_responsavel, pendingData?.cpf, existingUser?.cpf, '00');
+            const academiaFinal = getField(metadata.academia, pendingData?.gym_name, existingUser?.academia, 'Academia');
+            const enderecoFinal = getField(metadata.endereco, pendingData?.address_street, existingUser?.endereco, 'Endereço');
+            const planoFinal = getField(metadata.plano_selecionado, null, existingUser?.plano_mensal, 'Prata');
             const stripeCustomerFinal = session.customer || existingUser?.stripe_customer_id;
 
             // SISTEMA DE ASSINATURA HÍBRIDO - Cálculo de Datas
@@ -141,7 +143,7 @@ serve(async (req) => {
                 stripe_customer_id: stripeCustomerFinal,
             };
 
-            console.log('Dados a inserir (SMART MERGE):', JSON.stringify(dbPayload));
+            console.log('Dados a inserir (SMART MERGE v3):', JSON.stringify(dbPayload));
 
             let { data: adminUser, error: adminError } = await supabaseAdmin
                 .from('users_adm')

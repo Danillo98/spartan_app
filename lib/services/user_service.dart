@@ -5,23 +5,74 @@ import '../models/user_role.dart';
 class UserService {
   static final SupabaseClient _client = SupabaseService.client;
 
-  // Helper: Obter dados do admin atual para contexto (para pegar id_academia)
-  static Future<Map<String, dynamic>> _getCurrentAdminDetails() async {
+  // Obter o contexto da academia do usuário logado (Funciona para Admin, Nutri e Personal)
+  // Retorna { 'id_academia': <UUID>, 'role': <'admin'|'nutritionist'|'trainer'>, 'academia_name': <String>, 'cnpj_academia': <String> }
+  static Future<Map<String, dynamic>> _getAcademyContext() async {
     final currentUser = _client.auth.currentUser;
-    if (currentUser == null) {
-      throw Exception('Usuário não autenticado');
-    }
+    if (currentUser == null) throw Exception('Usuário não autenticado');
 
-    // Tentar buscar na tabela de admins
+    // 1. Tentar Admin
     final admin = await _client
         .from('users_adm')
-        .select()
+        .select('id, academia, cnpj_academia') // Seleciona campos necessários
         .eq('id', currentUser.id)
         .maybeSingle();
+    if (admin != null) {
+      return {
+        'id_academia': admin['id'],
+        'role': 'admin',
+        'academia_name': admin['academia'],
+        'cnpj_academia': admin['cnpj_academia'],
+      };
+    }
 
-    if (admin != null) return admin;
+    // 2. Tentar Nutricionista
+    final nutri = await _client
+        .from('users_nutricionista')
+        .select('id_academia')
+        .eq('id', currentUser.id)
+        .maybeSingle();
+    if (nutri != null && nutri['id_academia'] != null) {
+      // Para Nutri/Personal, precisamos buscar o nome e CNPJ da academia separadamente
+      final academyDetails = await _client
+          .from(
+              'users_adm') // Assumindo que users_adm contém os dados da academia
+          .select('academia, cnpj_academia')
+          .eq('id', nutri['id_academia'])
+          .maybeSingle();
+      if (academyDetails != null) {
+        return {
+          'id_academia': nutri['id_academia'],
+          'role': 'nutritionist',
+          'academia_name': academyDetails['academia'],
+          'cnpj_academia': academyDetails['cnpj_academia'],
+        };
+      }
+    }
 
-    throw Exception('Apenas administradores podem realizar esta operação');
+    // 3. Tentar Personal
+    final personal = await _client
+        .from('users_personal')
+        .select('id_academia')
+        .eq('id', currentUser.id)
+        .maybeSingle();
+    if (personal != null && personal['id_academia'] != null) {
+      final academyDetails = await _client
+          .from('users_adm')
+          .select('academia, cnpj_academia')
+          .eq('id', personal['id_academia'])
+          .maybeSingle();
+      if (academyDetails != null) {
+        return {
+          'id_academia': personal['id_academia'],
+          'role': 'trainer',
+          'academia_name': academyDetails['academia'],
+          'cnpj_academia': academyDetails['cnpj_academia'],
+        };
+      }
+    }
+
+    throw Exception('Não foi possível vincular seu perfil a uma academia.');
   }
 
   // Criar usuário pelo Admin (Nutricionista, Personal ou Aluno)
@@ -37,15 +88,17 @@ class UserService {
     double? initialPaymentAmount, // Valor do pagamento inicial
   }) async {
     try {
-      // 1. Obter dados do admin (Contexto da Academia)
-      final adminDetails = await _getCurrentAdminDetails();
-      final cnpjAcademia = adminDetails['cnpj_academia']; // Manter para o token
-      final academia = adminDetails['academia'];
-      final adminId = adminDetails['id']; // ID do admin = ID da academia
+      // 1. Obter dados do contexto da academia do usuário logado
+      final academyContext = await _getAcademyContext();
+      final idAcademia = academyContext['id_academia'];
+      final academiaName = academyContext['academia_name'];
+      final cnpjAcademia = academyContext['cnpj_academia'];
+      final createdByAdminId =
+          _client.auth.currentUser!.id; // ID do usuário logado que está criando
       final roleString = role.toString().split('.').last;
 
       print(
-          '🔐 Cadastrando $roleString na academia $academia (Via RPC Direta)');
+          '🔐 Cadastrando $roleString na academia $academiaName (Via RPC Direta)');
 
       // 4. Criar usuário via RPC (Direto no Banco)
       // Isso evita o envio de email automático do Supabase e já confirma o usuário
@@ -57,10 +110,10 @@ class UserService {
           'role': roleString,
           'name': name.trim(),
           'phone': phone.trim(),
-          'academia': academia,
-          'id_academia': adminId, // ID da academia = ID do admin
+          'academia': academiaName,
+          'id_academia': idAcademia,
           'cnpj_academia': cnpjAcademia,
-          'created_by_admin_id': adminId,
+          'created_by_admin_id': createdByAdminId,
           if (paymentDueDay != null) 'paymentDueDay': paymentDueDay,
           if (isPaidCurrentMonth) 'isPaidCurrentMonth': true,
         }
@@ -77,7 +130,7 @@ class UserService {
           final amount = initialPaymentAmount ?? 0.0;
 
           await _client.from('financial_transactions').insert({
-            'id_academia': adminId,
+            'id_academia': idAcademia,
             'description':
                 'Mensalidade Inicial - $name', // Incluindo nome do aluno
             'amount': amount,
@@ -129,10 +182,11 @@ class UserService {
   // Buscar todos os usuários da academia do admin logado
   static Future<List<Map<String, dynamic>>> getAllUsers() async {
     try {
-      final adminDetails = await _getCurrentAdminDetails();
-      final idAcademia = adminDetails['id']; // ID do admin = ID da academia
+      final academyContext = await _getAcademyContext();
+      final idAcademia = academyContext['id_academia'];
 
       // Buscar em paralelo nas 4 tabelas filtrando por ID da Academia
+      // O admin da academia é o próprio idAcademia
       final adminsF = _client.from('users_adm').select().eq('id', idAcademia);
       final nutrisF = _client
           .from('users_nutricionista')
@@ -214,8 +268,8 @@ class UserService {
   static Future<List<Map<String, dynamic>>> getUsersByRole(
       UserRole role) async {
     try {
-      final adminDetails = await _getCurrentAdminDetails();
-      final idAcademia = adminDetails['id']; // ID do admin = ID da academia
+      final academyContext = await _getAcademyContext();
+      final idAcademia = academyContext['id_academia'];
       final roleString = role.toString().split('.').last;
 
       String tableName;
@@ -369,72 +423,29 @@ class UserService {
   // Buscar alunos para staff (Lógica Manual para garantir filtro por id_academia)
   static Future<List<Map<String, dynamic>>> getStudentsForStaff() async {
     try {
-      final user = _client.auth.currentUser;
-      if (user == null) return [];
-
-      String? idAcademia;
-
-      // 1. Tentar encontrar como Admin
-      final admin = await _client
-          .from('users_adm')
-          .select('id') // Admin ID é o id_academia
-          .eq('id', user.id)
-          .maybeSingle();
-      if (admin != null) {
-        idAcademia = admin['id'];
-      }
-
-      // 2. Tentar encontrar como Nutricionista
-      if (idAcademia == null) {
-        final nutri = await _client
-            .from('users_nutricionista')
-            .select('id_academia')
-            .eq('id', user.id)
-            .maybeSingle();
-        if (nutri != null) {
-          idAcademia = nutri['id_academia'];
-        }
-      }
-
-      // 3. Tentar encontrar como Personal
-      if (idAcademia == null) {
-        final personal = await _client
-            .from('users_personal')
-            .select('id_academia')
-            .eq('id', user.id)
-            .maybeSingle();
-        if (personal != null) {
-          idAcademia = personal['id_academia'];
-        }
-      }
-
-      if (idAcademia == null) {
-        print('⚠️ Usuário não encontrado em nenhuma tabela de staff.');
-        return [];
-      }
+      final academyContext = await _getAcademyContext();
+      final idAcademia = academyContext['id_academia'];
 
       // 4. Buscar alunos desta academia
       final data = await _client
           .from('users_alunos')
-          .select('id, nome, email, telefone, cnpj_academia')
+          .select(
+              'id, nome, email, telefone') // cnpj_academia REMOVIDO pois foi deletado do banco
           .eq('id_academia', idAcademia)
           .order('nome');
 
       // Normalizar campos (nome→name, telefone→phone) e adicionar role
-      final students = (data as List).map((d) {
-        final Map<String, dynamic> student =
-            Map<String, dynamic>.from(d as Map);
+      final List<dynamic> responseList = data as List<dynamic>;
+      return responseList.map((d) {
+        final student = Map<String, dynamic>.from(d as Map);
         return {
           'id': student['id'],
-          'name': student['nome'], // Normalizar
-          'email': student['email'],
-          'phone': student['telefone'], // Normalizar
-          'cnpj_academia': student['cnpj_academia'],
+          'name': student['nome'] ?? 'Sem Nome',
+          'email': student['email'] ?? '',
+          'phone': student['telefone'] ?? '',
           'role': 'student',
         };
       }).toList();
-
-      return students;
     } catch (e) {
       print('❌ Erro ao buscar alunos (Manual): $e');
       return [];
@@ -498,8 +509,15 @@ class UserService {
   // Verificar status de limite do plano (para exibir alertas)
   static Future<Map<String, dynamic>> checkPlanLimitStatus() async {
     try {
-      final adminDetails = await _getCurrentAdminDetails();
-      final idAcademia = adminDetails['id'];
+      final academyContext = await _getAcademyContext();
+      final idAcademia = academyContext['id_academia'];
+
+      // Buscar dados do admin para ver o plano
+      final adminDetails = await _client
+          .from('users_adm')
+          .select('plano_mensal')
+          .eq('id', idAcademia)
+          .single();
       final plan = adminDetails['plano_mensal']?.toString() ?? 'Prata';
 
       // Definir limites
@@ -529,7 +547,14 @@ class UserService {
   // Buscar status de assinatura do administrador
   static Future<Map<String, dynamic>> getSubscriptionStatus() async {
     try {
-      final adminDetails = await _getCurrentAdminDetails();
+      final academyContext = await _getAcademyContext();
+      final idAcademia = academyContext['id_academia'];
+
+      final adminDetails = await _client
+          .from('users_adm')
+          .select()
+          .eq('id', idAcademia)
+          .single();
 
       return {
         'success': true,

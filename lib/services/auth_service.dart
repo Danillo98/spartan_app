@@ -1,9 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
 import 'registration_token_service.dart';
 import '../models/user_role.dart';
 import 'notification_service.dart';
 import 'financial_service.dart';
+import 'cache_manager.dart'; // Adicionado
 
 class AuthService {
   static final SupabaseClient _client = SupabaseService.client;
@@ -637,13 +639,32 @@ class AuthService {
       print('✅ [DEBUG] Dados encontrados: ${userData != null ? "Sim" : "Não"}');
 
       if (userData == null) {
-        // Usuário autenticado mas sem registro nas tabelas
-        // Isso pode acontecer se o cadastro falhou na etapa de inserção no banco
-        await _client.auth.signOut();
-        return {
-          'success': false,
-          'message': 'Cadastro incompleto. Entre em contato com o suporte.',
+        // Usuário autenticado mas sem registro nas tabelas (Lead Pendente)
+        // Em vez de dar erro, retornamos como um papel "visitor" para o app lidar
+        print(
+            '⚠️ [DEBUG] Usuário não encontrado nas tabelas. Tratando como VISITANTE pendente.');
+        final visitorData = {
+          'id': response.user!.id,
+          'email': email,
+          'nome': response.user?.userMetadata?['name'] ?? 'Visitante',
+          'role': 'visitor',
+          'is_blocked': false,
         };
+
+        return {
+          'success': true,
+          'user': visitorData,
+          'session': response.session,
+        };
+      }
+
+      // Limpar caches antigos para garantir dados novos de multitenancy
+      try {
+        await CacheManager().invalidatePattern('*Students*');
+        await CacheManager().invalidatePattern('*students*');
+        print('🧹 Caches de alunos invalidados no login');
+      } catch (e) {
+        print('⚠️ Erro ao limpar cache no login: $e');
       }
 
       // ===============================================
@@ -1021,7 +1042,17 @@ class AuthService {
     final user = getCurrentUser();
     if (user == null) return null;
 
-    return await _findUserInTables(user.id);
+    final userData = await _findUserInTables(user.id);
+    if (userData != null) return userData;
+
+    // Se não achou nas tabelas mas está logado, trata como visitante
+    return {
+      'id': user.id,
+      'email': user.email,
+      'nome': user.userMetadata?['name'] ?? 'Visitante',
+      'role': 'visitor',
+      'is_blocked': false,
+    };
   }
 
   // Obter role do usuário atual
@@ -1045,21 +1076,19 @@ class AuthService {
   /// Enviar email de recuperação de senha
   static Future<void> sendPasswordResetEmail(String email) async {
     try {
-      print('📧 Enviando email de recuperação customizado para: $email');
+      print('📧 Enviando email de recuperação nativo para: $email');
 
-      // Chamar Edge Function que usa o sistema customizado (RPC + Resend)
-      final response = await _client.functions.invoke(
-        'send-password-reset',
-        body: {'email': email},
+      // Usar a API nativa do Supabase para evitar erro 401 (Invalid JWT)
+      // O Supabase enviará o email configurado no dashboard
+      // Usar a origem dinâmica para permitir testes em localhost
+      final origin = kIsWeb ? Uri.base.origin : 'https://spartanapp.com.br';
+
+      await _client.auth.resetPasswordForEmail(
+        email,
+        redirectTo: '$origin/reset-password.html',
       );
 
-      if (response.status != 200) {
-        final error = response.data?['error'] ?? 'Erro desconhecido';
-        print('❌ Erro na Edge Function: $error');
-        throw AuthException('Erro ao enviar email customizado: $error');
-      }
-
-      print('✅ Email de recuperação enviado com sucesso via Edge Function');
+      print('✅ Email de recuperação enviado com sucesso via Supabase Auth');
     } on AuthException catch (e) {
       print('❌ Erro AuthException: ${e.message}');
       throw Exception(_getAuthErrorMessage(e.message));

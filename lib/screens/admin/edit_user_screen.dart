@@ -124,6 +124,8 @@ class _EditUserScreenState extends State<EditUserScreen> {
         return 'Personal Trainer';
       case UserRole.student:
         return 'Aluno';
+      case UserRole.visitor:
+        return 'Visitante';
     }
   }
 
@@ -137,6 +139,8 @@ class _EditUserScreenState extends State<EditUserScreen> {
         return const Color(0xFF457B9D);
       case UserRole.admin:
         return const Color(0xFF1A1A1A);
+      case UserRole.visitor:
+        return AppTheme.primaryGold;
     }
   }
 
@@ -226,6 +230,8 @@ class _EditUserScreenState extends State<EditUserScreen> {
                   label: 'Nome Completo',
                   hint: 'João Silva',
                   icon: Icons.person_outline_rounded,
+                  textCapitalization:
+                      TextCapitalization.words, // AUTO MAIÚSCULA
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Por favor, insira o nome completo';
@@ -445,6 +451,7 @@ class _EditUserScreenState extends State<EditUserScreen> {
     bool enabled = true,
     String? helperText,
     String? Function(String?)? validator,
+    TextCapitalization textCapitalization = TextCapitalization.none,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -459,6 +466,7 @@ class _EditUserScreenState extends State<EditUserScreen> {
         controller: controller,
         enabled: enabled,
         keyboardType: keyboardType,
+        textCapitalization: textCapitalization,
         inputFormatters: inputFormatters, // Usar formatters
         style: TextStyle(
           color: enabled ? AppTheme.primaryText : AppTheme.secondaryText,

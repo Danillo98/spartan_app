@@ -323,21 +323,39 @@ class WorkoutService {
         }
       }
 
-      // 2b. Fetch personal trainer info
+      // 2b. Fetch personal trainer/admin info
       final personalId = workout['personal_id'];
       if (personalId != null) {
         try {
-          final personalView = await _client
+          // 1. Tentar Personais
+          var personalView = await _client
               .from('users_personal')
               .select('id, nome, email')
               .eq('id', personalId)
               .maybeSingle();
 
+          // 2. Fallback para Admins (caso um admin tenha criado o treino)
+          if (personalView == null) {
+            personalView = await _client
+                .from('users_adm')
+                .select('id, nome, email')
+                .eq('id', personalId)
+                .maybeSingle();
+          }
+
           if (personalView != null) {
             workout['personal'] = {
               'id': personalView['id'],
-              'name': personalView['nome'],
-              'email': personalView['email']
+              'name': personalView['nome'] ??
+                  personalView['name'] ??
+                  'Administrador',
+              'email': personalView['email'] ?? ''
+            };
+          } else {
+            workout['personal'] = {
+              'id': personalId,
+              'name': 'Instrutor',
+              'email': ''
             };
           }
         } catch (e) {

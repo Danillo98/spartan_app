@@ -53,45 +53,73 @@ import 'notification_service.dart'; // Import Notification
 class PhysicalAssessmentService {
   static final SupabaseClient _client = SupabaseService.client;
 
-  // Obter ID da Academia do nutricionista atual
-  static Future<String> _getNutritionistAcademyId() async {
+  // Obter ID da Academia atual (Funciona para Admin, Nutri e Personal)
+  static Future<String> _getAcademyId() async {
     final user = _client.auth.currentUser;
     if (user == null) throw Exception('Usuário não autenticado');
 
+    // 1. Tentar Nutricionista
     final nutri = await _client
         .from('users_nutricionista')
         .select('id_academia')
         .eq('id', user.id)
         .maybeSingle();
+    if (nutri != null && nutri['id_academia'] != null)
+      return nutri['id_academia'];
 
-    if (nutri != null) return nutri['id_academia'];
-    throw Exception('Nutricionista não encontrado ou sem academia vinculada');
+    // 2. Tentar Personal
+    final personal = await _client
+        .from('users_personal')
+        .select('id_academia')
+        .eq('id', user.id)
+        .maybeSingle();
+    if (personal != null && personal['id_academia'] != null)
+      return personal['id_academia'];
+
+    // 3. Tentar Admin
+    final admin = await _client
+        .from('users_adm')
+        .select('id')
+        .eq('id', user.id)
+        .maybeSingle();
+    if (admin != null) return admin['id'];
+
+    throw Exception('Academia não encontrada para o usuário atual.');
   }
 
-  // Buscar todos os relatórios do nutricionista (com dados do aluno)
+  // Buscar todos os relatórios da academia
   static Future<List<Map<String, dynamic>>> getAssessments() async {
-    final user = _client.auth.currentUser;
-    if (user == null) return [];
+    try {
+      final academyId = await _getAcademyId();
 
-    final response = await _client
-        .from('physical_assessments')
-        .select('*, users_alunos(id, nome, email)')
-        .eq('nutritionist_id', user.id)
-        .order('assessment_date', ascending: false);
+      final response = await _client
+          .from('physical_assessments')
+          .select('*, users_alunos(id, nome, email)')
+          .eq('id_academia', academyId)
+          .order('assessment_date', ascending: false);
 
-    return List<Map<String, dynamic>>.from(response);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      print('Erro ao buscar avaliações: $e');
+      return [];
+    }
   }
 
   // Buscar todos os relatórios DE UM ALUNO
   static Future<List<Map<String, dynamic>>> getStudentAssessments(
       String studentId) async {
-    final response = await _client
-        .from('physical_assessments')
-        .select('*, users_nutricionista(nome), users_alunos(nome)')
-        .eq('student_id', studentId)
-        .order('assessment_date', ascending: false);
+    try {
+      final response = await _client
+          .from('physical_assessments')
+          .select('*, users_nutricionista(nome), users_alunos(nome)')
+          .eq('student_id', studentId)
+          .order('assessment_date', ascending: false);
 
-    return await _populateUsers(response);
+      return await _populateUsers(response);
+    } catch (e) {
+      print('Erro ao buscar avaliações do aluno: $e');
+      return [];
+    }
   }
 
   // Lógica COPIADA do DietService para popular nomes manualmente (Bypass RLS)
@@ -119,6 +147,7 @@ class PhysicalAssessmentService {
           n['id']: {
             'id': n['id'],
             'nome': n['nome'],
+            'name': n['nome'], // Adicionado
             'email': n['email'],
           }
       });
@@ -137,6 +166,7 @@ class PhysicalAssessmentService {
             p['id']: {
               'id': p['id'],
               'nome': p['nome'],
+              'name': p['nome'],
               'email': p['email'],
             }
         });
@@ -156,6 +186,7 @@ class PhysicalAssessmentService {
             a['id']: {
               'id': a['id'],
               'nome': a['nome'] ?? 'Administração',
+              'name': a['nome'] ?? 'Administração',
               'email': '',
             }
         });
@@ -207,7 +238,7 @@ class PhysicalAssessmentService {
     final user = _client.auth.currentUser;
     if (user == null) throw Exception('Usuário não autenticado');
 
-    final idAcademia = await _getNutritionistAcademyId();
+    final idAcademia = await _getAcademyId();
 
     await _client.from('physical_assessments').insert({
       'id_academia': idAcademia, // Use id_academia

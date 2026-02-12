@@ -11,51 +11,52 @@ class DietService {
     final user = _client.auth.currentUser;
     if (user == null) throw Exception('Usuário não autenticado');
 
-    // Tentar recuperar do cache
-    final cacheKey = CacheKeys.userContext(user.id);
-    final cached = await CacheManager().get<Map<String, dynamic>>(cacheKey);
-    if (cached != null) return cached;
-
-    Map<String, dynamic>? contextData;
-
     // Tentar como Nutricionista
     final nutri = await _client
         .from('users_nutricionista')
         .select()
         .eq('id', user.id)
         .maybeSingle();
+
     if (nutri != null) {
-      contextData = {
+      return {
         'admin_id': nutri['created_by_admin_id'],
-        'cnpj': nutri['cnpj_academia'],
         'academia': nutri['academia'],
         'id_academia': nutri['id_academia'],
       };
-    } else {
-      // Tentar como Admin
-      final admin = await _client
-          .from('users_adm')
-          .select()
-          .eq('id', user.id)
-          .maybeSingle();
-      if (admin != null) {
-        contextData = {
-          'admin_id': admin['id'],
-          'cnpj': admin['cnpj_academia'],
-          'academia': admin['academia'],
-          'id_academia': admin['id'],
-        };
-      }
     }
 
-    if (contextData != null) {
-      // Salvar no cache por 10 minutos
-      await CacheManager()
-          .set(cacheKey, contextData, customTTL: const Duration(minutes: 10));
-      return contextData;
+    // Tentar como Personal
+    final personal = await _client
+        .from('users_personal')
+        .select()
+        .eq('id', user.id)
+        .maybeSingle();
+
+    if (personal != null) {
+      return {
+        'admin_id': personal['created_by_admin_id'] ?? personal['id_academia'],
+        'academia': personal['academia'],
+        'id_academia': personal['id_academia'],
+      };
     }
 
-    throw Exception('Usuário sem permissão para gerenciar dietas');
+    // Tentar como Admin
+    final admin = await _client
+        .from('users_adm')
+        .select()
+        .eq('id', user.id)
+        .maybeSingle();
+
+    if (admin != null) {
+      return {
+        'admin_id': admin['id'],
+        'academia': admin['academia'],
+        'id_academia': admin['id'],
+      };
+    }
+
+    throw Exception('Usuário sem registro de academia vinculado.');
   }
 
   // Buscar todas as dietas (Admin)
@@ -279,6 +280,7 @@ class DietService {
           s['id']: {
             'id': s['id'],
             'name': s['nome'],
+            'nome': s['nome'],
             'email': s['email'],
           }
       };
@@ -286,28 +288,65 @@ class DietService {
 
     Map<String, dynamic> nutrisMap = {};
     if (nutriIds.isNotEmpty) {
+      // 1. Tentar Nutricionistas
       final nutris = await _client
           .from('users_nutricionista')
           .select('id, nome, email')
           .inFilter('id', nutriIds);
-      // Normalizar nome→name
-      nutrisMap = {
-        for (var n in nutris)
-          n['id']: {
-            'id': n['id'],
-            'name': n['nome'],
-            'email': n['email'],
-          }
-      };
+
+      for (var n in nutris) {
+        nutrisMap[n['id']] = {
+          'id': n['id'],
+          'name': n['nome'],
+          'nome': n['nome'],
+          'email': n['email'],
+        };
+      }
+
+      // 2. Fallback para Personais
+      final missingFromNutri =
+          nutriIds.where((id) => !nutrisMap.containsKey(id)).toList();
+      if (missingFromNutri.isNotEmpty) {
+        final personals = await _client
+            .from('users_personal')
+            .select('id, nome, email')
+            .inFilter('id', missingFromNutri);
+        for (var p in personals) {
+          nutrisMap[p['id']] = {
+            'id': p['id'],
+            'name': p['nome'],
+            'nome': p['nome'],
+            'email': p['email'],
+          };
+        }
+      }
+
+      // 3. Fallback para Admins
+      final missingFromPersonal =
+          nutriIds.where((id) => !nutrisMap.containsKey(id)).toList();
+      if (missingFromPersonal.isNotEmpty) {
+        final adms = await _client
+            .from('users_adm')
+            .select('id, nome, email')
+            .inFilter('id', missingFromPersonal);
+        for (var a in adms) {
+          nutrisMap[a['id']] = {
+            'id': a['id'],
+            'name': a['nome'] ?? 'Administrador',
+            'nome': a['nome'] ?? 'Administrador',
+            'email': a['email'] ?? '',
+          };
+        }
+      }
     }
 
     return dietList.map((d) {
       return {
         ...d,
         'student': studentsMap[d['student_id']] ??
-            {'name': 'Desconhecido', 'email': ''},
+            {'name': 'Desconhecido', 'nome': 'Desconhecido', 'email': ''},
         'nutritionist': nutrisMap[d['nutritionist_id']] ??
-            {'name': 'Desconhecido', 'email': ''},
+            {'name': 'N/A', 'nome': 'N/A', 'email': ''},
       };
     }).toList();
   }

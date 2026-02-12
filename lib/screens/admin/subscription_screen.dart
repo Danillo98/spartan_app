@@ -4,10 +4,13 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:async';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../config/app_theme.dart';
 import '../../services/user_service.dart';
 import '../../services/payment_service.dart';
 import '../../services/auth_service.dart';
+import '../../models/user_role.dart';
+import '../login_screen.dart';
 import 'admin_dashboard.dart';
 
 // Conditional import for web
@@ -29,6 +32,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
   DateTime? _expiresAt;
   bool _wentToStripe = false; // Flag para saber se foi para o Stripe
   StreamSubscription? _focusSubscription;
+  UserRole? _userRole; // Armazenar role do usuário
 
   @override
   void initState() {
@@ -36,6 +40,16 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
     WidgetsBinding.instance.addObserver(this);
     _setupWebFocusListener();
     _loadSubscriptionData();
+    _checkUserRole();
+  }
+
+  Future<void> _checkUserRole() async {
+    final role = await AuthService.getCurrentUserRole();
+    if (mounted) {
+      setState(() {
+        _userRole = role;
+      });
+    }
   }
 
   @override
@@ -65,39 +79,160 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
   }
 
   // Chamado quando o usuário volta do Stripe (web ou mobile)
-  void _onReturnFromStripe() {
+  void _onReturnFromStripe() async {
     _wentToStripe = false;
-    _loadSubscriptionData();
 
-    // Mostrar mensagem informando que está verificando
+    // 1. Verificação Imediata
+    final initialRole = await AuthService.getCurrentUserRole();
+    if (initialRole == UserRole.admin) {
+      _showPaymentSuccessDialog();
+      return;
+    }
+
+    // 2. Polling de 6 tentativas a cada 3 segundos com Diálogo Cancelável
+    int attempts = 0;
+    bool success = false;
+    bool pollingCancelled = false;
+
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Row(
-            children: [
-              SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+      showDialog(
+        context: context,
+        barrierDismissible: true, // Agora permite fechar clicando fora
+        builder: (ctx) => PopScope(
+          onPopInvoked: (didPop) {
+            if (didPop) pollingCancelled = true;
+          },
+          child: AlertDialog(
+            backgroundColor: Colors.white,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 10),
+                const CircularProgressIndicator(color: AppTheme.primaryRed),
+                const SizedBox(height: 24),
+                const Text('Verificando status...',
+                    style:
+                        TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                const SizedBox(height: 12),
+                const Text(
+                  'Aguardando o Stripe confirmar sua transação. Isso pode levar alguns segundos.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 14, color: AppTheme.secondaryText),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
+            actions: [
+              Center(
+                child: TextButton(
+                  onPressed: () {
+                    pollingCancelled = true;
+                    Navigator.of(ctx).pop();
+                  },
+                  child: Text(
+                    'AINDA NÃO PAGUEI / VOLTAR',
+                    style: TextStyle(
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12),
+                  ),
                 ),
               ),
-              SizedBox(width: 12),
-              Text('Verificando status do pagamento...'),
             ],
           ),
-          duration: Duration(seconds: 3),
-          backgroundColor: Colors.blue,
         ),
-      );
+      ).then((_) {
+        // Se o usuário fechou o diálogo (por qualquer meio), para o polling
+        pollingCancelled = true;
+      });
     }
+
+    while (attempts < 6 && !success && !pollingCancelled) {
+      final role = await AuthService.getCurrentUserRole();
+      if (role == UserRole.admin) {
+        success = true;
+        break;
+      }
+
+      attempts++;
+      if (!pollingCancelled) {
+        await Future.delayed(const Duration(seconds: 3));
+      }
+    }
+
+    // Fecha o loading se ele ainda estiver aberto e tivemos sucesso
+    if (mounted && success && !pollingCancelled) {
+      Navigator.of(context).pop();
+    }
+
+    if (success) {
+      _showPaymentSuccessDialog();
+    } else {
+      _loadSubscriptionData();
+      _checkUserRole();
+
+      if (mounted && !pollingCancelled) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'Confirmação pendente. Se já pagou, sua conta será liberada em instantes.'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+    }
+  }
+
+  void _showPaymentSuccessDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.green, size: 32),
+            const SizedBox(width: 12),
+            const Text('Pagamento Confirmado!'),
+          ],
+        ),
+        content: const Text(
+          'Sua assinatura foi processada com sucesso. Bem-vindo ao Spartan App!',
+          style: TextStyle(fontSize: 16),
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const AdminDashboard()),
+                (route) => false,
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryGold,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('ACESSAR DASHBOARD'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadSubscriptionData() async {
     if (mounted) setState(() => _isLoading = true);
 
     try {
+      // Se for visitante, checkPlanLimitStatus falha pois não tem dados em users_adm
+      if (_userRole == UserRole.visitor) {
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
+
       final planStatus = await UserService.checkPlanLimitStatus();
       final subStatus = await UserService.getSubscriptionStatus();
 
@@ -132,6 +267,12 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
 
   // Popup de confirmação para upgrade/downgrade/renovação
   Future<void> _showPlanChangeConfirmation(String newPlan) async {
+    // Se for visitante, não precisa de confirmação (está assinando pela primeira vez)
+    if (_userRole == UserRole.visitor) {
+      await _initiateCheckout(newPlan);
+      return;
+    }
+
     final bool isMyPlan = _currentPlan.toLowerCase() == newPlan.toLowerCase();
     final String actionText = isMyPlan ? 'RENOVAR' : 'TROCAR PARA';
 
@@ -254,15 +395,39 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
 
       final priceId = PaymentService.getPriceIdByName(planName);
 
+      // BUSCA DE DADOS PENDENTES (Smart Merge v3 - Client Side)
+      Map<String, String> checkoutMetadata = {
+        'plano_selecionado': planName,
+        'is_upgrade':
+            (_currentPlan.toLowerCase() != planName.toLowerCase()).toString(),
+      };
+
+      if (_userRole == UserRole.visitor) {
+        print('🔍 Buscando dados de cadastro pendente para o checkout...');
+        final pendingRes = await Supabase.instance.client
+            .from('pending_registrations')
+            .select()
+            .eq('id', user.id)
+            .maybeSingle();
+
+        if (pendingRes != null) {
+          print('✅ Dados pendentes encontrados! Anexando ao checkout...');
+          checkoutMetadata.addAll({
+            'nome': pendingRes['full_name'] ?? '',
+            'academia': pendingRes['gym_name'] ?? '',
+            'telefone': pendingRes['phone'] ?? '',
+            'cnpj_academia': pendingRes['cnpj'] ?? '',
+            'cpf_responsavel': pendingRes['cpf'] ?? '',
+            'endereco': pendingRes['address_street'] ?? '',
+          });
+        }
+      }
+
       final checkoutUrl = await PaymentService.createCheckoutSession(
         priceId: priceId,
         userId: user.id,
         userEmail: user.email ?? '',
-        metadata: {
-          'plano_selecionado': planName,
-          'is_upgrade':
-              (_currentPlan.toLowerCase() != planName.toLowerCase()).toString(),
-        },
+        metadata: checkoutMetadata,
       );
 
       if (checkoutUrl.isNotEmpty) {
@@ -291,211 +456,249 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.black),
-          onPressed: () {
-            // Verifica se pode voltar, senão vai para dashboard
-            if (Navigator.of(context).canPop()) {
-              Navigator.pop(context);
-            } else {
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => const AdminDashboard()),
-                (route) => false,
-              );
-            }
-          },
-        ),
-        title: Text(
-          'ASSINATURA SPARTAN',
-          style: GoogleFonts.cinzel(
-            color: Colors.black,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
+    return PopScope(
+      canPop: _userRole != UserRole.visitor, // Bloqueia se for visitante
+      onPopInvoked: (didPop) {
+        if (!didPop && _userRole == UserRole.visitor) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                  'Por favor, conclua sua assinatura para acessar o sistema.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: _userRole == UserRole.visitor
+              ? null // Esconde o X se for visitante
+              : IconButton(
+                  icon: const Icon(Icons.close, color: Colors.black),
+                  onPressed: () {
+                    // Verifica se pode voltar, senão vai para dashboard
+                    if (Navigator.of(context).canPop()) {
+                      Navigator.pop(context);
+                    } else {
+                      Navigator.pushAndRemoveUntil(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const AdminDashboard()),
+                        (route) => false,
+                      );
+                    }
+                  },
+                ),
+          title: Text(
+            'ASSINATURA SPARTAN',
+            style: GoogleFonts.cinzel(
+              color: Colors.black,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
           ),
+          centerTitle: true,
+          actions: _userRole == UserRole.visitor
+              ? [
+                  TextButton.icon(
+                    onPressed: () async {
+                      await AuthService.signOut();
+                      if (context.mounted) {
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(
+                              builder: (_) => const LoginScreen()),
+                          (route) => false,
+                        );
+                      }
+                    },
+                    icon:
+                        const Icon(Icons.logout, color: Colors.grey, size: 18),
+                    label: const Text('Sair',
+                        style: TextStyle(color: Colors.grey)),
+                  ),
+                ]
+              : null,
         ),
-        centerTitle: true,
-      ),
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppTheme.primaryRed))
-          : SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 10),
-                  // LOGO (Responsiva: Desktop 300, Mobile 150)
-                  Image.asset(
-                    'assets/images/splash_logo.png',
-                    height: MediaQuery.of(context).size.width > 600 ? 300 : 150,
-                    fit: BoxFit.contain,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Sua Evolução Não Pode Parar',
-                    style: GoogleFonts.lato(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.black,
+        body: _isLoading
+            ? const Center(
+                child: CircularProgressIndicator(color: AppTheme.primaryRed))
+            : SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const SizedBox(height: 10),
+                    // LOGO (Responsiva: Desktop 300, Mobile 150)
+                    Image.asset(
+                      'assets/images/splash_logo.png',
+                      height:
+                          MediaQuery.of(context).size.width > 600 ? 300 : 150,
+                      fit: BoxFit.contain,
                     ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
-                    child: Text(
-                      'O crescimento da sua academia exige ferramentas mais poderosas. Escolha o plano que combina com sua ambição.',
+                    const SizedBox(height: 16),
+                    Text(
+                      'Sua Evolução Não Pode Parar',
                       style: GoogleFonts.lato(
-                        fontSize: 14,
-                        color: Colors.grey[600],
-                        height: 1.5,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.black,
                       ),
                       textAlign: TextAlign.center,
                     ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // LISTA HORIZONTAL
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.only(
-                        left: 24, right: 24, top: 25, bottom: 40),
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        minWidth: MediaQuery.of(context).size.width - 48,
+                    const SizedBox(height: 8),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 32),
+                      child: Text(
+                        'O crescimento da sua academia exige ferramentas mais poderosas. Escolha o plano que combina com sua ambição.',
+                        style: GoogleFonts.lato(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                          height: 1.5,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
+                    ),
+                    const SizedBox(height: 24),
+
+                    // LISTA HORIZONTAL
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.only(
+                          left: 24, right: 24, top: 25, bottom: 40),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minWidth: MediaQuery.of(context).size.width - 48,
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            // PRATA
+                            _buildInteractableCard(
+                              title: 'PRATA',
+                              tag: 'VALIDAÇÃO',
+                              price: '129,90',
+                              description:
+                                  'Ideal para academias de pequeno porte.',
+                              bgColor: const Color(0xFFC5D1D8),
+                              borderColor: const Color(0xFF5A7D8F),
+                              cardColorName: 'Prata',
+                              features: [
+                                'Módulos: Administrador, Nutricionista, Personal Trainer e Aluno.',
+                                'Dietas, Relatórios Físicos e Treinos.',
+                                'Monitoramento de Mensalidades, Controle Financeiro, Fluxo de Caixa e Relatórios Mensais e Anuais em PDF.',
+                                'Suporta até 200 alunos.',
+                              ],
+                            ),
+                            const SizedBox(width: 24),
+
+                            // OURO
+                            _buildInteractableCard(
+                              title: 'OURO',
+                              tag: 'MAIS ESCOLHIDO', // Tag interna
+                              price: '239,90',
+                              description:
+                                  'Para quem já validou e precisa escalar.',
+                              bgColor: const Color(0xFFFBF9F2),
+                              borderColor: const Color(0xFFD4AF37),
+                              cardColorName: 'Ouro',
+                              features: [
+                                'Módulos: Administrador, Nutricionista, Personal Trainer e Aluno.',
+                                'Dietas, Relatórios Físicos e Treinos.',
+                                'Monitoramento de Mensalidades, Controle Financeiro, Fluxo de Caixa e Relatórios Mensais e Anuais em PDF.',
+                                'Suporta até 500 alunos.',
+                                'Maior margem de lucro por aluno.',
+                                'Estrutura para crescimento forte.'
+                              ],
+                            ),
+                            const SizedBox(width: 24),
+
+                            // PLATINA
+                            _buildInteractableCard(
+                              title: 'PLATINA',
+                              tag: 'INFINITO',
+                              price: '349,90',
+                              description:
+                                  'A liberdade absoluta. O céu é o limite.',
+                              bgColor: const Color(0xFFE8F6F9),
+                              borderColor: const Color(0xFF00BCD4),
+                              cardColorName: 'Platina',
+                              features: [
+                                'Módulos: Administrador, Nutricionista, Personal Trainer e Aluno.',
+                                'Dietas, Relatórios Físicos e Treinos Integrados.',
+                                'Monitoramento de Mensalidades, Controle Financeiro, Fluxo de Caixa e Relatórios Mensais e Anuais em PDF.',
+                                'Alunos ILIMITADOS.',
+                                'O céu é o limite! Aqui o lucro é exponencial.',
+                                'Estrutura para grandes empreendimentos.'
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 40),
+
+                    // === BOTÕES LEGAIS E CANCELAMENTO ===
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 8,
+                        runSpacing: 8,
                         children: [
-                          // PRATA
-                          _buildInteractableCard(
-                            title: 'PRATA',
-                            tag: 'VALIDAÇÃO',
-                            price: '129,90',
-                            description:
-                                'Ideal para academias de pequeno porte.',
-                            bgColor: const Color(0xFFC5D1D8),
-                            borderColor: const Color(0xFF5A7D8F),
-                            cardColorName: 'Prata',
-                            features: [
-                              'Módulos: Administrador, Nutricionista, Personal Trainer e Aluno.',
-                              'Dietas, Relatórios Físicos e Treinos.',
-                              'Monitoramento de Mensalidades, Controle Financeiro, Fluxo de Caixa e Relatórios Mensais e Anuais em PDF.',
-                              'Suporta até 200 alunos.',
-                            ],
+                          // Política de Privacidade
+                          TextButton.icon(
+                            onPressed: () => launchUrl(
+                              Uri.parse('/politicas/'),
+                              mode: LaunchMode.externalApplication,
+                              webOnlyWindowName: '_blank',
+                            ),
+                            icon: const Icon(Icons.lock_outline, size: 16),
+                            label: const Text('Política de Privacidade'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.grey[600],
+                              textStyle: const TextStyle(fontSize: 13),
+                            ),
                           ),
-                          const SizedBox(width: 24),
-
-                          // OURO
-                          _buildInteractableCard(
-                            title: 'OURO',
-                            tag: 'MAIS ESCOLHIDO', // Tag interna
-                            price: '239,90',
-                            description:
-                                'Para quem já validou e precisa escalar.',
-                            bgColor: const Color(0xFFFBF9F2),
-                            borderColor: const Color(0xFFD4AF37),
-                            cardColorName: 'Ouro',
-                            features: [
-                              'Módulos: Administrador, Nutricionista, Personal Trainer e Aluno.',
-                              'Dietas, Relatórios Físicos e Treinos.',
-                              'Monitoramento de Mensalidades, Controle Financeiro, Fluxo de Caixa e Relatórios Mensais e Anuais em PDF.',
-                              'Suporta até 500 alunos.',
-                              'Maior margem de lucro por aluno.',
-                              'Estrutura para crescimento forte.'
-                            ],
+                          Text('|', style: TextStyle(color: Colors.grey[300])),
+                          // Termos de Uso
+                          TextButton.icon(
+                            onPressed: () => launchUrl(
+                              Uri.parse('/termos/'),
+                              mode: LaunchMode.externalApplication,
+                              webOnlyWindowName: '_blank',
+                            ),
+                            icon: const Icon(Icons.description_outlined,
+                                size: 16),
+                            label: const Text('Termos de Uso'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.grey[600],
+                              textStyle: const TextStyle(fontSize: 13),
+                            ),
                           ),
-                          const SizedBox(width: 24),
-
-                          // PLATINA
-                          _buildInteractableCard(
-                            title: 'PLATINA',
-                            tag: 'INFINITO',
-                            price: '349,90',
-                            description:
-                                'A liberdade absoluta. O céu é o limite.',
-                            bgColor: const Color(0xFFE8F6F9),
-                            borderColor: const Color(0xFF00BCD4),
-                            cardColorName: 'Platina',
-                            features: [
-                              'Módulos: Administrador, Nutricionista, Personal Trainer e Aluno.',
-                              'Dietas, Relatórios Físicos e Treinos Integrados.',
-                              'Monitoramento de Mensalidades, Controle Financeiro, Fluxo de Caixa e Relatórios Mensais e Anuais em PDF.',
-                              'Alunos ILIMITADOS.',
-                              'O céu é o limite! Aqui o lucro é exponencial.',
-                              'Estrutura para grandes empreendimentos.'
-                            ],
+                          Text('|', style: TextStyle(color: Colors.grey[300])),
+                          // Cancelar Assinatura (Vermelho)
+                          TextButton.icon(
+                            onPressed: _showCancelSubscriptionDialog,
+                            icon: const Icon(Icons.cancel_outlined, size: 16),
+                            label: const Text('Cancelar Assinatura'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.red[700],
+                              textStyle: const TextStyle(
+                                  fontSize: 13, fontWeight: FontWeight.w500),
+                            ),
                           ),
                         ],
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 40),
-
-                  // === BOTÕES LEGAIS E CANCELAMENTO ===
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Wrap(
-                      alignment: WrapAlignment.center,
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        // Política de Privacidade
-                        TextButton.icon(
-                          onPressed: () => launchUrl(
-                            Uri.parse('/politicas/'),
-                            mode: LaunchMode.externalApplication,
-                            webOnlyWindowName: '_blank',
-                          ),
-                          icon: const Icon(Icons.lock_outline, size: 16),
-                          label: const Text('Política de Privacidade'),
-                          style: TextButton.styleFrom(
-                            foregroundColor: Colors.grey[600],
-                            textStyle: const TextStyle(fontSize: 13),
-                          ),
-                        ),
-                        Text('|', style: TextStyle(color: Colors.grey[300])),
-                        // Termos de Uso
-                        TextButton.icon(
-                          onPressed: () => launchUrl(
-                            Uri.parse('/termos/'),
-                            mode: LaunchMode.externalApplication,
-                            webOnlyWindowName: '_blank',
-                          ),
-                          icon:
-                              const Icon(Icons.description_outlined, size: 16),
-                          label: const Text('Termos de Uso'),
-                          style: TextButton.styleFrom(
-                            foregroundColor: Colors.grey[600],
-                            textStyle: const TextStyle(fontSize: 13),
-                          ),
-                        ),
-                        Text('|', style: TextStyle(color: Colors.grey[300])),
-                        // Cancelar Assinatura (Vermelho)
-                        TextButton.icon(
-                          onPressed: _showCancelSubscriptionDialog,
-                          icon: const Icon(Icons.cancel_outlined, size: 16),
-                          label: const Text('Cancelar Assinatura'),
-                          style: TextButton.styleFrom(
-                            foregroundColor: Colors.red[700],
-                            textStyle: const TextStyle(
-                                fontSize: 13, fontWeight: FontWeight.w500),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 40),
-                ],
+                    const SizedBox(height: 40),
+                  ],
+                ),
               ),
-            ),
+      ),
     );
   }
 
