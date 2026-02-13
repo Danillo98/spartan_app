@@ -90,6 +90,23 @@ class _StudentDashboardState extends State<StudentDashboard>
     }
   }
 
+  /// Carregar dados silenciosamente (sem loading visual)
+  Future<void> _silentLoadUserData() async {
+    try {
+      final data = await AuthService.getCurrentUserData();
+      if (mounted) {
+        setState(() {
+          _userData = data;
+        });
+        if (data != null && data['role'] == 'student') {
+          _checkFinancialStatus(data);
+        }
+      }
+    } catch (e) {
+      print('Erro ao carregar dados silenciosamente: $e');
+    }
+  }
+
   /// Método universal para refresh do dashboard
   /// Chame este método ao voltar de QUALQUER tela para:
   /// 1. Verificar bloqueio manual do admin
@@ -104,7 +121,7 @@ class _StudentDashboardState extends State<StudentDashboard>
     }
 
     // 2. Recarregar dados (força rebuild de todos widgets, incluindo BulletinBoard)
-    await _loadUserData();
+    await _silentLoadUserData();
 
     print('✅ Dashboard refreshed');
   }

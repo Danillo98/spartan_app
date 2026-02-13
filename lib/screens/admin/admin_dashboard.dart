@@ -92,6 +92,22 @@ class _AdminDashboardState extends State<AdminDashboard>
     }
   }
 
+  /// Carregar dados do usuário SILENCIOSAMENTE (sem loading visual)
+  /// Usado pelo _refreshDashboard para evitar piscar de tela
+  Future<void> _silentLoadUserData() async {
+    try {
+      final data = await AuthService.getCurrentUserData();
+      if (mounted) {
+        setState(() {
+          _userData = data;
+          // NÃO modifica _isLoading - mantém tela visível
+        });
+      }
+    } catch (e) {
+      print('Erro ao carregar dados silenciosamente: $e');
+    }
+  }
+
   /// Método universal para refresh do dashboard
   /// Chame este método ao voltar de QUALQUER tela para:
   /// 1. Verificar bloqueio manual do admin
@@ -105,8 +121,8 @@ class _AdminDashboardState extends State<AdminDashboard>
       await AuthService.checkBlockedStatus(context);
     }
 
-    // 2. Recarregar dados (força rebuild de todos widgets, incluindo BulletinBoard)
-    await _loadUserData();
+    // 2. Recarregar dados SILENCIOSAMENTE (sem piscar!)
+    await _silentLoadUserData();
 
     print('✅ Dashboard refreshed');
   }

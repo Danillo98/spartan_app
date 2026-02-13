@@ -98,6 +98,11 @@ class ProfileService {
     String photoUrl,
   ) async {
     try {
+      print('📸 updatePhotoUrl chamado:');
+      print('   userId: $userId');
+      print('   role: $role');
+      print('   photoUrl: $photoUrl');
+
       String tableName;
       switch (role) {
         case 'admin':
@@ -116,13 +121,20 @@ class ProfileService {
           throw Exception('Role inválido: $role');
       }
 
-      await _client.from(tableName).update({
-        'photo_url': photoUrl,
-      }).eq('id', userId);
+      print('   Tabela: $tableName');
 
+      final response = await _client
+          .from(tableName)
+          .update({
+            'photo_url': photoUrl,
+          })
+          .eq('id', userId)
+          .select();
+
+      print('✅ Atualização bem-sucedida: $response');
       return true;
     } catch (e) {
-      print('Erro ao atualizar URL da foto: $e');
+      print('❌ Erro ao atualizar URL da foto: $e');
       return false;
     }
   }

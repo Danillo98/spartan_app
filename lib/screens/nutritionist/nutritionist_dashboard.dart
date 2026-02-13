@@ -81,13 +81,27 @@ class _NutritionistDashboardState extends State<NutritionistDashboard>
     }
   }
 
+  /// Carregar dados silenciosamente (sem loading visual)
+  Future<void> _silentLoadUserData() async {
+    try {
+      final data = await AuthService.getCurrentUserData();
+      if (mounted) {
+        setState(() {
+          _userData = data;
+        });
+      }
+    } catch (e) {
+      print('Erro ao carregar dados silenciosamente: $e');
+    }
+  }
+
   /// Método universal para refresh do dashboard
   Future<void> _refreshDashboard() async {
     print('🔄 Refreshing Dashboard...');
     if (mounted) {
       await AuthService.checkBlockedStatus(context);
     }
-    await _loadUserData();
+    await _silentLoadUserData();
     print('✅ Dashboard refreshed');
   }
 
