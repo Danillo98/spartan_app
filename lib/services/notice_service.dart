@@ -186,63 +186,88 @@ class NoticeService {
       final idAcademia = await _getAcademyId();
       final now = DateTime.now().toIso8601String();
       final myRole = await _getCurrentUserRoleString(user.id);
+      final myId = user.id;
 
-      // Query Base
-      var query = _client
+      print('🔍 [NOTICES] Buscando avisos para: role=$myRole, id=$myId');
+
+      // Buscar TODOS os avisos ativos da academia
+      final response = await _client
           .from('notices')
           .select()
           .eq('id_academia', idAcademia)
           .lte('start_at', now)
-          .gte('end_at', now);
+          .gte('end_at', now)
+          .order('created_at', ascending: false);
 
-      if (myRole == 'admin') {
-        // Admin vê tudo
-      } else {
-        // Users normais
-        query = query.filter('target_role', 'in', '("all","$myRole")');
-
-        // RLS do banco (script 589) já cuida de esconder avisos
-        // onde target_user_ids (array) NÃO contem meu ID
-        // E também cuida se target_user_ids for null/vazio (todos).
-        // Portanto, não precisamos duplicar essa lógica no client query,
-        // exceto talvez para performance/filtragem extra.
-      }
-
-      final response = await query.order('created_at', ascending: false);
       final rawNotices = List<Map<String, dynamic>>.from(response);
+      print('📋 [NOTICES] Total bruto: ${rawNotices.length}');
 
-      // Client-side Filter (Backup for RLS)
-      final myId = user.id;
+      // **FILTRO RIGOROSO DE PRIVACIDADE**
       final notices = rawNotices.where((notice) {
-        var targetIds = notice['target_user_ids'];
+        final targetRole = notice['target_role'] ?? 'all';
+        var targetUserIds = notice['target_user_ids'];
 
-        // Handle JSON being returned as String
-        if (targetIds is String) {
-          try {
-            if (targetIds.startsWith('[') && targetIds.endsWith(']')) {
-              targetIds = targetIds
-                  .substring(1, targetIds.length - 1)
-                  .split(',')
-                  .map((e) => e.trim().replaceAll('"', '').replaceAll("'", ""))
-                  .where((e) => e.isNotEmpty)
-                  .toList();
-            }
-          } catch (_) {}
+        // Converter target_user_ids para List<String> se necessário
+        List<String> userIdsList = [];
+        if (targetUserIds != null) {
+          if (targetUserIds is List) {
+            userIdsList = List<String>.from(
+                targetUserIds.map((e) => e.toString().trim()));
+          } else if (targetUserIds is String && targetUserIds.isNotEmpty) {
+            // Pode vir como "{uuid1,uuid2}" do Postgres
+            userIdsList = targetUserIds
+                .replaceAll('{', '')
+                .replaceAll('}', '')
+                .replaceAll('[', '')
+                .replaceAll(']', '')
+                .replaceAll('"', '')
+                .replaceAll("'", "")
+                .split(',')
+                .map((e) => e.trim())
+                .where((e) => e.isNotEmpty)
+                .toList();
+          }
         }
 
-        if (targetIds != null && targetIds is List && targetIds.isNotEmpty) {
-          // Ensure we compare strings
-          return targetIds.map((e) => e.toString().trim()).contains(myId);
+        print(
+            '🔍 Aviso "${notice['title']}": role=$targetRole, users=$userIdsList');
+
+        // **REGRA 1: Admin vê tudo (opcional, depende da sua regra de negócio)**
+        // Se você NÃO quer que admin veja avisos privados de outros, comente esta linha
+        // if (myRole == 'admin') return true;
+
+        // **REGRA 2: Se tem target_user_ids preenchido, SOMENTE esses usuários podem ver**
+        if (userIdsList.isNotEmpty) {
+          final canSee = userIdsList.contains(myId);
+          print('  -> Aviso ESPECÍFICO. Eu posso ver? $canSee');
+          return canSee;
         }
 
-        return true;
+        // **REGRA 3: Se target_user_ids está vazio/null, verificar target_role**
+        // Se target_role == 'all', todos podem ver
+        if (targetRole == 'all') {
+          print('  -> Aviso PÚBLICO (all)');
+          return true;
+        }
+
+        // Se target_role == meu role, posso ver
+        if (targetRole == myRole) {
+          print('  -> Aviso para meu ROLE ($myRole)');
+          return true;
+        }
+
+        // Caso contrário, não posso ver
+        print('  -> Aviso BLOQUEADO (role diferente)');
+        return false;
       }).toList();
+
+      print('✅ [NOTICES] Total filtrado: ${notices.length}');
 
       await _injectPaymentWarning(user.id, notices, idAcademia);
 
       return notices;
     } catch (e) {
-      print('Erro ao buscar avisos ativos: $e');
+      print('❌ Erro ao buscar avisos ativos: $e');
       return [];
     }
   }
@@ -299,64 +324,9 @@ class NoticeService {
     }
   }
 
-  // --- REALTIME STREAM ---
-
-  static Stream<List<Map<String, dynamic>>> getActiveNoticesStream() {
-    return Stream.fromFuture(Future.wait([
-      _getAcademyId(),
-      _client.auth.currentUser != null
-          ? _getCurrentUserRoleString(_client.auth.currentUser!.id)
-          : Future.value('student'),
-    ])).asyncExpand((results) {
-      final String idAcademia = results[0] as String;
-      final String myRole = results[1] as String;
-      final String? myId = _client.auth.currentUser?.id;
-
-      return _client
-          .from('notices')
-          .stream(primaryKey: ['id'])
-          .eq('id_academia', idAcademia)
-          .order('created_at', ascending: false)
-          .map((notices) {
-            if (myId == null) return [];
-
-            return notices.where((notice) {
-              // 1. Verificar se está no período
-              final startAt = DateTime.parse(notice['start_at']);
-              final endAt = DateTime.parse(notice['end_at']);
-              final nowDt = DateTime.now();
-
-              if (nowDt.isBefore(startAt) || nowDt.isAfter(endAt)) return false;
-
-              // 2. Isolamento por Role
-              final targetRole = notice['target_role'] ?? 'all';
-
-              if (myRole != 'admin') {
-                if (targetRole != 'all' && targetRole != myRole) return false;
-
-                // 3. Isolamento por Usuário Específico (array target_user_ids)
-                var targetIds = notice['target_user_ids'];
-                if (targetIds != null) {
-                  // Converter string de array do Postgres para lista do Dart se necessário
-                  List<String> idList = [];
-                  if (targetIds is List) {
-                    idList = List<String>.from(targetIds);
-                  } else if (targetIds is String) {
-                    idList = targetIds
-                        .replaceAll('{', '')
-                        .replaceAll('}', '')
-                        .split(',');
-                  }
-
-                  if (idList.isNotEmpty && !idList.contains(myId)) {
-                    return false;
-                  }
-                }
-              }
-
-              return true;
-            }).toList();
-          });
-    });
+  // --- MÉTODO SIMPLES DE REFRESH (SEM REALTIME) ---
+  // Chame este método ao fazer login ou ao abrir opções do dashboard
+  static Future<List<Map<String, dynamic>>> refreshNotices() async {
+    return await getActiveNotices();
   }
 }

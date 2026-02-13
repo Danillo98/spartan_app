@@ -15,7 +15,7 @@ class BulletinBoardCard extends StatefulWidget {
 }
 
 class _BulletinBoardCardState extends State<BulletinBoardCard> {
-  List<Map<String, dynamic>> _items = [];
+  List<Map<String, dynamic>> _appointments = [];
 
   @override
   void initState() {
@@ -25,55 +25,35 @@ class _BulletinBoardCardState extends State<BulletinBoardCard> {
 
   Future<void> _loadData() async {
     try {
-      // 1. Carregar Avisos
-      final notices = await NoticeService.getActiveNotices();
-      final noticesFormatted = notices.map((n) => {
-            ...n,
-            'type': 'notice',
-            'sortDate': DateTime.parse(n['created_at']),
-          });
-
-      // 2. Carregar Agendamentos (Avaliações)
+      // Carregar Agendamentos (Avaliações)
       final appointments = await AppointmentService.getMyAppointments();
-      final appointmentsFormatted = appointments.map((a) => {
-            ...a,
-            'type': 'appointment',
-            'sortDate': DateTime.parse(a['scheduled_at']),
-          });
-
-      // 3. Combinar e Ordenar
-      final allItems = [...noticesFormatted, ...appointmentsFormatted];
-
-      // Ordenar: Agendamentos mais próximos primeiro, depois avisos mais recentes?
-      // Melhor: Tudo cronológico RECENTE -> ANTIGO ou PRÓXIMO -> DISTANTE?
-      // Aviso é cronologia passada (publicado em). Agendamento é futuro (agendado para).
-      // Vamos ordenar pela data "relevante". Se for futuro, prioridade alta.
-
-      allItems.sort((a, b) {
-        final dateA = a['sortDate'] as DateTime;
-        final dateB = b['sortDate'] as DateTime;
-        // Ordem decrescente (mais novo primeiro)
-        return dateB.compareTo(dateA);
-      });
+      final appointmentsFormatted = appointments
+          .map((a) => {
+                ...a,
+                'type': 'appointment',
+                'sortDate': DateTime.parse(a['scheduled_at']),
+              })
+          .toList();
 
       if (mounted) {
         setState(() {
-          _items = allItems;
+          _appointments = appointmentsFormatted;
         });
       }
     } catch (e) {
       if (mounted) setState(() {});
-      print('Erro ao carregar quadro: $e');
+      print('Erro ao carregar agendamentos iniciais: $e');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: NoticeService.getActiveNoticesStream(),
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: NoticeService.getActiveNotices(), // Chamada simples
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting &&
-            _items.isEmpty) {
+            _appointments.isEmpty) {
+          // Check _appointments for initial loading state
           return Container(
             height: 100,
             decoration: BoxDecoration(
@@ -86,10 +66,6 @@ class _BulletinBoardCardState extends State<BulletinBoardCard> {
 
         final notices = snapshot.data ?? [];
 
-        // Re-carregar agendamentos quando o stream emitir (ou periodicamente)
-        // Para não travar o build, agendamos um microtask ou usamos um CombineLatestStream se tivéssemos stream de agendamentos.
-        // Como o foco é Avisos em tempo real, vamos focar neles aqui.
-
         final noticesFormatted = notices
             .map((n) => {
                   ...n,
@@ -98,19 +74,29 @@ class _BulletinBoardCardState extends State<BulletinBoardCard> {
                 })
             .toList();
 
-        // Combinar com o estado local de agendamentos carregados no initState (e manter sync)
-        // Para simplificar, vamos mostrar agendamentos que já carregamos
-        final appointmentsFormatted =
-            _items.where((item) => item['type'] == 'appointment').toList();
+        // Combine notices from FutureBuilder with appointments loaded in initState
+        final combinedItems = [...noticesFormatted, ..._appointments];
 
-        final allItems = [...noticesFormatted, ...appointmentsFormatted];
-        allItems.sort((a, b) {
+        // Deduplicate items by ID to avoid showing the same item multiple times
+        // This assumes 'id' is a unique identifier for both notices and appointments
+        final Map<String, Map<String, dynamic>> uniqueItemsMap = {};
+        for (var item in combinedItems) {
+          final id = item['id']?.toString() ??
+              UniqueKey().toString(); // Use UniqueKey if id is null
+          uniqueItemsMap[id] = item;
+        }
+
+        final dedupedItems = uniqueItemsMap.values.toList();
+
+        // Sort by date
+        dedupedItems.sort((a, b) {
           final dateA = a['sortDate'] as DateTime;
           final dateB = b['sortDate'] as DateTime;
           return dateB.compareTo(dateA);
         });
 
-        if (allItems.isEmpty) {
+        // If no items, show empty state
+        if (dedupedItems.isEmpty) {
           return _buildEmptyNotice();
         }
 
@@ -147,11 +133,11 @@ class _BulletinBoardCardState extends State<BulletinBoardCard> {
                   padding: const EdgeInsets.all(16),
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  itemCount: allItems.length,
+                  itemCount: dedupedItems.length,
                   separatorBuilder: (context, index) =>
                       const SizedBox(height: 12),
                   itemBuilder: (context, index) {
-                    final item = allItems[index];
+                    final item = dedupedItems[index];
                     if (item['type'] == 'appointment') {
                       return _buildAppointmentItem(item);
                     } else {
