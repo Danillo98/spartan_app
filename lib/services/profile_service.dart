@@ -61,9 +61,10 @@ class ProfileService {
 
       print('✅ Upload concluído');
 
-      // Retornar URL pública
-      final url = _client.storage.from('profiles').getPublicUrl(path);
-      print('🔗 URL gerada: $url');
+      // Retornar URL pública com cache bust para forçar atualização
+      final baseUrl = _client.storage.from('profiles').getPublicUrl(path);
+      final url = '$baseUrl?t=${DateTime.now().millisecondsSinceEpoch}';
+      print('🔗 URL gerada com cache bust: $url');
 
       return url;
     } catch (e, stackTrace) {

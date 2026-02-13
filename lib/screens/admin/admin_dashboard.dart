@@ -92,6 +92,25 @@ class _AdminDashboardState extends State<AdminDashboard>
     }
   }
 
+  /// Método universal para refresh do dashboard
+  /// Chame este método ao voltar de QUALQUER tela para:
+  /// 1. Verificar bloqueio manual do admin
+  /// 2. Atualizar quadro de avisos
+  /// 3. Atualizar dados do usuário (incluindo foto de perfil)
+  Future<void> _refreshDashboard() async {
+    print('🔄 Refreshing Dashboard...');
+
+    // 1. Verificar se usuário foi bloqueado
+    if (mounted) {
+      await AuthService.checkBlockedStatus(context);
+    }
+
+    // 2. Recarregar dados (força rebuild de todos widgets, incluindo BulletinBoard)
+    await _loadUserData();
+
+    print('✅ Dashboard refreshed');
+  }
+
   // Verificar se precisa rodar notificações automáticas (1x por dia)
   Future<void> _checkDailyNotifications() async {
     try {
@@ -185,7 +204,7 @@ class _AdminDashboardState extends State<AdminDashboard>
                   builder: (context) => const AdminProfileScreen(),
                 ),
               );
-              _loadUserData();
+              _refreshDashboard();
             },
           ),
           title: Text(
@@ -333,28 +352,30 @@ class _AdminDashboardState extends State<AdminDashboard>
                                 icon: Icons.attach_money_rounded,
                                 color:
                                     const Color(0xFF2E7D32), // Verde Dinheiro
-                                onTap: () {
-                                  Navigator.push(
+                                onTap: () async {
+                                  await Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) =>
                                           const MonthlyPaymentScreen(),
                                     ),
                                   );
+                                  _refreshDashboard();
                                 },
                               ),
                               _buildModernFeatureCard(
                                 title: 'Usuários',
                                 icon: Icons.people_alt_rounded,
                                 color: const Color(0xFF1976D2), // Azul Pessoas
-                                onTap: () {
-                                  Navigator.push(
+                                onTap: () async {
+                                  await Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) =>
                                           const AdminUsersScreen(),
                                     ),
                                   );
+                                  _refreshDashboard();
                                 },
                               ),
                               _buildModernFeatureCard(
@@ -362,28 +383,30 @@ class _AdminDashboardState extends State<AdminDashboard>
                                 icon: Icons.account_balance_wallet_rounded,
                                 color: const Color(
                                     0xFF00695C), // Verde Petróleo/Gestão
-                                onTap: () {
-                                  Navigator.push(
+                                onTap: () async {
+                                  await Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) =>
                                           const FinancialDashboardScreen(),
                                     ),
                                   );
+                                  _refreshDashboard();
                                 },
                               ),
                               _buildModernFeatureCard(
                                 title: 'Avaliações físicas',
                                 icon: Icons.monitor_weight_rounded,
                                 color: const Color(0xFFE65100), // Laranja Saúde
-                                onTap: () {
-                                  Navigator.push(
+                                onTap: () async {
+                                  await Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) =>
                                           const AssessmentListScreen(),
                                     ),
                                   );
+                                  _refreshDashboard();
                                 },
                               ),
                               _buildModernFeatureCard(
@@ -391,42 +414,45 @@ class _AdminDashboardState extends State<AdminDashboard>
                                 icon: Icons.notifications_active_rounded,
                                 color:
                                     const Color(0xFFFBC02D), // Amarelo Alerta
-                                onTap: () {
-                                  Navigator.push(
+                                onTap: () async {
+                                  await Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) =>
                                           const NoticeManagerScreen(),
                                     ),
                                   );
+                                  _refreshDashboard();
                                 },
                               ),
                               _buildModernFeatureCard(
                                 title: 'Assinatura Spartan',
                                 icon: Icons.verified_rounded,
                                 color: const Color(0xFF212121), // Preto Premium
-                                onTap: () {
-                                  Navigator.push(
+                                onTap: () async {
+                                  await Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) =>
                                           const SubscriptionScreen(),
                                     ),
                                   );
+                                  _refreshDashboard();
                                 },
                               ),
                               _buildModernFeatureCard(
                                 title: 'Suporte',
                                 icon: Icons.support_agent_rounded,
                                 color: const Color(0xFF455A64), // Blue Grey
-                                onTap: () {
-                                  Navigator.push(
+                                onTap: () async {
+                                  await Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) =>
                                           const SupportScreen(),
                                     ),
                                   );
+                                  _refreshDashboard();
                                 },
                               ),
                             ],
