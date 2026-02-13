@@ -61,10 +61,12 @@ class ProfileService {
 
       print('✅ Upload concluído');
 
-      // Retornar URL pública com cache bust para forçar atualização
+      // Retornar URL pública com cache bust AGRESSIVO
       final baseUrl = _client.storage.from('profiles').getPublicUrl(path);
-      final url = '$baseUrl?t=${DateTime.now().millisecondsSinceEpoch}';
-      print('🔗 URL gerada com cache bust: $url');
+      final cacheBust = DateTime.now().millisecondsSinceEpoch;
+      // Adicionar múltiplos parâmetros para quebrar qualquer cache
+      final url = '$baseUrl?t=$cacheBust&v=2&nocache=true';
+      print('🔗 URL gerada com cache bust agressivo: $url');
 
       return url;
     } catch (e, stackTrace) {

@@ -27,6 +27,8 @@ class _StudentDashboardState extends State<StudentDashboard>
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
 
+  int _bulletinKey = 0; // Key para forçar rebuild do BulletinBoard
+
   @override
   void initState() {
     super.initState();
@@ -97,6 +99,7 @@ class _StudentDashboardState extends State<StudentDashboard>
       if (mounted) {
         setState(() {
           _userData = data;
+          _bulletinKey++; // Força atualização do BulletinBoard
         });
         if (data != null && data['role'] == 'student') {
           _checkFinancialStatus(data);
@@ -445,7 +448,11 @@ class _StudentDashboardState extends State<StudentDashboard>
                           const SizedBox(height: 32),
 
                           // Card de avisos modernizado
-                          const BulletinBoardCard(baseColor: Color(0xFF457B9D)),
+                          BulletinBoardCard(
+                            key: ValueKey(
+                                _bulletinKey), // Usando a chave para forçar rebuild
+                            baseColor: const Color(0xFF457B9D),
+                          ),
                         ],
                       ),
                     ),

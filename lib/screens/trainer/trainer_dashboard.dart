@@ -26,6 +26,8 @@ class _TrainerDashboardState extends State<TrainerDashboard>
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
 
+  int _bulletinKey = 0; // Key para forçar rebuild do BulletinBoard
+
   @override
   void initState() {
     super.initState();
@@ -89,6 +91,7 @@ class _TrainerDashboardState extends State<TrainerDashboard>
       if (mounted) {
         setState(() {
           _userData = data;
+          _bulletinKey++;
         });
       }
     } catch (e) {
@@ -341,8 +344,10 @@ class _TrainerDashboardState extends State<TrainerDashboard>
                           const SizedBox(height: 32),
 
                           // Card de avisos
-                          const BulletinBoardCard(
-                              baseColor: AppTheme.primaryRed),
+                          BulletinBoardCard(
+                            key: ValueKey(_bulletinKey),
+                            baseColor: AppTheme.primaryRed,
+                          ),
                         ],
                       ),
                     ),

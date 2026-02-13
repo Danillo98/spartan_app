@@ -25,6 +25,8 @@ class _NutritionistDashboardState extends State<NutritionistDashboard>
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
 
+  int _bulletinKey = 0; // Key para forçar rebuild do BulletinBoard
+
   @override
   void initState() {
     super.initState();
@@ -88,6 +90,7 @@ class _NutritionistDashboardState extends State<NutritionistDashboard>
       if (mounted) {
         setState(() {
           _userData = data;
+          _bulletinKey++;
         });
       }
     } catch (e) {
@@ -356,7 +359,10 @@ class _NutritionistDashboardState extends State<NutritionistDashboard>
                           const SizedBox(height: 32),
 
                           // Card de avisos modernizado
-                          const BulletinBoardCard(baseColor: Color(0xFF2A9D8F)),
+                          BulletinBoardCard(
+                            key: ValueKey(_bulletinKey),
+                            baseColor: const Color(0xFF2A9D8F),
+                          ),
                         ],
                       ),
                     ),
