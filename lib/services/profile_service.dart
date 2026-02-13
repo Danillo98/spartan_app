@@ -8,6 +8,7 @@ class ProfileService {
   static final SupabaseClient _client = Supabase.instance.client;
 
   /// Upload de foto de perfil (compatível com Web e Mobile)
+  /// Upload de foto de perfil (compatível com Web e Mobile)
   static Future<String?> uploadProfilePhoto(
     XFile file,
     String userId,
@@ -15,81 +16,67 @@ class ProfileService {
     try {
       // 1. Ler bytes originais
       Uint8List bytes = await file.readAsBytes();
-      final fileName = file.name;
-      final extension = fileName.split('.').last.toLowerCase();
+      // String extensions = 'jpg'; // Removido
 
       print('📸 Tamanho original: ${bytes.length} bytes');
 
-      // 2. Compressão (ImagePicker já faz o grosso do trabalho com maxWidth/maxHeight)
-      // flutter_image_compress pode falhar em alguns ambientes web.
-      if (!kIsWeb && bytes.length > 500 * 1024) {
-        print('⚖️ Tentando compressão adicional (Mobile)...');
+      // 2. Compressão e Conversão para JPEG
+      // Sempre tenta comprimir para garantir < 500KB e formato JPEG
+      // Se já for pequeno e JPEG, o compressWithList ainda é útil para normalizar,
+      // mas podemos pular se for muito pequeno.
+      if (bytes.length > 500 * 1024 ||
+          !file.path.toLowerCase().endsWith('.jpg') &&
+              !file.path.toLowerCase().endsWith('.jpeg')) {
+        print('⚖️ Otimizando imagem (Compressão + Conversão JPEG)...');
         try {
           final result = await FlutterImageCompress.compressWithList(
             bytes,
             minHeight: 1024,
             minWidth: 1024,
-            quality: 80,
-            format:
-                extension == 'png' ? CompressFormat.png : CompressFormat.jpeg,
+            quality: 75, // Qualidade balanceada
+            format: CompressFormat.jpeg,
           );
-          if (result.length < bytes.length) {
-            bytes = Uint8List.fromList(result);
-            print('✅ Compressão Mobile concluída: ${bytes.length} bytes');
-          }
+          bytes = Uint8List.fromList(result);
+          print('✅ Imagem otimizada: ${bytes.length} bytes');
         } catch (e) {
-          print('⚠️ Falha na compressão Mobile (ignorando): $e');
+          print('⚠️ Falha na compressão (usando original): $e');
+          // Se falhar compressão mas for PNG, pode gastar muito espaço.
+          // Mas mantemos o fluxo para não travar.
         }
       }
 
-      // Nome único para o arquivo
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final path = 'profile_photos/${userId}_$timestamp.$extension';
+      // Nome FIXO para o arquivo: userId.jpg
+      // Isso garante que o Supabase SUBSTITUA o arquivo anterior,
+      // evitando acúmulo de lixo e economizando espaço no Storage.
+      final path = 'profile_photos/$userId.jpg';
 
-      print('📤 Iniciando upload: $path (${bytes.length} bytes)');
+      print('📤 Iniciando upload (Overwrite): $path (${bytes.length} bytes)');
 
       // Upload para o Supabase Storage
       await _client.storage.from('profiles').uploadBinary(
             path,
             bytes,
-            fileOptions: FileOptions(
+            fileOptions: const FileOptions(
               cacheControl: '3600',
-              upsert: true,
-              contentType: _getContentType(extension),
+              upsert: true, // Importante: Sobrescreve se existir
+              contentType: 'image/jpeg',
             ),
           );
 
       print('✅ Upload concluído');
 
       // Retornar URL pública com cache bust AGRESSIVO
+      // Como o arquivo é sobrescrito, precisamos MUITO do timestamp na URL
       final baseUrl = _client.storage.from('profiles').getPublicUrl(path);
       final cacheBust = DateTime.now().millisecondsSinceEpoch;
-      // Adicionar múltiplos parâmetros para quebrar qualquer cache
-      final url = '$baseUrl?t=$cacheBust&v=2&nocache=true';
-      print('🔗 URL gerada com cache bust agressivo: $url');
+      final url = '$baseUrl?t=$cacheBust&v=3&nocache=true';
+      print('🔗 URL gerada com cache bust: $url');
 
       return url;
     } catch (e, stackTrace) {
       print('❌ Erro ao fazer upload da foto: $e');
       print('Stack trace: $stackTrace');
       return null;
-    }
-  }
-
-  /// Determinar content type baseado na extensão
-  static String _getContentType(String extension) {
-    switch (extension.toLowerCase()) {
-      case 'jpg':
-      case 'jpeg':
-        return 'image/jpeg';
-      case 'png':
-        return 'image/png';
-      case 'gif':
-        return 'image/gif';
-      case 'webp':
-        return 'image/webp';
-      default:
-        return 'image/jpeg';
     }
   }
 

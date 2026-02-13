@@ -35,8 +35,24 @@
     </style>
 
     <script>
+        // ANTI-CACHE RADICAL: Remover Service Workers antigos para garantir versão atualizada
+        // O usuário solicitou que o sistema sempre puxe atualizações ao abrir.
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function (registrations) {
+                for (let registration of registrations) {
+                    console.log("♻️ Removendo Service Worker antigo para forçar atualização:", registration);
+                    registration.unregister();
+                }
+            });
+
+            // Também limpar caches de armazenamento se necessário (opcional, pode ser lento)
+            // caches.keys().then(function(names) {
+            //     for (let name of names) caches.delete(name);
+            // });
+        }
+
         var serviceWorkerVersion = null;
-        
+
         // Cache Busting: Forçar download do bootstrap novo a cada load
         var script = document.createElement('script');
         script.src = "flutter_bootstrap.js?v=" + new Date().getTime();

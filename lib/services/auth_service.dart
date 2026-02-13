@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
 import 'registration_token_service.dart';
@@ -1108,24 +1107,29 @@ class AuthService {
   // ============================================
 
   /// Enviar email de recuperação de senha
+  /// Enviar email de recuperação de senha (Via Edge Function Customizada)
   static Future<void> sendPasswordResetEmail(String email) async {
     try {
-      print('📧 Enviando email de recuperação nativo para: $email');
+      print('📧 Enviando email de recuperação via Edge Function para: $email');
 
-      // Usar a API nativa do Supabase para evitar erro 401 (Invalid JWT)
-      // O Supabase enviará o email configurado no dashboard
-      // Usar a origem dinâmica para permitir testes em localhost
-      final origin = kIsWeb ? Uri.base.origin : 'https://spartanapp.com.br';
+      // Invocar a Edge Function que usa Resend e gera token customizado (sem PKCE restritivo)
+      final response =
+          await _client.functions.invoke('send-password-reset', body: {
+        'email': email,
+      });
 
-      await _client.auth.resetPasswordForEmail(
-        email,
-        redirectTo: '$origin/reset-password.html',
-      );
+      if (response.status != 200) {
+        print('❌ Erro na Edge Function: ${response.status} - ${response.data}');
+        final errorMsg = response.data is Map && response.data['error'] != null
+            ? response.data['error']
+            : 'Erro ao processar envio';
+        throw Exception(errorMsg);
+      }
 
-      print('✅ Email de recuperação enviado com sucesso via Supabase Auth');
-    } on AuthException catch (e) {
-      print('❌ Erro AuthException: ${e.message}');
-      throw Exception(_getAuthErrorMessage(e.message));
+      print('✅ Email de recuperação enviado com sucesso via Edge Function');
+    } on FunctionException catch (e) {
+      print('❌ Erro FunctionException: $e');
+      throw Exception('Erro na função de envio: ${e.details ?? e.toString()}');
     } catch (e) {
       print('❌ Erro inesperado ao enviar password reset: $e');
       throw Exception('Erro ao enviar email de recuperação: ${e.toString()}');
