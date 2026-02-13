@@ -58,26 +58,34 @@ class _MyWorkoutScreenState extends State<MyWorkoutScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.lightGrey,
-      appBar: AppBar(
-        backgroundColor: AppTheme.primaryRed,
-        title: Text(
-          'Meus Treinos',
-          style: GoogleFonts.lato(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, result) {
+        // Se já deu pop, não faz nada. Caso contrário (embora canPop seja true),
+        // garantimos que o comportamento seja o esperado de voltar.
+        if (didPop) return;
+      },
+      child: Scaffold(
+        backgroundColor: AppTheme.lightGrey,
+        appBar: AppBar(
+          backgroundColor: AppTheme.primaryRed,
+          title: Text(
+            'Meus Treinos',
+            style: GoogleFonts.lato(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
           ),
+          iconTheme: const IconThemeData(color: Colors.white),
         ),
-        iconTheme: const IconThemeData(color: Colors.white),
+        body: _isLoading
+            ? const Center(
+                child: CircularProgressIndicator(color: AppTheme.primaryRed),
+              )
+            : _workouts.isEmpty
+                ? _buildEmptyState()
+                : _buildWorkoutsList(),
       ),
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppTheme.primaryRed),
-            )
-          : _workouts.isEmpty
-              ? _buildEmptyState()
-              : _buildWorkoutsList(),
     );
   }
 

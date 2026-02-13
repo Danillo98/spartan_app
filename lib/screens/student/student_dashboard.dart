@@ -54,6 +54,11 @@ class _StudentDashboardState extends State<StudentDashboard>
 
     _loadUserData();
     _animationController.forward();
+
+    // Verificação proativa de bloqueio
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AuthService.checkBlockedStatus(context);
+    });
   }
 
   @override

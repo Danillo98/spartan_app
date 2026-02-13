@@ -60,26 +60,32 @@ class _MyDietScreenState extends State<MyDietScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.lightGrey,
-      appBar: AppBar(
-        backgroundColor: studentPrimary,
-        title: Text(
-          'Minhas Dietas',
-          style: GoogleFonts.lato(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+      },
+      child: Scaffold(
+        backgroundColor: AppTheme.lightGrey,
+        appBar: AppBar(
+          backgroundColor: studentPrimary,
+          title: Text(
+            'Minhas Dietas',
+            style: GoogleFonts.lato(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
           ),
+          iconTheme: const IconThemeData(color: Colors.white),
         ),
-        iconTheme: const IconThemeData(color: Colors.white),
+        body: _isLoading
+            ? const Center(
+                child: CircularProgressIndicator(color: studentPrimary),
+              )
+            : _diets.isEmpty
+                ? _buildEmptyState()
+                : _buildDietsList(),
       ),
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: studentPrimary),
-            )
-          : _diets.isEmpty
-              ? _buildEmptyState()
-              : _buildDietsList(),
     );
   }
 

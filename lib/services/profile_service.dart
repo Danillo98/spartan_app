@@ -1,4 +1,5 @@
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'dart:typed_data';
@@ -19,27 +20,25 @@ class ProfileService {
 
       print('📸 Tamanho original: ${bytes.length} bytes');
 
-      // 2. Compressão (apenas se não for Web, pois flutter_image_compress tem limitações na web nativa)
-      // Mas o plugin suporta web via JS se configurado. Vamos tentar comprimir se for grande.
-      if (bytes.length > 500 * 1024) {
-        print('⚖️ Comprimindo imagem para atingir meta de < 500KB...');
-
+      // 2. Compressão (ImagePicker já faz o grosso do trabalho com maxWidth/maxHeight)
+      // flutter_image_compress pode falhar em alguns ambientes web.
+      if (!kIsWeb && bytes.length > 500 * 1024) {
+        print('⚖️ Tentando compressão adicional (Mobile)...');
         try {
           final result = await FlutterImageCompress.compressWithList(
             bytes,
             minHeight: 1024,
             minWidth: 1024,
-            quality: 85,
+            quality: 80,
             format:
                 extension == 'png' ? CompressFormat.png : CompressFormat.jpeg,
           );
-
           if (result.length < bytes.length) {
             bytes = Uint8List.fromList(result);
-            print('✅ Compressão concluída: ${bytes.length} bytes');
+            print('✅ Compressão Mobile concluída: ${bytes.length} bytes');
           }
         } catch (e) {
-          print('⚠️ Falha na compressão (ignorando): $e');
+          print('⚠️ Falha na compressão Mobile (ignorando): $e');
         }
       }
 

@@ -302,23 +302,22 @@ class NoticeService {
   // --- REALTIME STREAM ---
 
   static Stream<List<Map<String, dynamic>>> getActiveNoticesStream() {
-    // Para simplificar e garantir segurança, usaremos o fluxo de polling ou
-    // um stream direto da tabela se o RLS estiver bem configurado.
-    // Como avisos são críticos, vamos usar o stream nativo do Supabase.
+    return Stream.fromFuture(Future.wait([
+      _getAcademyId(),
+      _client.auth.currentUser != null
+          ? _getCurrentUserRoleString(_client.auth.currentUser!.id)
+          : Future.value('student'),
+    ])).asyncExpand((results) {
+      final String idAcademia = results[0] as String;
+      final String myRole = results[1] as String;
+      final String? myId = _client.auth.currentUser?.id;
 
-    // 1. Obter ID da academia (via Future, pois streams no Supabase Flutter são síncronos na criação)
-    // Para resolver isso de forma elegante, retornamos um stream que emite o idAcademia primeiro
-    // ou usamos um StreamController.
-
-    return Stream.fromFuture(_getAcademyId()).asyncExpand((idAcademia) {
       return _client
           .from('notices')
           .stream(primaryKey: ['id'])
           .eq('id_academia', idAcademia)
           .order('created_at', ascending: false)
           .map((notices) {
-            // Filtragem Client-side (necessária pois o .stream() do Supabase tem filtros limitados)
-            final myId = _client.auth.currentUser?.id;
             if (myId == null) return [];
 
             return notices.where((notice) {
@@ -329,8 +328,32 @@ class NoticeService {
 
               if (nowDt.isBefore(startAt) || nowDt.isAfter(endAt)) return false;
 
-              // 2. Verificar Role (será implementado no client-side para o Dashboard do Aluno)
-              // No dashboard, filtraremos apenas o que for relevante para o aluno.
+              // 2. Isolamento por Role
+              final targetRole = notice['target_role'] ?? 'all';
+
+              if (myRole != 'admin') {
+                if (targetRole != 'all' && targetRole != myRole) return false;
+
+                // 3. Isolamento por Usuário Específico (array target_user_ids)
+                var targetIds = notice['target_user_ids'];
+                if (targetIds != null) {
+                  // Converter string de array do Postgres para lista do Dart se necessário
+                  List<String> idList = [];
+                  if (targetIds is List) {
+                    idList = List<String>.from(targetIds);
+                  } else if (targetIds is String) {
+                    idList = targetIds
+                        .replaceAll('{', '')
+                        .replaceAll('}', '')
+                        .split(',');
+                  }
+
+                  if (idList.isNotEmpty && !idList.contains(myId)) {
+                    return false;
+                  }
+                }
+              }
+
               return true;
             }).toList();
           });

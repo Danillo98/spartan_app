@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
@@ -1104,28 +1105,44 @@ class AuthService {
   static Future<void> resetPassword(
       String accessToken, String newPassword) async {
     try {
-      print('🔐 Redefinindo senha via RPC customizada...');
+      print('🔐 Redefinindo senha (Iniciando Fluxo Nativo)...');
 
-      // Validar senha
+      // 1. Validar senha
       if (newPassword.length < 6) {
         throw Exception('A senha deve ter no mínimo 6 caracteres');
       }
 
-      // Chamar a RPC customizada (mesma usada no HTML)
+      // 2. Tentar Fluxo Nativo (Set Session -> Update User)
+      // Se o token for um access_token válido de recovery, isso vai funcionar
+      try {
+        await _client.auth.setSession(accessToken);
+        final userResponse = await _client.auth.updateUser(
+          UserAttributes(password: newPassword),
+        );
+
+        if (userResponse.user != null) {
+          print('✅ Senha redefinida com sucesso via Fluxo Nativo');
+          await _client.auth.signOut();
+          return;
+        }
+      } catch (nativeError) {
+        print('⚠️ Fluxo Nativo falhou, tentando RPC Customizada: $nativeError');
+      }
+
+      // 3. Fallback: Chamar a RPC customizada (para tokens manuais se houver)
       final response = await _client.rpc('reset_password_with_token', params: {
         'reset_token': accessToken,
         'new_password': newPassword,
       });
 
-      // A RPC retorna um JSON {success: bool, message: string}
       if (response != null && response['success'] == true) {
         print('✅ Senha redefinida com sucesso via RPC');
-        // Opcional: Fazer logout se houver sessão
         if (_client.auth.currentSession != null) {
           await _client.auth.signOut();
         }
       } else {
-        final errorMsg = response?['message'] ?? 'Erro desconhecido na RPC';
+        final errorMsg = response?['message'] ??
+            'Erro ao redefinir senha. Link inválido ou expirado.';
         throw Exception(errorMsg);
       }
     } on AuthException catch (e) {
@@ -1133,7 +1150,7 @@ class AuthService {
       throw Exception(_getAuthErrorMessage(e.message));
     } catch (e) {
       print('❌ Erro inesperado ao redefinir: $e');
-      throw Exception('Erro ao redefinir senha: ${e.toString()}');
+      throw Exception(e.toString());
     }
   }
 
@@ -1193,6 +1210,46 @@ class AuthService {
       return 'A senha deve ter pelo menos 6 caracteres';
     } else {
       return error;
+    }
+  }
+
+  /// Verifica se o usuário atual está bloqueado e força logout se necessário
+  static Future<void> checkBlockedStatus(BuildContext context) async {
+    try {
+      final user = _client.auth.currentUser;
+      if (user == null) return;
+
+      final data = await _findUserInTables(user.id);
+      if (data != null &&
+          data['is_blocked'] == true &&
+          data['role'] != 'admin') {
+        if (!context.mounted) return;
+
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: const Text('Acesso Bloqueado'),
+            content: const Text(
+                'Sua conta foi bloqueada temporariamente. Entre em contato com a administração da academia.'),
+            actions: [
+              TextButton(
+                onPressed: () async {
+                  await logout();
+                  if (context.mounted) {
+                    // Limpar rotas e voltar para login
+                    Navigator.of(context)
+                        .pushNamedAndRemoveUntil('/', (route) => false);
+                  }
+                },
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      print('Erro ao verificar status de bloqueio: $e');
     }
   }
 }

@@ -53,6 +53,10 @@ class _TrainerDashboardState extends State<TrainerDashboard>
 
     _loadUserData();
     _animationController.forward();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AuthService.checkBlockedStatus(context);
+    });
   }
 
   @override

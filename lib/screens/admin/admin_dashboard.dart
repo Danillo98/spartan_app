@@ -60,6 +60,10 @@ class _AdminDashboardState extends State<AdminDashboard>
 
     _loadUserData();
     _animationController.forward();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AuthService.checkBlockedStatus(context);
+    });
   }
 
   @override

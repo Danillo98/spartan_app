@@ -72,7 +72,7 @@ class TrainerScheduleService {
     await _client.from('training_sessions').insert({
       'personal_id': user.id,
       'student_id': studentId,
-      'scheduled_at': scheduledAt.toIso8601String(),
+      'scheduled_at': scheduledAt.toUtc().toIso8601String(),
       'notes': notes,
     });
   }
