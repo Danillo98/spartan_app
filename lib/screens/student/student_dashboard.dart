@@ -182,220 +182,231 @@ class _StudentDashboardState extends State<StudentDashboard>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.lightGrey,
-      appBar: AppBar(
-        backgroundColor: AppTheme.white,
-        elevation: 0,
-        centerTitle: true,
-        title: Text(
-          'Área do Aluno',
-          style: GoogleFonts.cinzel(
-            color: AppTheme.primaryText,
-            fontWeight: FontWeight.bold,
-            fontSize: 22,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        // No dashboard principal, o botão voltar deve abrir o diálogo de logout
+        // em vez de fechar o app silenciosamente.
+        _logout();
+      },
+      child: Scaffold(
+        backgroundColor: AppTheme.lightGrey,
+        appBar: AppBar(
+          backgroundColor: AppTheme.white,
+          elevation: 0,
+          centerTitle: true,
+          title: Text(
+            'Área do Aluno',
+            style: GoogleFonts.cinzel(
+              color: AppTheme.primaryText,
+              fontWeight: FontWeight.bold,
+              fontSize: 22,
+            ),
+          ),
+          iconTheme: const IconThemeData(color: AppTheme.secondaryText),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.logout),
+              onPressed: _logout,
+              tooltip: 'Sair',
+              color: AppTheme.secondaryText,
+            ),
+          ],
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(1.0),
+            child: Container(
+              color: AppTheme.borderGrey,
+              height: 1.0,
+            ),
           ),
         ),
-        iconTheme: const IconThemeData(color: AppTheme.secondaryText),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _logout,
-            tooltip: 'Sair',
-            color: AppTheme.secondaryText,
-          ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1.0),
-          child: Container(
-            color: AppTheme.borderGrey,
-            height: 1.0,
-          ),
-        ),
-      ),
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(
-                color: Color(0xFF457B9D),
-              ),
-            )
-          : FadeTransition(
-              opacity: _fadeAnimation,
-              child: SlideTransition(
-                position: _slideAnimation,
-                child: SingleChildScrollView(
-                  child: ResponsiveContainer(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Card de boas-vindas modernizado
-                        Container(
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                const Color(0xFF457B9D),
-                                const Color(0xFF1D3557),
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(24),
-                            boxShadow: [
-                              BoxShadow(
-                                color:
-                                    const Color(0xFF457B9D).withOpacity(0.25),
-                                blurRadius: 24,
-                                offset: const Offset(0, 12),
+        body: _isLoading
+            ? const Center(
+                child: CircularProgressIndicator(
+                  color: Color(0xFF457B9D),
+                ),
+              )
+            : FadeTransition(
+                opacity: _fadeAnimation,
+                child: SlideTransition(
+                  position: _slideAnimation,
+                  child: SingleChildScrollView(
+                    child: ResponsiveContainer(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Card de boas-vindas modernizado
+                          Container(
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  const Color(0xFF457B9D),
+                                  const Color(0xFF1D3557),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
                               ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 70,
-                                height: 70,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.15),
-                                  shape: BoxShape.circle,
-                                  image: _userData?['photo_url'] != null
-                                      ? DecorationImage(
-                                          image: NetworkImage(
-                                              _userData!['photo_url']),
-                                          fit: BoxFit.cover,
+                              borderRadius: BorderRadius.circular(24),
+                              boxShadow: [
+                                BoxShadow(
+                                  color:
+                                      const Color(0xFF457B9D).withOpacity(0.25),
+                                  blurRadius: 24,
+                                  offset: const Offset(0, 12),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 70,
+                                  height: 70,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.15),
+                                    shape: BoxShape.circle,
+                                    image: _userData?['photo_url'] != null
+                                        ? DecorationImage(
+                                            image: NetworkImage(
+                                                _userData!['photo_url']),
+                                            fit: BoxFit.cover,
+                                          )
+                                        : null,
+                                  ),
+                                  child: _userData?['photo_url'] == null
+                                      ? const Icon(
+                                          Icons.person_rounded,
+                                          size: 36,
+                                          color: Colors.white,
                                         )
                                       : null,
                                 ),
-                                child: _userData?['photo_url'] == null
-                                    ? const Icon(
-                                        Icons.person_rounded,
-                                        size: 36,
-                                        color: Colors.white,
-                                      )
-                                    : null,
-                              ),
-                              const SizedBox(width: 20),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Olá, ${_userData?['nome']?.split(' ')[0] ?? 'Aluno'}!',
-                                      style: GoogleFonts.lato(
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
+                                const SizedBox(width: 20),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Olá, ${_userData?['nome']?.split(' ')[0] ?? 'Aluno'}!',
+                                        style: GoogleFonts.lato(
+                                          fontSize: 24,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      'Foco no seu objetivo!',
-                                      style: GoogleFonts.lato(
-                                        fontSize: 14,
-                                        color: Colors.white.withOpacity(0.95),
-                                        fontWeight: FontWeight.w500,
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        'Foco no seu objetivo!',
+                                        style: GoogleFonts.lato(
+                                          fontSize: 14,
+                                          color: Colors.white.withOpacity(0.95),
+                                          fontWeight: FontWeight.w500,
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 32),
+
+                          // Título da seção
+                          Padding(
+                            padding: const EdgeInsets.only(left: 4),
+                            child: Text(
+                              'Meu Progresso',
+                              style: GoogleFonts.lato(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.primaryText,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          // Grid de funcionalidades modernizado
+                          ResponsiveGrid(
+                            spacing: 16,
+                            runSpacing: 16,
+                            children: [
+                              _buildModernFeatureCard(
+                                title: 'Minhas Dietas',
+                                icon: Icons.restaurant_menu_rounded,
+                                color: const Color(0xFF2A9D8F),
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const MyDietScreen(),
+                                    ),
+                                  );
+                                },
+                              ),
+                              _buildModernFeatureCard(
+                                title: 'Meus Treinos',
+                                icon: Icons.fitness_center_rounded,
+                                color: AppTheme.primaryRed,
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const MyWorkoutScreen(),
+                                    ),
+                                  );
+                                },
+                              ),
+                              _buildModernFeatureCard(
+                                title: 'Relatórios',
+                                icon: Icons.analytics_rounded,
+                                color: const Color(0xFF457B9D),
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const StudentReportsListScreen(),
+                                    ),
+                                  );
+                                },
+                              ),
+                              _buildModernFeatureCard(
+                                title: 'Meu Perfil',
+                                icon: Icons.person_rounded,
+                                color: const Color(0xFF457B9D),
+                                onTap: () async {
+                                  await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const StudentProfileScreen(),
+                                    ),
+                                  );
+                                  _loadUserData();
+                                },
                               ),
                             ],
                           ),
-                        ),
 
-                        const SizedBox(height: 32),
+                          const SizedBox(height: 32),
 
-                        // Título da seção
-                        Padding(
-                          padding: const EdgeInsets.only(left: 4),
-                          child: Text(
-                            'Meu Progresso',
-                            style: GoogleFonts.lato(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: AppTheme.primaryText,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        // Grid de funcionalidades modernizado
-                        ResponsiveGrid(
-                          spacing: 16,
-                          runSpacing: 16,
-                          children: [
-                            _buildModernFeatureCard(
-                              title: 'Minhas Dietas',
-                              icon: Icons.restaurant_menu_rounded,
-                              color: const Color(0xFF2A9D8F),
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const MyDietScreen(),
-                                  ),
-                                );
-                              },
-                            ),
-                            _buildModernFeatureCard(
-                              title: 'Meus Treinos',
-                              icon: Icons.fitness_center_rounded,
-                              color: AppTheme.primaryRed,
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const MyWorkoutScreen(),
-                                  ),
-                                );
-                              },
-                            ),
-                            _buildModernFeatureCard(
-                              title: 'Relatórios',
-                              icon: Icons.analytics_rounded,
-                              color: const Color(0xFF457B9D),
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const StudentReportsListScreen(),
-                                  ),
-                                );
-                              },
-                            ),
-                            _buildModernFeatureCard(
-                              title: 'Meu Perfil',
-                              icon: Icons.person_rounded,
-                              color: const Color(0xFF457B9D),
-                              onTap: () async {
-                                await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const StudentProfileScreen(),
-                                  ),
-                                );
-                                _loadUserData();
-                              },
-                            ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 32),
-
-                        // Card de avisos modernizado
-                        const BulletinBoardCard(baseColor: Color(0xFF457B9D)),
-                      ],
+                          // Card de avisos modernizado
+                          const BulletinBoardCard(baseColor: Color(0xFF457B9D)),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
+      ),
     );
   }
 

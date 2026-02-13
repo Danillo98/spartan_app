@@ -16,7 +16,6 @@ class BulletinBoardCard extends StatefulWidget {
 
 class _BulletinBoardCardState extends State<BulletinBoardCard> {
   List<Map<String, dynamic>> _items = [];
-  bool _isLoading = true;
 
   @override
   void initState() {
@@ -60,82 +59,111 @@ class _BulletinBoardCardState extends State<BulletinBoardCard> {
       if (mounted) {
         setState(() {
           _items = allItems;
-          _isLoading = false;
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) setState(() {});
       print('Erro ao carregar quadro: $e');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return Container(
-        height: 100,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: const Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    if (_items.isEmpty) {
-      return _buildEmptyNotice();
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 12),
-          child: Text(
-            'Quadro de Avisos:',
-            style: GoogleFonts.lato(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: AppTheme.primaryText,
-              letterSpacing: 0.5,
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: NoticeService.getActiveNoticesStream(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            _items.isEmpty) {
+          return Container(
+            height: 100,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
             ),
-          ),
-        ),
-        Container(
-          // constraints: const BoxConstraints(maxHeight: 400), // Scroll removido
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
+            child: const Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        final notices = snapshot.data ?? [];
+
+        // Re-carregar agendamentos quando o stream emitir (ou periodicamente)
+        // Para não travar o build, agendamos um microtask ou usamos um CombineLatestStream se tivéssemos stream de agendamentos.
+        // Como o foco é Avisos em tempo real, vamos focar neles aqui.
+
+        final noticesFormatted = notices
+            .map((n) => {
+                  ...n,
+                  'type': 'notice',
+                  'sortDate': DateTime.parse(n['created_at']),
+                })
+            .toList();
+
+        // Combinar com o estado local de agendamentos carregados no initState (e manter sync)
+        // Para simplificar, vamos mostrar agendamentos que já carregamos
+        final appointmentsFormatted =
+            _items.where((item) => item['type'] == 'appointment').toList();
+
+        final allItems = [...noticesFormatted, ...appointmentsFormatted];
+        allItems.sort((a, b) {
+          final dateA = a['sortDate'] as DateTime;
+          final dateB = b['sortDate'] as DateTime;
+          return dateB.compareTo(dateA);
+        });
+
+        if (allItems.isEmpty) {
+          return _buildEmptyNotice();
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(left: 4, bottom: 12),
+              child: Text(
+                'Quadro de Avisos:',
+                style: GoogleFonts.lato(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.primaryText,
+                  letterSpacing: 0.5,
+                ),
               ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(20),
-            child: ListView.separated(
-              padding: const EdgeInsets.all(16),
-              shrinkWrap:
-                  true, // Necessário pois está dentro de um Column/ScrollView maior
-              physics:
-                  const NeverScrollableScrollPhysics(), // Scroll do dashboard assume
-              itemCount: _items.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final item = _items[index];
-                if (item['type'] == 'appointment') {
-                  return _buildAppointmentItem(item);
-                } else {
-                  return _buildNoticeItem(item);
-                }
-              },
             ),
-          ),
-        ),
-      ],
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: ListView.separated(
+                  padding: const EdgeInsets.all(16),
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: allItems.length,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    final item = allItems[index];
+                    if (item['type'] == 'appointment') {
+                      return _buildAppointmentItem(item);
+                    } else {
+                      return _buildNoticeItem(item);
+                    }
+                  },
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 

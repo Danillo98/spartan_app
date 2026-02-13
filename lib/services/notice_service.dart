@@ -298,4 +298,42 @@ class NoticeService {
       print('Erro ao injetar aviso de pagamento: $e');
     }
   }
+
+  // --- REALTIME STREAM ---
+
+  static Stream<List<Map<String, dynamic>>> getActiveNoticesStream() {
+    // Para simplificar e garantir segurança, usaremos o fluxo de polling ou
+    // um stream direto da tabela se o RLS estiver bem configurado.
+    // Como avisos são críticos, vamos usar o stream nativo do Supabase.
+
+    // 1. Obter ID da academia (via Future, pois streams no Supabase Flutter são síncronos na criação)
+    // Para resolver isso de forma elegante, retornamos um stream que emite o idAcademia primeiro
+    // ou usamos um StreamController.
+
+    return Stream.fromFuture(_getAcademyId()).asyncExpand((idAcademia) {
+      return _client
+          .from('notices')
+          .stream(primaryKey: ['id'])
+          .eq('id_academia', idAcademia)
+          .order('created_at', ascending: false)
+          .map((notices) {
+            // Filtragem Client-side (necessária pois o .stream() do Supabase tem filtros limitados)
+            final myId = _client.auth.currentUser?.id;
+            if (myId == null) return [];
+
+            return notices.where((notice) {
+              // 1. Verificar se está no período
+              final startAt = DateTime.parse(notice['start_at']);
+              final endAt = DateTime.parse(notice['end_at']);
+              final nowDt = DateTime.now();
+
+              if (nowDt.isBefore(startAt) || nowDt.isAfter(endAt)) return false;
+
+              // 2. Verificar Role (será implementado no client-side para o Dashboard do Aluno)
+              // No dashboard, filtraremos apenas o que for relevante para o aluno.
+              return true;
+            }).toList();
+          });
+    });
+  }
 }

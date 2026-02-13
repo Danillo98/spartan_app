@@ -93,7 +93,7 @@ class AppointmentService {
         'visitor_name': visitorName,
         'visitor_phone': visitorPhone,
         'professional_ids': professionalIds,
-        'scheduled_at': scheduledAt.toIso8601String(),
+        'scheduled_at': scheduledAt.toUtc().toIso8601String(),
         'status': 'scheduled',
       };
 
@@ -253,7 +253,7 @@ class AppointmentService {
         'visitor_name': visitorName,
         'visitor_phone': visitorPhone,
         'professional_ids': professionalIds,
-        'scheduled_at': scheduledAt.toIso8601String(),
+        'scheduled_at': scheduledAt.toUtc().toIso8601String(),
       };
 
       if (status != null) {

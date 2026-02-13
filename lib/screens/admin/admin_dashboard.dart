@@ -158,274 +158,285 @@ class _AdminDashboardState extends State<AdminDashboard>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.lightGrey,
-      appBar: AppBar(
-        backgroundColor: AppTheme.white,
-        elevation: 0,
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.account_circle_rounded, size: 28),
-          color: AppTheme.secondaryText,
-          tooltip: 'Meu Perfil',
-          onPressed: () async {
-            await Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const AdminProfileScreen(),
-              ),
-            );
-            _loadUserData();
-          },
-        ),
-        title: Text(
-          'Administrador',
-          style: GoogleFonts.cinzel(
-            color: AppTheme.primaryText,
-            fontWeight: FontWeight.bold,
-            fontSize: 22,
-          ),
-        ),
-        iconTheme: const IconThemeData(color: AppTheme.secondaryText),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _logout,
-            tooltip: 'Sair',
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        _logout();
+      },
+      child: Scaffold(
+        backgroundColor: AppTheme.lightGrey,
+        appBar: AppBar(
+          backgroundColor: AppTheme.white,
+          elevation: 0,
+          centerTitle: true,
+          leading: IconButton(
+            icon: const Icon(Icons.account_circle_rounded, size: 28),
             color: AppTheme.secondaryText,
+            tooltip: 'Meu Perfil',
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AdminProfileScreen(),
+                ),
+              );
+              _loadUserData();
+            },
           ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1.0),
-          child: Container(
-            color: AppTheme.borderGrey,
-            height: 1.0,
+          title: Text(
+            'Administrador',
+            style: GoogleFonts.cinzel(
+              color: AppTheme.primaryText,
+              fontWeight: FontWeight.bold,
+              fontSize: 22,
+            ),
+          ),
+          iconTheme: const IconThemeData(color: AppTheme.secondaryText),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.logout),
+              onPressed: _logout,
+              tooltip: 'Sair',
+              color: AppTheme.secondaryText,
+            ),
+          ],
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(1.0),
+            child: Container(
+              color: AppTheme.borderGrey,
+              height: 1.0,
+            ),
           ),
         ),
-      ),
-      body: _isLoading
-          ? Center(
-              child: CircularProgressIndicator(
-                color: _adminColor,
-              ),
-            )
-          : FadeTransition(
-              opacity: _fadeAnimation,
-              child: SlideTransition(
-                position: _slideAnimation,
-                child: SingleChildScrollView(
-                  child: ResponsiveContainer(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Card de boas-vindas Admin
-                        Container(
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                _adminColor,
-                                const Color(0xFF333333),
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(24),
-                            boxShadow: [
-                              BoxShadow(
-                                color: _adminColor.withOpacity(0.3),
-                                blurRadius: 24,
-                                offset: const Offset(0, 12),
+        body: _isLoading
+            ? Center(
+                child: CircularProgressIndicator(
+                  color: _adminColor,
+                ),
+              )
+            : FadeTransition(
+                opacity: _fadeAnimation,
+                child: SlideTransition(
+                  position: _slideAnimation,
+                  child: SingleChildScrollView(
+                    child: ResponsiveContainer(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Card de boas-vindas Admin
+                          Container(
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  _adminColor,
+                                  const Color(0xFF333333),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
                               ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 70,
-                                height: 70,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.15),
-                                  shape: BoxShape.circle,
-                                  image: _userData?['photo_url'] != null
-                                      ? DecorationImage(
-                                          image: NetworkImage(
-                                              _userData!['photo_url']),
-                                          fit: BoxFit.cover,
+                              borderRadius: BorderRadius.circular(24),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: _adminColor.withOpacity(0.3),
+                                  blurRadius: 24,
+                                  offset: const Offset(0, 12),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 70,
+                                  height: 70,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.15),
+                                    shape: BoxShape.circle,
+                                    image: _userData?['photo_url'] != null
+                                        ? DecorationImage(
+                                            image: NetworkImage(
+                                                _userData!['photo_url']),
+                                            fit: BoxFit.cover,
+                                          )
+                                        : null,
+                                  ),
+                                  child: _userData?['photo_url'] == null
+                                      ? const Icon(
+                                          Icons.business_rounded,
+                                          size: 36,
+                                          color: Colors.white,
                                         )
                                       : null,
                                 ),
-                                child: _userData?['photo_url'] == null
-                                    ? const Icon(
-                                        Icons.business_rounded,
-                                        size: 36,
-                                        color: Colors.white,
-                                      )
-                                    : null,
-                              ),
-                              const SizedBox(width: 20),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      _userData?['academia'] ??
-                                          'Minha Academia',
-                                      style: GoogleFonts.lato(
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
+                                const SizedBox(width: 20),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        _userData?['academia'] ??
+                                            'Minha Academia',
+                                        style: GoogleFonts.lato(
+                                          fontSize: 24,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      'Gerencie sua academia com excelência',
-                                      style: GoogleFonts.lato(
-                                        fontSize: 14,
-                                        color: Colors.white.withOpacity(0.95),
-                                        fontWeight: FontWeight.w500,
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        'Gerencie sua academia com excelência',
+                                        style: GoogleFonts.lato(
+                                          fontSize: 14,
+                                          color: Colors.white.withOpacity(0.95),
+                                          fontWeight: FontWeight.w500,
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 32),
+
+                          // Título da seção
+                          Padding(
+                            padding: const EdgeInsets.only(left: 4),
+                            child: Text(
+                              'Ferramentas',
+                              style: GoogleFonts.lato(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.primaryText,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          // Grid de funcionalidades
+                          ResponsiveGrid(
+                            spacing: 16,
+                            runSpacing: 16,
+                            children: [
+                              _buildModernFeatureCard(
+                                title: 'Mensalidades',
+                                icon: Icons.attach_money_rounded,
+                                color:
+                                    const Color(0xFF2E7D32), // Verde Dinheiro
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const MonthlyPaymentScreen(),
+                                    ),
+                                  );
+                                },
+                              ),
+                              _buildModernFeatureCard(
+                                title: 'Usuários',
+                                icon: Icons.people_alt_rounded,
+                                color: const Color(0xFF1976D2), // Azul Pessoas
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const AdminUsersScreen(),
+                                    ),
+                                  );
+                                },
+                              ),
+                              _buildModernFeatureCard(
+                                title: 'Controle Financeiro',
+                                icon: Icons.account_balance_wallet_rounded,
+                                color: const Color(
+                                    0xFF00695C), // Verde Petróleo/Gestão
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const FinancialDashboardScreen(),
+                                    ),
+                                  );
+                                },
+                              ),
+                              _buildModernFeatureCard(
+                                title: 'Avaliações físicas',
+                                icon: Icons.monitor_weight_rounded,
+                                color: const Color(0xFFE65100), // Laranja Saúde
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const AssessmentListScreen(),
+                                    ),
+                                  );
+                                },
+                              ),
+                              _buildModernFeatureCard(
+                                title: 'Quadro de avisos',
+                                icon: Icons.notifications_active_rounded,
+                                color:
+                                    const Color(0xFFFBC02D), // Amarelo Alerta
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const NoticeManagerScreen(),
+                                    ),
+                                  );
+                                },
+                              ),
+                              _buildModernFeatureCard(
+                                title: 'Assinatura Spartan',
+                                icon: Icons.verified_rounded,
+                                color: const Color(0xFF212121), // Preto Premium
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const SubscriptionScreen(),
+                                    ),
+                                  );
+                                },
+                              ),
+                              _buildModernFeatureCard(
+                                title: 'Suporte',
+                                icon: Icons.support_agent_rounded,
+                                color: const Color(0xFF455A64), // Blue Grey
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const SupportScreen(),
+                                    ),
+                                  );
+                                },
                               ),
                             ],
                           ),
-                        ),
 
-                        const SizedBox(height: 32),
-
-                        // Título da seção
-                        Padding(
-                          padding: const EdgeInsets.only(left: 4),
-                          child: Text(
-                            'Ferramentas',
-                            style: GoogleFonts.lato(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: AppTheme.primaryText,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        // Grid de funcionalidades
-                        ResponsiveGrid(
-                          spacing: 16,
-                          runSpacing: 16,
-                          children: [
-                            _buildModernFeatureCard(
-                              title: 'Mensalidades',
-                              icon: Icons.attach_money_rounded,
-                              color: const Color(0xFF2E7D32), // Verde Dinheiro
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const MonthlyPaymentScreen(),
-                                  ),
-                                );
-                              },
-                            ),
-                            _buildModernFeatureCard(
-                              title: 'Usuários',
-                              icon: Icons.people_alt_rounded,
-                              color: const Color(0xFF1976D2), // Azul Pessoas
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const AdminUsersScreen(),
-                                  ),
-                                );
-                              },
-                            ),
-                            _buildModernFeatureCard(
-                              title: 'Controle Financeiro',
-                              icon: Icons.account_balance_wallet_rounded,
-                              color: const Color(
-                                  0xFF00695C), // Verde Petróleo/Gestão
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const FinancialDashboardScreen(),
-                                  ),
-                                );
-                              },
-                            ),
-                            _buildModernFeatureCard(
-                              title: 'Avaliações físicas',
-                              icon: Icons.monitor_weight_rounded,
-                              color: const Color(0xFFE65100), // Laranja Saúde
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const AssessmentListScreen(),
-                                  ),
-                                );
-                              },
-                            ),
-                            _buildModernFeatureCard(
-                              title: 'Quadro de avisos',
-                              icon: Icons.notifications_active_rounded,
-                              color: const Color(0xFFFBC02D), // Amarelo Alerta
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const NoticeManagerScreen(),
-                                  ),
-                                );
-                              },
-                            ),
-                            _buildModernFeatureCard(
-                              title: 'Assinatura Spartan',
-                              icon: Icons.verified_rounded,
-                              color: const Color(0xFF212121), // Preto Premium
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const SubscriptionScreen(),
-                                  ),
-                                );
-                              },
-                            ),
-                            _buildModernFeatureCard(
-                              title: 'Suporte',
-                              icon: Icons.support_agent_rounded,
-                              color: const Color(0xFF455A64), // Blue Grey
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const SupportScreen(),
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-
-                        // Espaço extra no final
-                        const SizedBox(height: 32),
-                      ],
+                          // Espaço extra no final
+                          const SizedBox(height: 32),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
+      ),
     );
   }
 

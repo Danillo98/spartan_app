@@ -87,11 +87,20 @@ class _WorkoutsListScreenState extends State<WorkoutsListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.lightGrey,
-      appBar: _buildAppBar(),
-      body: _isLoading ? _buildLoading() : _buildBody(),
-      floatingActionButton: _buildFAB(),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (Navigator.canPop(context)) {
+          Navigator.pop(context);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppTheme.lightGrey,
+        appBar: _buildAppBar(),
+        body: _isLoading ? _buildLoading() : _buildBody(),
+        floatingActionButton: _buildFAB(),
+      ),
     );
   }
 
