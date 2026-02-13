@@ -666,6 +666,7 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
                   hint: 'usuario@email.com',
                   icon: Icons.email_outlined,
                   keyboardType: TextInputType.emailAddress,
+                  textCapitalization: TextCapitalization.none,
                   validator: (value) {
                     if (_selectedRole == UserRole.student &&
                         (value == null || value.isEmpty)) {
@@ -1126,7 +1127,7 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
     Widget? suffixIcon,
     int maxLines = 1,
     String? Function(String?)? validator,
-    TextCapitalization textCapitalization = TextCapitalization.none,
+    TextCapitalization textCapitalization = TextCapitalization.sentences,
   }) {
     return Container(
       decoration: BoxDecoration(

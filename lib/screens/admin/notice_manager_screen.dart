@@ -516,6 +516,7 @@ class _NoticeFormModalState extends State<_NoticeFormModal> {
               const SizedBox(height: 24),
               TextFormField(
                 controller: _titleController,
+                textCapitalization: TextCapitalization.sentences,
                 decoration: const InputDecoration(
                   labelText: 'Título',
                   border: OutlineInputBorder(),
@@ -526,6 +527,7 @@ class _NoticeFormModalState extends State<_NoticeFormModal> {
               TextFormField(
                 controller: _descController,
                 maxLines: 3,
+                textCapitalization: TextCapitalization.sentences,
                 decoration: const InputDecoration(
                   labelText: 'Descrição',
                   border: OutlineInputBorder(),

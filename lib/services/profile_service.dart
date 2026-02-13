@@ -16,9 +16,40 @@ class ProfileService {
     try {
       // 1. Ler bytes originais
       Uint8List bytes = await file.readAsBytes();
-      // String extensions = 'jpg'; // Removido
 
       print('📸 Tamanho original: ${bytes.length} bytes');
+
+      // 0. Limpeza Automática: Apagar fotos antigas deste usuário para não lotar o storage
+      // Busca arquivos que contenham o userId no nome e remove todos.
+      try {
+        final List<FileObject> oldFiles =
+            await _client.storage.from('profiles').list(
+                  path: 'profile_photos',
+                  searchOptions: SearchOptions(
+                    limit: 10, // Limite seguro
+                    search: userId, // Filtra arquivos com esse ID
+                  ),
+                );
+
+        if (oldFiles.isNotEmpty) {
+          // Filtrar apenas arquivos que REALMENTE pertencem ao usuário (prefixo exato)
+          // UUIDs são seguros, mas nomes curtos poderiam dar conflito (ex: user 'dan' vs 'dani')
+          final filesToDelete = oldFiles
+              .where((f) => f.name.startsWith(userId))
+              .map((f) => 'profile_photos/${f.name}')
+              .toList();
+
+          if (filesToDelete.isNotEmpty) {
+            print(
+                '🧹 Limpando ${filesToDelete.length} fotos antigas/duplicadas do Storage...');
+            await _client.storage.from('profiles').remove(filesToDelete);
+          }
+        }
+      } catch (cleanError) {
+        print(
+            '⚠️ Aviso: Falha não-crítica na limpeza de fotos antigas: $cleanError');
+        // Não interrompe o fluxo de upload
+      }
 
       // 2. Compressão e Conversão para JPEG
       // Sempre tenta comprimir para garantir < 500KB e formato JPEG

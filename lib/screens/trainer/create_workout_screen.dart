@@ -253,6 +253,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                     // Nome da Ficha
                     TextFormField(
                       controller: _nameController,
+                      textCapitalization: TextCapitalization.sentences,
                       decoration: InputDecoration(
                         labelText: 'Nome da Ficha',
                         hintText: 'Ex: Hipertrofia Fase 1',
@@ -332,6 +333,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                     // Descrição
                     TextFormField(
                       controller: _descriptionController,
+                      textCapitalization: TextCapitalization.sentences,
                       maxLines: 3,
                       decoration: InputDecoration(
                         labelText: 'Descrição / Observações',

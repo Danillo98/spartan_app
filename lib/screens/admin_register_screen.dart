@@ -658,6 +658,7 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
           icon: Icons.email_outlined,
           focusNode: _emailFocus,
           keyboardType: TextInputType.emailAddress,
+          textCapitalization: TextCapitalization.none,
           inputFormatters: [LengthLimitingTextInputFormatter(100)],
           validator: (value) {
             if (value == null || value.isEmpty) {
@@ -676,6 +677,7 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
           hint: '••••••••',
           icon: Icons.lock_outline_rounded,
           focusNode: _passwordFocus,
+          textCapitalization: TextCapitalization.none,
           obscureText: _obscurePassword,
           suffixIcon: IconButton(
             icon: Icon(
@@ -801,7 +803,7 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
     int maxLines = 1,
     String? Function(String?)? validator,
     FocusNode? focusNode,
-    TextCapitalization textCapitalization = TextCapitalization.none,
+    TextCapitalization textCapitalization = TextCapitalization.sentences,
   }) {
     return Container(
       decoration: BoxDecoration(

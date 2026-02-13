@@ -248,6 +248,7 @@ class _EditUserScreenState extends State<EditUserScreen> {
                   label: 'Email',
                   hint: 'usuario@email.com',
                   icon: Icons.email_outlined,
+                  textCapitalization: TextCapitalization.none,
                   keyboardType: TextInputType.emailAddress,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
@@ -451,7 +452,7 @@ class _EditUserScreenState extends State<EditUserScreen> {
     bool enabled = true,
     String? helperText,
     String? Function(String?)? validator,
-    TextCapitalization textCapitalization = TextCapitalization.none,
+    TextCapitalization textCapitalization = TextCapitalization.sentences,
   }) {
     return Container(
       decoration: BoxDecoration(

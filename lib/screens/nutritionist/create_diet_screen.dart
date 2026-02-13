@@ -246,9 +246,11 @@ class _CreateDietScreenState extends State<CreateDietScreen> {
     TextInputType? keyboardType,
     int maxLines = 1,
     String? Function(String?)? validator,
+    TextCapitalization textCapitalization = TextCapitalization.sentences,
   }) {
     return TextFormField(
       controller: controller,
+      textCapitalization: textCapitalization,
       keyboardType: keyboardType,
       maxLines: maxLines,
       style: GoogleFonts.lato(fontSize: 15),
