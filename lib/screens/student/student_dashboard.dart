@@ -90,6 +90,25 @@ class _StudentDashboardState extends State<StudentDashboard>
     }
   }
 
+  /// Método universal para refresh do dashboard
+  /// Chame este método ao voltar de QUALQUER tela para:
+  /// 1. Verificar bloqueio manual do admin
+  /// 2. Atualizar quadro de avisos
+  /// 3. Atualizar dados do usuário (incluindo foto de perfil)
+  Future<void> _refreshDashboard() async {
+    print('🔄 Refreshing Dashboard...');
+
+    // 1. Verificar se usuário foi bloqueado
+    if (mounted) {
+      await AuthService.checkBlockedStatus(context);
+    }
+
+    // 2. Recarregar dados (força rebuild de todos widgets, incluindo BulletinBoard)
+    await _loadUserData();
+
+    print('✅ Dashboard refreshed');
+  }
+
   Future<void> _checkFinancialStatus(Map<String, dynamic> data) async {
     final studentId = data['id'];
     final idAcademia = data['id_academia'];
@@ -267,6 +286,8 @@ class _StudentDashboardState extends State<StudentDashboard>
                             child: Row(
                               children: [
                                 Container(
+                                  key: ValueKey(
+                                      _userData?['photo_url'] ?? 'no-photo'),
                                   width: 70,
                                   height: 70,
                                   decoration: BoxDecoration(
@@ -345,42 +366,45 @@ class _StudentDashboardState extends State<StudentDashboard>
                                 title: 'Minhas Dietas',
                                 icon: Icons.restaurant_menu_rounded,
                                 color: const Color(0xFF2A9D8F),
-                                onTap: () {
-                                  Navigator.push(
+                                onTap: () async {
+                                  await Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) =>
                                           const MyDietScreen(),
                                     ),
                                   );
+                                  _refreshDashboard();
                                 },
                               ),
                               _buildModernFeatureCard(
                                 title: 'Meus Treinos',
                                 icon: Icons.fitness_center_rounded,
                                 color: AppTheme.primaryRed,
-                                onTap: () {
-                                  Navigator.push(
+                                onTap: () async {
+                                  await Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) =>
                                           const MyWorkoutScreen(),
                                     ),
                                   );
+                                  _refreshDashboard();
                                 },
                               ),
                               _buildModernFeatureCard(
                                 title: 'Relatórios',
                                 icon: Icons.analytics_rounded,
                                 color: const Color(0xFF457B9D),
-                                onTap: () {
-                                  Navigator.push(
+                                onTap: () async {
+                                  await Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) =>
                                           const StudentReportsListScreen(),
                                     ),
                                   );
+                                  _refreshDashboard();
                                 },
                               ),
                               _buildModernFeatureCard(

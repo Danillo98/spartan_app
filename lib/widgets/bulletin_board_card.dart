@@ -16,6 +16,7 @@ class BulletinBoardCard extends StatefulWidget {
 
 class _BulletinBoardCardState extends State<BulletinBoardCard> {
   List<Map<String, dynamic>> _appointments = [];
+  int _refreshKey = 0; // Key para forçar rebuild do FutureBuilder
 
   @override
   void initState() {
@@ -38,6 +39,7 @@ class _BulletinBoardCardState extends State<BulletinBoardCard> {
       if (mounted) {
         setState(() {
           _appointments = appointmentsFormatted;
+          _refreshKey++; // Incrementar para forçar rebuild do FutureBuilder
         });
       }
     } catch (e) {
@@ -49,6 +51,7 @@ class _BulletinBoardCardState extends State<BulletinBoardCard> {
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<Map<String, dynamic>>>(
+      key: ValueKey(_refreshKey), // Força rebuild quando _refreshKey muda
       future: NoticeService.getActiveNotices(), // Chamada simples
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting &&

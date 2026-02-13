@@ -82,6 +82,16 @@ class _TrainerDashboardState extends State<TrainerDashboard>
     }
   }
 
+  /// Método universal para refresh do dashboard
+  Future<void> _refreshDashboard() async {
+    print('🔄 Refreshing Dashboard...');
+    if (mounted) {
+      await AuthService.checkBlockedStatus(context);
+    }
+    await _loadUserData();
+    print('✅ Dashboard refreshed');
+  }
+
   Future<void> _logout() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -196,6 +206,8 @@ class _TrainerDashboardState extends State<TrainerDashboard>
                             child: Row(
                               children: [
                                 Container(
+                                  key: ValueKey(
+                                      _userData?['photo_url'] ?? 'no-photo'),
                                   width: 56,
                                   height: 56,
                                   decoration: BoxDecoration(
@@ -256,40 +268,43 @@ class _TrainerDashboardState extends State<TrainerDashboard>
                               _buildMenuCard(
                                 title: 'Meus Alunos',
                                 icon: Icons.people_alt_rounded,
-                                onTap: () {
-                                  Navigator.push(
+                                onTap: () async {
+                                  await Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) =>
                                           const MyStudentsScreen(),
                                     ),
                                   );
+                                  _refreshDashboard();
                                 },
                               ),
                               _buildMenuCard(
                                 title: 'Fichas de Treino',
                                 icon: Icons.fitness_center_rounded,
-                                onTap: () {
-                                  Navigator.push(
+                                onTap: () async {
+                                  await Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) =>
                                           const WorkoutsListScreen(),
                                     ),
                                   );
+                                  _refreshDashboard();
                                 },
                               ),
                               _buildMenuCard(
                                 title: 'Agenda',
                                 icon: Icons.calendar_month_rounded,
-                                onTap: () {
-                                  Navigator.push(
+                                onTap: () async {
+                                  await Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) =>
                                           const TrainerAgendaScreen(),
                                     ),
                                   );
+                                  _refreshDashboard();
                                 },
                               ),
                               _buildMenuCard(
@@ -303,7 +318,7 @@ class _TrainerDashboardState extends State<TrainerDashboard>
                                           const TrainerProfileScreen(),
                                     ),
                                   );
-                                  _loadUserData();
+                                  _refreshDashboard();
                                 },
                               ),
                             ],

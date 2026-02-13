@@ -81,6 +81,16 @@ class _NutritionistDashboardState extends State<NutritionistDashboard>
     }
   }
 
+  /// Método universal para refresh do dashboard
+  Future<void> _refreshDashboard() async {
+    print('🔄 Refreshing Dashboard...');
+    if (mounted) {
+      await AuthService.checkBlockedStatus(context);
+    }
+    await _loadUserData();
+    print('✅ Dashboard refreshed');
+  }
+
   Future<void> _logout() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -196,6 +206,8 @@ class _NutritionistDashboardState extends State<NutritionistDashboard>
                             child: Row(
                               children: [
                                 Container(
+                                  key: ValueKey(
+                                      _userData?['photo_url'] ?? 'no-photo'),
                                   width: 70,
                                   height: 70,
                                   decoration: BoxDecoration(
@@ -274,36 +286,39 @@ class _NutritionistDashboardState extends State<NutritionistDashboard>
                                 title: 'Alunos',
                                 icon: Icons.people_rounded,
                                 color: const Color(0xFF2A9D8F),
-                                onTap: () {
-                                  Navigator.push(
+                                onTap: () async {
+                                  await Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) =>
                                           const MyStudentsNutritionistScreen(),
                                     ),
                                   );
+                                  _refreshDashboard();
                                 },
                               ),
                               _buildModernFeatureCard(
                                 title: 'Dietas',
                                 icon: Icons.restaurant_menu_rounded,
                                 color: const Color(0xFF2A9D8F),
-                                onTap: () {
-                                  Navigator.pushNamed(context, '/diets');
+                                onTap: () async {
+                                  await Navigator.pushNamed(context, '/diets');
+                                  _refreshDashboard();
                                 },
                               ),
                               _buildModernFeatureCard(
                                 title: 'Relatórios',
                                 icon: Icons.analytics_rounded,
                                 color: const Color(0xFF2A9D8F),
-                                onTap: () {
-                                  Navigator.push(
+                                onTap: () async {
+                                  await Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) =>
                                           const ReportsListScreen(),
                                     ),
                                   );
+                                  _refreshDashboard();
                                 },
                               ),
                               _buildModernFeatureCard(
@@ -318,7 +333,7 @@ class _NutritionistDashboardState extends State<NutritionistDashboard>
                                           const NutritionistProfileScreen(),
                                     ),
                                   );
-                                  _loadUserData();
+                                  _refreshDashboard();
                                 },
                               ),
                             ],

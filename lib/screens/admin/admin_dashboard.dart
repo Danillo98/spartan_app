@@ -272,6 +272,8 @@ class _AdminDashboardState extends State<AdminDashboard>
                             child: Row(
                               children: [
                                 Container(
+                                  key: ValueKey(
+                                      _userData?['photo_url'] ?? 'no-photo'),
                                   width: 70,
                                   height: 70,
                                   decoration: BoxDecoration(
