@@ -517,15 +517,22 @@ class AuthService {
   // LOGIN
   // ============================================
 
-  // Método auxiliar para buscar endereço da academia
-  static Future<String?> _getAcademyAddress(String idAcademia) async {
+  // Método auxiliar para buscar informações da academia (Nome e Endereço)
+  static Future<Map<String, String>?> _getAcademyInfo(String idAcademia) async {
     try {
       final admin = await _client
           .from('users_adm')
-          .select('endereco')
+          .select(
+              'academia, endereco') // Selecionar nome da academia e endereço
           .eq('id', idAcademia)
           .maybeSingle();
-      return admin?['endereco'] as String?;
+
+      if (admin == null) return null;
+
+      return {
+        'nome': admin['academia'] as String? ?? 'Academia Não Informada',
+        'endereco': admin['endereco'] as String? ?? '',
+      };
     } catch (_) {
       return null;
     }
@@ -538,52 +545,69 @@ class AuthService {
       final admin = await _client
           .from('users_adm')
           .select(
-              'id, nome, email, telefone, academia, cpf, endereco, plano_mensal, is_blocked')
+              'id, nome, email, telefone, academia, cpf, endereco, plano_mensal, is_blocked, photo_url')
           .eq('id', userId)
           .maybeSingle();
       if (admin != null) {
-        // Admin já tem o próprio endereço
+        // Admin já tem o próprio endereço e nome da academia
         return {
           ...admin,
           'role': 'admin',
           'endereco_academia':
               admin['endereco'], // Mapear para usar a mesma chave
+          // 'academia' já vem do banco
         };
       }
 
       // 2. Verificar users_nutricionista
       final nutri = await _client
           .from('users_nutricionista')
-          .select('id, nome, email, telefone, id_academia, is_blocked')
+          .select(
+              'id, nome, email, telefone, id_academia, is_blocked, photo_url')
           .eq('id', userId)
           .maybeSingle();
       if (nutri != null) {
         String? address;
+        String? academyName;
+
         if (nutri['id_academia'] != null) {
-          address = await _getAcademyAddress(nutri['id_academia']);
+          final info = await _getAcademyInfo(nutri['id_academia']);
+          if (info != null) {
+            address = info['endereco'];
+            academyName = info['nome'];
+          }
         }
         return {
           ...nutri,
           'role': 'nutritionist',
           'endereco_academia': address,
+          'academia': academyName ?? 'Academia Não Informada',
         };
       }
 
       // 3. Verificar users_personal
       final personal = await _client
           .from('users_personal')
-          .select('id, nome, email, telefone, id_academia, is_blocked')
+          .select(
+              'id, nome, email, telefone, id_academia, is_blocked, photo_url')
           .eq('id', userId)
           .maybeSingle();
       if (personal != null) {
         String? address;
+        String? academyName;
+
         if (personal['id_academia'] != null) {
-          address = await _getAcademyAddress(personal['id_academia']);
+          final info = await _getAcademyInfo(personal['id_academia']);
+          if (info != null) {
+            address = info['endereco'];
+            academyName = info['nome'];
+          }
         }
         return {
           ...personal,
           'role': 'trainer',
           'endereco_academia': address,
+          'academia': academyName ?? 'Academia Não Informada',
         };
       }
 
@@ -591,18 +615,25 @@ class AuthService {
       final aluno = await _client
           .from('users_alunos')
           .select(
-              'id, nome, email, telefone, id_academia, is_blocked, payment_due')
+              'id, nome, email, telefone, id_academia, is_blocked, payment_due, photo_url')
           .eq('id', userId)
           .maybeSingle();
       if (aluno != null) {
         String? address;
+        String? academyName;
+
         if (aluno['id_academia'] != null) {
-          address = await _getAcademyAddress(aluno['id_academia']);
+          final info = await _getAcademyInfo(aluno['id_academia']);
+          if (info != null) {
+            address = info['endereco'];
+            academyName = info['nome'];
+          }
         }
         return {
           ...aluno,
           'role': 'student',
           'endereco_academia': address,
+          'academia': academyName ?? 'Academia Não Informada',
         };
       }
 
