@@ -34,7 +34,7 @@ class _AdminDashboardState extends State<AdminDashboard>
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
-  Timer? _subscriptionTimer;
+
   Timer? _subscriptionTimer; // Timer para monitoramento silencioso
 
   final Color _adminColor = const Color(0xFF1A1A1A); // Admin Black theme
@@ -169,115 +169,6 @@ class _AdminDashboardState extends State<AdminDashboard>
     } catch (e) {
       debugPrint("❌ Erro no check diário: $e");
     }
-  }
-
-  // --- MONITORAMENTO SILENCIOSO DE ASSINATURA ---
-  void _startSubscriptionMonitor() {
-    // 1. Verificar imediatamente ao abrir
-    _checkSubscriptionStatus();
-
-    // 2. Agendar verificação a cada 10 minutos (Baixo consumo: ~144 req/dia)
-    _subscriptionTimer = Timer.periodic(const Duration(minutes: 10), (_) {
-      _checkSubscriptionStatus();
-    });
-  }
-
-  Future<void> _checkSubscriptionStatus() async {
-    try {
-      final user = Supabase.instance.client.auth.currentUser;
-      if (user == null) return;
-
-      // Consulta leve apenas dos campos de status
-      final response = await Supabase.instance.client
-          .from('users_adm')
-          .select('assinatura_status, is_blocked, assinatura_tolerancia')
-          .eq('id', user.id)
-          .maybeSingle();
-
-      if (response != null && mounted) {
-        final status = response['assinatura_status'];
-        final isBlocked = response['is_blocked'] == true;
-
-        // Verificação extra de data de tolerância (Client-side fail-safe)
-        final toleranciaStr = response['assinatura_tolerancia'];
-        bool toleranciaExpirada = false;
-        if (toleranciaStr != null) {
-          final tolerancia = DateTime.tryParse(toleranciaStr);
-          // Se tolerância passou e status ainda é active/grace -> Bloqueia na UI
-          if (tolerancia != null && DateTime.now().isAfter(tolerancia)) {
-            toleranciaExpirada = true;
-          }
-        }
-
-        if (status == 'suspended' || isBlocked || toleranciaExpirada) {
-          _subscriptionTimer?.cancel(); // Para o monitor
-          _showSubscriptionBlockedDialog();
-        }
-      }
-    } catch (e) {
-      print('Erro no monitor de assinatura (silencioso): $e');
-    }
-  }
-
-  void _showSubscriptionBlockedDialog() {
-    if (!mounted) return;
-
-    // Fechar qualquer dialog aberto antes (evitar sobreposição)
-    if (Navigator.canPop(context)) {
-      Navigator.pop(context);
-    }
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppTheme.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            const Icon(Icons.lock_outline_rounded,
-                color: AppTheme.accentRed, size: 28),
-            const SizedBox(width: 12),
-            Text('Acesso Suspenso',
-                style: GoogleFonts.cinzel(
-                    fontWeight: FontWeight.bold, color: AppTheme.primaryText)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Identificamos uma pendência na sua assinatura Spartan.',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'O período de tolerância expirou. Para continuar gerenciando sua academia, por favor regularize o pagamento.',
-              style: TextStyle(color: AppTheme.secondaryText),
-            ),
-          ],
-        ),
-        actions: [
-          ElevatedButton(
-            onPressed: () async {
-              await AuthService.signOut();
-              if (mounted) {
-                Navigator.of(context)
-                    .pushNamedAndRemoveUntil('/login', (route) => false);
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryGold,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            ),
-            child: const Text('Regularizar Agora (Login)',
-                style: TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
   }
 
   void _startSubscriptionMonitor() {
