@@ -2,7 +2,7 @@ import { serve } from 'https://deno.land/std@0.177.1/http/server.ts'
 import Stripe from 'https://esm.sh/stripe@12.0.0?target=deno'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-console.log("Stripe Webhook Function Initialized v2 (Smart Merge)")
+console.log("Stripe Webhook Function Initialized v3 (Fix CNPJ - DEPLOY)")
 
 serve(async (req) => {
     const signature = req.headers.get('Stripe-Signature')
@@ -98,7 +98,7 @@ serve(async (req) => {
             const cpfFinal = getField(metadata.cpf_responsavel, pendingData?.cpf, existingUser?.cpf, '00');
             const academiaFinal = getField(metadata.academia, pendingData?.gym_name, existingUser?.academia, 'Academia');
             // FIX: Adicionando recuperação do CNPJ
-            const cnpjFinal = getField(metadata.cnpj_academia, pendingData?.gym_cnpj || pendingData?.cnpj, existingUser?.cnpj_academia, '00'); 
+            const cnpjFinal = getField(metadata.cnpj_academia, pendingData?.gym_cnpj || pendingData?.cnpj, existingUser?.cnpj_academia, '00');
             const enderecoFinal = getField(metadata.endereco, pendingData?.address_street, existingUser?.endereco, 'Endereço');
             const planoFinal = getField(metadata.plano_selecionado, null, existingUser?.plano_mensal, 'Prata');
             const stripeCustomerFinal = session.customer || existingUser?.stripe_customer_id;

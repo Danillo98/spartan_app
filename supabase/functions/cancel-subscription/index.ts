@@ -8,7 +8,7 @@ const corsHeaders = {
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-console.log("Cancel Subscription Function Initialized (Quarantine Mode)")
+console.log("Cancel Subscription Function Initialized v2 (Quarantine Mode - DEPLOY)")
 
 serve(async (req) => {
     // Handle CORS preflight
