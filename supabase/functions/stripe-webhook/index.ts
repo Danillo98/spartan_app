@@ -97,6 +97,8 @@ serve(async (req) => {
             const telefoneFinal = getField(metadata.telefone, pendingData?.phone, existingUser?.telefone, '00');
             const cpfFinal = getField(metadata.cpf_responsavel, pendingData?.cpf, existingUser?.cpf, '00');
             const academiaFinal = getField(metadata.academia, pendingData?.gym_name, existingUser?.academia, 'Academia');
+            // FIX: Adicionando recuperação do CNPJ
+            const cnpjFinal = getField(metadata.cnpj_academia, pendingData?.gym_cnpj || pendingData?.cnpj, existingUser?.cnpj_academia, '00'); 
             const enderecoFinal = getField(metadata.endereco, pendingData?.address_street, existingUser?.endereco, 'Endereço');
             const planoFinal = getField(metadata.plano_selecionado, null, existingUser?.plano_mensal, 'Prata');
             const stripeCustomerFinal = session.customer || existingUser?.stripe_customer_id;
@@ -127,6 +129,7 @@ serve(async (req) => {
                 telefone: telefoneFinal,
                 cpf: cpfFinal,
                 academia: academiaFinal,
+                cnpj_academia: cnpjFinal, // FIX: Inserindo CNPJ correto
                 endereco: enderecoFinal,
                 plano_mensal: planoFinal,
                 email_verified: true,

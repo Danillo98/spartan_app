@@ -45,10 +45,10 @@ serve(async (req) => {
 
         console.log(`📦 Iniciando processo de cancelamento (Quarentena) para User: ${userId}`)
 
-        // 1. Buscar dados do admin no banco
+        // 1. Buscar dados COMPLETOS do admin no banco
         const { data: admin, error: findError } = await supabaseAdmin
             .from('users_adm')
-            .select('id, stripe_customer_id, email, academia')
+            .select('*') // FIX: Selecionar todos os campos para backup completo
             .eq('id', userId)
             .single()
 
@@ -102,15 +102,21 @@ serve(async (req) => {
 
             const now = new Date().toISOString()
 
-            // Preparar objeto de cópia
+            // Preparar objeto DE BACKUP COMPLETO
             const backupData = {
                 original_id: admin.id,
                 email: admin.email,
+                nome: admin.nome, // FIX: Adicionado
+                cpf: admin.cpf,   // FIX: Adicionado
+                telefone: admin.telefone, // FIX: Adicionado
                 academia: admin.academia,
+                cnpj_academia: admin.cnpj_academia, // FIX: Adicionado
+                endereco: admin.endereco, // FIX: Adicionado
+                plano_mensal: admin.plano_mensal, // FIX: Adicionado
+                assinatura_iniciada: admin.assinatura_iniciada, // FIX: Adicionado
                 stripe_customer_id: admin.stripe_customer_id,
                 cancelado_em: now,
                 motivo_cancelamento: 'Fallback Manual (RPC falhou)'
-                // Outros campos seriam ideais, mas no fallback pegamos o básico
             }
 
             // Tentar inserir na tabela de backup
