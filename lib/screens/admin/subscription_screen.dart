@@ -18,7 +18,8 @@ import 'subscription_screen_web_helper.dart'
     if (dart.library.io) 'subscription_screen_stub.dart' as web_helper;
 
 class SubscriptionScreen extends StatefulWidget {
-  const SubscriptionScreen({super.key});
+  final bool isLocked;
+  const SubscriptionScreen({super.key, this.isLocked = false});
 
   @override
   State<SubscriptionScreen> createState() => _SubscriptionScreenState();
@@ -456,9 +457,11 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: _userRole != UserRole.visitor, // Bloqueia se for visitante
+      canPop: !widget.isLocked &&
+          _userRole !=
+              UserRole.visitor, // Bloqueia se for isLocked ou visitante
       onPopInvoked: (didPop) {
-        if (!didPop && _userRole == UserRole.visitor) {
+        if (!didPop && (widget.isLocked || _userRole == UserRole.visitor)) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text(
@@ -473,8 +476,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          leading: _userRole == UserRole.visitor
-              ? null // Esconde o X se for visitante
+          leading: (widget.isLocked || _userRole == UserRole.visitor)
+              ? null // Esconde o X se for travado ou visitante
               : IconButton(
                   icon: const Icon(Icons.close, color: Colors.black),
                   onPressed: () {

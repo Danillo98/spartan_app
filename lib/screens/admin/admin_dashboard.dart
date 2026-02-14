@@ -14,6 +14,8 @@ import 'admin_profile_screen.dart';
 import 'subscription_screen.dart'; // Add Import
 import 'support_screen.dart'; // Import Support
 import '../../widgets/responsive_utils.dart';
+import 'dart:async'; // Timer
+import 'package:supabase_flutter/supabase_flutter.dart'; // Supabase
 import 'package:supabase_flutter/supabase_flutter.dart'; // Import Supabase
 import 'dart:async'; // Import Timer
 
@@ -32,6 +34,7 @@ class _AdminDashboardState extends State<AdminDashboard>
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
+  Timer? _subscriptionTimer;
   Timer? _subscriptionTimer; // Timer para monitoramento silencioso
 
   final Color _adminColor = const Color(0xFF1A1A1A); // Admin Black theme
@@ -75,6 +78,7 @@ class _AdminDashboardState extends State<AdminDashboard>
   @override
   void dispose() {
     _subscriptionTimer?.cancel(); // Cancelar Timer ao sair
+    _subscriptionTimer?.cancel();
     _animationController.dispose();
     super.dispose();
   }
@@ -272,6 +276,103 @@ class _AdminDashboardState extends State<AdminDashboard>
                     color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
+      ),
+    );
+  }
+
+  void _startSubscriptionMonitor() {
+    // Verificação inicial rápida
+    _checkSubscriptionStatus();
+    // Loop a cada 10 minutos (silencioso)
+    _subscriptionTimer = Timer.periodic(const Duration(minutes: 10), (_) {
+      _checkSubscriptionStatus();
+    });
+  }
+
+  Future<void> _checkSubscriptionStatus() async {
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) return;
+
+      // Consulta leve apenas status e bloqueio
+      final response = await Supabase.instance.client
+          .from('users_adm')
+          .select('assinatura_status, is_blocked, assinatura_tolerancia')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      if (response != null && mounted) {
+        final status = response['assinatura_status'];
+        final isBlocked = response['is_blocked'] == true;
+
+        // Verificar Tolerância
+        bool toleranciaExpirada = false;
+        final toleranciaStr = response['assinatura_tolerancia'];
+        if (toleranciaStr != null) {
+          final tolerancia = DateTime.tryParse(toleranciaStr);
+          if (tolerancia != null && DateTime.now().isAfter(tolerancia)) {
+            toleranciaExpirada = true;
+          }
+        }
+
+        if (status == 'suspended' ||
+            status == 'blocked' ||
+            isBlocked ||
+            toleranciaExpirada) {
+          _showSubscriptionBlockedDialog();
+        }
+      }
+    } catch (e) {
+      print('Erro silent monitor: $e');
+    }
+  }
+
+  void _showSubscriptionBlockedDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.lock_outline, color: AppTheme.accentRed, size: 28),
+              SizedBox(width: 10),
+              Text('Acesso Suspenso'),
+            ],
+          ),
+          content: const Text(
+            'Sua assinatura está suspensa ou bloqueada. Para recuperar o acesso ao painel Spartan, é necessário regularizar sua conta.',
+            style: TextStyle(fontSize: 15),
+          ),
+          actions: [
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  // Redireciona para Assinatura em MODO TRAVADO
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(
+                        builder: (_) =>
+                            const SubscriptionScreen(isLocked: true)),
+                    (route) => false,
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryGold,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+                child: const Text(
+                  'Renovar Agora',
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold, color: Colors.black),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

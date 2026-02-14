@@ -1030,7 +1030,8 @@ class AuthService {
         return {
           'ativo': true, // Ainda pode usar, mas com aviso
           'status': status,
-          'message': 'Período de graça ativo. Renove em breve!',
+          'message':
+              'Período gratuito de tolerância ativo! Renove a Assinatura Spartan antes de perder o acesso a sua conta.',
           'aviso': true,
         };
       }
