@@ -848,7 +848,8 @@ class AuthService {
             : 24;
         return {
           'status': 'grace_period',
-          'message': 'Período de graça: $horasRestantes horas para renovar.',
+          'message':
+              'Período gratuito de tolerância ativo! Renove a Assinatura Spartan antes de perder o acesso a sua conta.',
           'expira_graca_em': admin['assinatura_tolerancia'],
         };
       }
@@ -916,7 +917,8 @@ class AuthService {
         final horasRestantes = tolerancia.difference(now).inHours;
         return {
           'status': 'grace_period',
-          'message': 'Período de graça: $horasRestantes horas para renovar.',
+          'message':
+              'Período gratuito de tolerância ativo! Renove a Assinatura Spartan antes de perder o acesso a sua conta.',
           'expira_graca_em': tolerancia.toIso8601String(),
         };
       } else {
