@@ -163,6 +163,8 @@ serve(async (req) => {
             console.log(`🧹 Limpando dados temporários...`);
             await supabaseAdmin.from('pending_registrations').delete().eq('id', metadata.user_id_auth);
             await supabaseAdmin.from('email_verification_codes').delete().eq('user_id', metadata.user_id_auth);
+            // ADD: Remover da tabela de cancelados se houver
+            await supabaseAdmin.from('users_canceled').delete().eq('user_id', metadata.user_id_auth);
 
         } catch (dbError) {
             console.error('Erro ao salvar no banco:', dbError)
@@ -240,6 +242,9 @@ serve(async (req) => {
                         assinatura_tolerancia: toleranciaDate.toISOString(),
                         assinatura_deletada: delecaoDate.toISOString(),
                     };
+
+                    // ADD: Remover da lista de cancelados ao reativar
+                    await supabaseAdmin.from('users_canceled').delete().eq('user_id', admin.id);
                 }
 
                 await supabaseAdmin.from('users_adm').update(updatePayload).eq('id', admin.id);

@@ -239,28 +239,31 @@ class _AdminDashboardState extends State<AdminDashboard>
             style: TextStyle(fontSize: 15),
           ),
           actions: [
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  // Redireciona para Assinatura em MODO TRAVADO
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(
-                        builder: (_) =>
-                            const SubscriptionScreen(isLocked: true)),
-                    (route) => false,
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryGold,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton(
+                  onPressed: () {
+                    // Redireciona para Assinatura em MODO TRAVADO
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(
+                          builder: (_) =>
+                              const SubscriptionScreen(isLocked: true)),
+                      (route) => false,
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryGold,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 32, vertical: 12),
+                  ),
+                  child: const Text(
+                    'Renovar Agora',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
                 ),
-                child: const Text(
-                  'Renovar Agora',
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold, color: Colors.black),
-                ),
-              ),
+              ],
             ),
           ],
         ),
