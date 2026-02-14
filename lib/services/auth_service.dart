@@ -849,7 +849,7 @@ class AuthService {
         return {
           'status': 'grace_period',
           'message':
-              'Período gratuito de tolerância ativo! Renove a Assinatura Spartan antes de perder o acesso a sua conta.',
+              'Aviso: período de tolerância ativado! Renove sua Assinatura Spartan antes de perder o acesso ao sistema!',
           'expira_graca_em': admin['assinatura_tolerancia'],
         };
       }
@@ -918,7 +918,7 @@ class AuthService {
         return {
           'status': 'grace_period',
           'message':
-              'Período gratuito de tolerância ativo! Renove a Assinatura Spartan antes de perder o acesso a sua conta.',
+              'Aviso: período de tolerância ativado! Renove sua Assinatura Spartan antes de perder o acesso ao sistema!',
           'expira_graca_em': tolerancia.toIso8601String(),
         };
       } else {
@@ -1033,7 +1033,7 @@ class AuthService {
           'ativo': true, // Ainda pode usar, mas com aviso
           'status': status,
           'message':
-              'Período gratuito de tolerância ativo! Renove a Assinatura Spartan antes de perder o acesso a sua conta.',
+              'Aviso: período de tolerância ativado! Renove sua Assinatura Spartan antes de perder o acesso ao sistema!',
           'aviso': true,
         };
       }
