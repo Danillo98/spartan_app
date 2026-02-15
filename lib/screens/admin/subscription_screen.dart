@@ -83,12 +83,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
   void _onReturnFromStripe() async {
     _wentToStripe = false;
 
-    // 1. Verificação Imediata
-    final initialRole = await AuthService.getCurrentUserRole();
-    if (initialRole == UserRole.admin) {
-      _showPaymentSuccessDialog();
-      return;
-    }
+    // 1. Verificação Imediata (REMOVIDO: Admin também precisa validar se o status mudou)
+    // Antes assumia que ser admin bastava, mas na renovação ele já é admin suspenso.
+    // Agora todos passam pelo polling de verificação de status.
 
     // 2. Polling de 6 tentativas a cada 3 segundos com Diálogo Cancelável
     int attempts = 0;
@@ -150,15 +147,49 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
       });
     }
 
-    while (attempts < 6 && !success && !pollingCancelled) {
-      final role = await AuthService.getCurrentUserRole();
-      if (role == UserRole.admin) {
-        success = true;
-        break;
+    while (attempts < 10 && !success && !pollingCancelled) {
+      // Verificar status real da assinatura no banco
+      final subStatus = await UserService.getSubscriptionStatus();
+
+      if (subStatus['success'] == true) {
+        final status = subStatus['status'];
+        final expiradaStr = subStatus['expirada'];
+        bool isDateValid = false;
+
+        if (expiradaStr != null) {
+          final expDate = DateTime.tryParse(expiradaStr);
+          if (expDate != null &&
+              expDate.isAfter(DateTime.now().add(const Duration(hours: 1)))) {
+            // Data futura (margem 1h)
+            isDateValid = true;
+          }
+        }
+
+        // CRITÉRIO DE SUCESSO: Status ATIVO/TRIALING ou Data Válida (e não suspenso)
+        if (status == 'active' ||
+            status == 'trialing' ||
+            (isDateValid &&
+                status != 'suspended' &&
+                status != 'canceled' &&
+                status != 'past_due')) {
+          success = true;
+          break;
+        }
+      }
+
+      // Se for visitante, verificar se virou admin (criação de conta)
+      if (_userRole == UserRole.visitor) {
+        final currentRole = await AuthService.getCurrentUserRole();
+        if (currentRole == UserRole.admin) {
+          // Se virou admin, assume sucesso (para casos novos)
+          // Mas idealmente o status também estaria ok. Vamos aceitar creation como sucesso.
+          success = true;
+          break;
+        }
       }
 
       attempts++;
-      if (!pollingCancelled) {
+      if (!pollingCancelled && !success) {
         await Future.delayed(const Duration(seconds: 3));
       }
     }

@@ -111,10 +111,6 @@ serve(async (req) => {
             expiracaoDate.setDate(expiracaoDate.getDate() + 30);
             const assinaturaExpirada = expiracaoDate.toISOString();
 
-            const toleranciaDate = new Date(now);
-            toleranciaDate.setDate(toleranciaDate.getDate() + 31);
-            const assinaturaTolerancia = toleranciaDate.toISOString();
-
             const delecaoDate = new Date(now);
             delecaoDate.setDate(delecaoDate.getDate() + 91);
             const assinaturaDeletada = delecaoDate.toISOString();
@@ -139,7 +135,6 @@ serve(async (req) => {
                 assinatura_status: 'active',
                 assinatura_iniciada: assinaturaIniciada,
                 assinatura_expirada: assinaturaExpirada,
-                assinatura_tolerancia: assinaturaTolerancia,
                 assinatura_deletada: assinaturaDeletada,
                 stripe_customer_id: stripeCustomerFinal,
             };
@@ -239,7 +234,6 @@ serve(async (req) => {
                         ...updatePayload,
                         assinatura_iniciada: now.toISOString(),
                         assinatura_expirada: expiracaoDate.toISOString(),
-                        assinatura_tolerancia: toleranciaDate.toISOString(),
                         assinatura_deletada: delecaoDate.toISOString(),
                     };
 
