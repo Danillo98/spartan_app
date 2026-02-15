@@ -1302,12 +1302,15 @@ class AuthService {
 
           // Auto-Fix: Atualizar banco se necessário
           if (isExpired && status != 'suspended') {
-            // Fire and forget update
-            _client
-                .from('users_adm')
-                .update({'assinatura_status': 'suspended', 'is_blocked': true})
-                .eq('id', user.id)
-                .then((_) => print('Status corrigido via App'));
+            try {
+              // Await para garantir que o banco seja atualizado
+              await _client.from('users_adm').update({
+                'assinatura_status': 'suspended',
+                'is_blocked': true
+              }).eq('id', user.id);
+            } catch (e) {
+              print('Erro no auto-update de status: $e');
+            }
           }
         }
       } else {
