@@ -1258,9 +1258,40 @@ class AuthService {
       if (user == null) return;
 
       final data = await _findUserInTables(user.id);
-      if (data != null &&
-          data['is_blocked'] == true &&
-          data['role'] != 'admin') {
+      if (data == null) return;
+
+      bool shouldBlock = false;
+      String message =
+          'Sua conta foi bloqueada temporariamente. Entre em contato com a administração da academia.';
+
+      if (data['role'] == 'admin') {
+        final status = data['assinatura_status'];
+        final isBlocked = data['is_blocked'] ?? false;
+        if (status == 'suspended' ||
+            status == 'pending_deletion' ||
+            isBlocked == true) {
+          shouldBlock = true;
+          message = 'Sua assinatura está suspensa. Renove para continuar.';
+        }
+      } else {
+        // Subordinados (Student, Trainer, Nutritionist)
+        // 1. Bloqueio Individual
+        if (data['is_blocked'] == true) {
+          shouldBlock = true;
+        }
+        // 2. Bloqueio da Academia (Cascata)
+        else if (data['id_academia'] != null) {
+          final academiaStatus =
+              await verificarAcademiaSuspensa(data['id_academia']);
+          if (academiaStatus['suspended'] == true) {
+            shouldBlock = true;
+            message = academiaStatus['message'] ??
+                'O acesso a conta está temporariamente suspenso até a renovação da Assinatura Spartan!';
+          }
+        }
+      }
+
+      if (shouldBlock) {
         if (!context.mounted) return;
 
         await showDialog(
@@ -1268,8 +1299,7 @@ class AuthService {
           barrierDismissible: false,
           builder: (context) => AlertDialog(
             title: const Text('Acesso Bloqueado'),
-            content: const Text(
-                'Sua conta foi bloqueada temporariamente. Entre em contato com a administração da academia.'),
+            content: Text(message),
             actions: [
               TextButton(
                 onPressed: () async {

@@ -47,6 +47,15 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
     super.dispose();
   }
 
+  String _formatNameTitleCase(String text) {
+    if (text.isEmpty) return text;
+    return text.trim().split(' ').map((word) {
+      if (word.isEmpty) return '';
+      if (word.length == 1) return word.toUpperCase();
+      return word[0].toUpperCase() + word.substring(1).toLowerCase();
+    }).join(' ');
+  }
+
   Future<void> _handleCreate() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -84,7 +93,7 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
       }
 
       final result = await UserService.createUserByAdmin(
-        name: _nameController.text.trim(),
+        name: _formatNameTitleCase(_nameController.text),
         email: finalEmail,
         password: finalPassword,
         phone: _phoneController.text.trim(),
