@@ -945,7 +945,7 @@ class AuthService {
     try {
       final admin = await _client
           .from('users_adm')
-          .select('assinatura_status, academia')
+          .select('assinatura_status, academia, assinatura_tolerancia')
           .eq('id', idAcademia)
           .maybeSingle();
 
@@ -954,11 +954,27 @@ class AuthService {
       }
 
       final status = admin['assinatura_status'] ?? 'active';
-      final isSuspended = status == 'suspended' || status == 'pending_deletion';
+
+      // Verificação de Data (Robustez contra falha de cron job)
+      bool isToleranciaExpirada = false;
+      if (admin['assinatura_tolerancia'] != null) {
+        try {
+          final tolerancia = DateTime.parse(admin['assinatura_tolerancia']);
+          if (DateTime.now().isAfter(tolerancia)) {
+            isToleranciaExpirada = true;
+          }
+        } catch (e) {
+          print('Erro date parse: $e');
+        }
+      }
+
+      final isSuspended = status == 'suspended' ||
+          status == 'pending_deletion' ||
+          (status == 'grace_period' && isToleranciaExpirada);
 
       return {
         'suspended': isSuspended,
-        'status': status,
+        'status': isSuspended ? 'suspended' : status,
         'academia': admin['academia'] ?? 'Academia',
         'message': isSuspended
             ? 'O acesso a conta está temporariamente suspenso até a renovação da Assinatura Spartan!'
@@ -1267,11 +1283,32 @@ class AuthService {
       if (data['role'] == 'admin') {
         final status = data['assinatura_status'];
         final isBlocked = data['is_blocked'] ?? false;
+
+        // Verificação de Data para Auto-Correção
+        bool isExpired = false;
+        if (status == 'grace_period' && data['assinatura_tolerancia'] != null) {
+          try {
+            final tol = DateTime.parse(data['assinatura_tolerancia']);
+            if (DateTime.now().isAfter(tol)) isExpired = true;
+          } catch (_) {}
+        }
+
         if (status == 'suspended' ||
             status == 'pending_deletion' ||
-            isBlocked == true) {
+            isBlocked == true ||
+            isExpired == true) {
           shouldBlock = true;
           message = 'Sua assinatura está suspensa. Renove para continuar.';
+
+          // Auto-Fix: Atualizar banco se necessário
+          if (isExpired && status != 'suspended') {
+            // Fire and forget update
+            _client
+                .from('users_adm')
+                .update({'assinatura_status': 'suspended', 'is_blocked': true})
+                .eq('id', user.id)
+                .then((_) => print('Status corrigido via App'));
+          }
         }
       } else {
         // Subordinados (Student, Trainer, Nutritionist)

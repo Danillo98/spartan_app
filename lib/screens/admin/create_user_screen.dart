@@ -656,6 +656,10 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
                   label: 'Nome Completo',
                   hint: 'João Silva',
                   icon: Icons.person_outline_rounded,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z\s]')),
+                    TitleCaseInputFormatter(),
+                  ],
                   textCapitalization:
                       TextCapitalization.words, // AUTO MAIÚSCULA
                   validator: (value) {
@@ -1171,5 +1175,31 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
         validator: validator,
       ),
     );
+  }
+}
+
+class TitleCaseInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    if (newValue.text.isEmpty) return newValue;
+
+    String text = newValue.text;
+    String newText = '';
+
+    List<String> words = text.split(' ');
+    for (int i = 0; i < words.length; i++) {
+      String word = words[i];
+      if (word.isNotEmpty) {
+        newText += '${word[0].toUpperCase()}${word.substring(1)}';
+      }
+      if (i < words.length - 1) {
+        newText += ' ';
+      }
+    }
+
+    if (text.endsWith(' ')) newText += ' ';
+
+    return newValue.copyWith(text: newText);
   }
 }
