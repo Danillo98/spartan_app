@@ -143,7 +143,7 @@ class _RoleLoginScreenState extends State<RoleLoginScreen>
             // Admin suspenso -> Ir direto para tela de assinatura com popup
             _showSuspendedDialogAndNavigate(subStatus);
             return;
-          } else if (status == 'grace_period') {
+          } else if (status == 'grace_period' || status == 'warning') {
             // Período de graça -> Mostrar aviso mas deixar entrar
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
