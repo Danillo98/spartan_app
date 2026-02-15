@@ -801,7 +801,7 @@ class AuthService {
       final admin = await _client
           .from('users_adm')
           .select(
-              'assinatura_status, assinatura_expirada, assinatura_tolerancia, assinatura_deletada, is_blocked')
+              'assinatura_status, assinatura_expirada, assinatura_deletada, is_blocked')
           .eq('id', adminId)
           .maybeSingle();
 
@@ -813,128 +813,93 @@ class AuthService {
       final isBlocked = admin['is_blocked'] ?? false;
 
       // =============================================
-      // PRIORIDADE 1: Status já definido pelo webhook
+      // BLOQUEIO RÍGIDO - SEM TOLERÂNCIA
       // =============================================
-      // Se o webhook do Stripe já marcou como suspended/pending_deletion, respeita
-      if (statusAtual == 'suspended' ||
-          statusAtual == 'pending_deletion' ||
-          isBlocked == true) {
-        // Calcular dias restantes baseado na data de exclusão
-        int diasRestantes = 60; // fallback
-        if (admin['assinatura_deletada'] != null) {
-          final deletadaEm = DateTime.parse(admin['assinatura_deletada']);
-          diasRestantes = deletadaEm.difference(DateTime.now()).inDays;
+
+      // 1. Verificar EXCLUSÃO (Pending Deletion - 60 dias)
+      if (admin['assinatura_deletada'] != null) {
+        final deletadaEm = DateTime.parse(admin['assinatura_deletada']);
+        final now = DateTime.now();
+
+        if (now.isAfter(deletadaEm)) {
+          // Passou do prazo de exclusão (manter pending_deletion ou excluir?)
+          // Manter como está
+        } else {
+          // Ainda não deletou, mas está marcado?
+          // Se statusAtual for pending_deletion, ok.
+        }
+
+        if (statusAtual == 'pending_deletion') {
+          int diasRestantes = deletadaEm.difference(now).inDays;
           if (diasRestantes < 0) diasRestantes = 0;
+          return {
+            'status': 'pending_deletion',
+            'message': 'Conta marcada para exclusão.',
+            'deletada_em': admin['assinatura_deletada'],
+            'dias_para_exclusao': diasRestantes,
+          };
         }
-
-        return {
-          'status': statusAtual == 'pending_deletion'
-              ? 'pending_deletion'
-              : 'suspended',
-          'message': statusAtual == 'pending_deletion'
-              ? 'Conta marcada para exclusão.'
-              : 'Assinatura suspensa. Renove para continuar acessando.',
-          'deletada_em': admin['assinatura_deletada'],
-          'dias_para_exclusao': diasRestantes,
-        };
       }
 
-      if (statusAtual == 'grace_period') {
-        final tolerancia = admin['assinatura_tolerancia'] != null
-            ? DateTime.parse(admin['assinatura_tolerancia'])
-            : null;
-        final horasRestantes = tolerancia != null
-            ? tolerancia.difference(DateTime.now()).inHours
-            : 24;
-        return {
-          'status': 'grace_period',
-          'message':
-              'Aviso: período de tolerância ativado! Renove sua Assinatura Spartan antes de perder o acesso ao sistema!',
-          'expira_graca_em': admin['assinatura_tolerancia'],
-        };
-      }
-
-      // =============================================
-      // PRIORIDADE 2: Se não tem datas, assume ativo (legado)
-      // =============================================
-      if (admin['assinatura_expirada'] == null) {
-        return {'status': 'active', 'message': 'Assinatura válida (legado)'};
-      }
-
-      // =============================================
-      // PRIORIDADE 3: Verificação baseada em datas (fallback)
-      // =============================================
-      final now = DateTime.now();
-      final expirada = DateTime.parse(admin['assinatura_expirada']);
-      final tolerancia = admin['assinatura_tolerancia'] != null
-          ? DateTime.parse(admin['assinatura_tolerancia'])
-          : expirada.add(const Duration(days: 1));
-      final deletada = admin['assinatura_deletada'] != null
-          ? DateTime.parse(admin['assinatura_deletada'])
-          : tolerancia.add(const Duration(days: 60));
-
-      // Verificar se precisa mudar status baseado em datas
-      if (now.isAfter(deletada)) {
-        // Passou dos 60 dias - marcar para deleção (você faz manualmente)
-        await _client.from('users_adm').update({
-          'assinatura_status': 'pending_deletion',
-          'is_blocked': true,
-          'updated_at': now.toIso8601String(),
-        }).eq('id', adminId);
-
-        return {
-          'status': 'pending_deletion',
-          'message':
-              'Conta marcada para exclusão. Período de 60 dias expirado.',
-          'deletada_em': deletada.toIso8601String(),
-        };
-      } else if (now.isAfter(tolerancia)) {
-        // Passou do período de graça - SUSPENSO
-        if (statusAtual != 'suspended') {
-          await _client.from('users_adm').update({
-            'assinatura_status': 'suspended',
-            'is_blocked': true,
-            'updated_at': now.toIso8601String(),
-          }).eq('id', adminId);
-        }
-
-        final diasRestantes = deletada.difference(now).inDays;
+      // 2. Verificar BLOQUEIO/SUSPENSÃO (Status ou Data)
+      if (statusAtual == 'suspended' ||
+          statusAtual == 'canceled' ||
+          isBlocked == true) {
+        // Calcular se deve ir para exclusão (60 dias após expiração? ou após bloqueio?)
+        // Mantendo simples por enquanto conforme solicitado.
         return {
           'status': 'suspended',
           'message': 'Assinatura suspensa. Renove para continuar acessando.',
-          'dias_para_exclusao': diasRestantes,
-          'deletada_em': deletada.toIso8601String(),
-        };
-      } else if (now.isAfter(expirada)) {
-        // Ainda dentro do período de graça
-        if (statusAtual != 'grace_period') {
-          await _client.from('users_adm').update({
-            'assinatura_status': 'grace_period',
-            'updated_at': now.toIso8601String(),
-          }).eq('id', adminId);
-        }
-
-        final horasRestantes = tolerancia.difference(now).inHours;
-        return {
-          'status': 'grace_period',
-          'message':
-              'Aviso: período de tolerância ativado! Renove sua Assinatura Spartan antes de perder o acesso ao sistema!',
-          'expira_graca_em': tolerancia.toIso8601String(),
-        };
-      } else {
-        // Assinatura válida
-        return {
-          'status': 'active',
-          'message': 'Assinatura ativa',
-          'expira_em': expirada.toIso8601String(),
+          'dias_para_exclusao': 60, // Fallback visual
         };
       }
-    } catch (e) {
-      print('Erro ao verificar assinatura: $e');
-      // Em caso de erro, deixa passar para não travar (fail open)
+
+      // 3. Verificar DATA DE EXPIRAÇÃO (Auto-Block)
+      if (admin['assinatura_expirada'] != null) {
+        final expirada = DateTime.parse(admin['assinatura_expirada']);
+        final now = DateTime.now();
+
+        if (now.isAfter(expirada)) {
+          // EXPIROU! Bloqueio Imediato.
+          if (statusAtual != 'suspended') {
+            await _client.from('users_adm').update({
+              'assinatura_status': 'suspended',
+              'is_blocked': true,
+              'updated_at': now.toIso8601String(),
+            }).eq('id', adminId);
+          }
+
+          return {
+            'status': 'suspended',
+            'message': 'Sua assinatura expirou. Renove para continuar.',
+            'dias_para_exclusao': 60,
+          };
+        }
+
+        // 4. AVISO DE VENCIMENTO (24h)
+        final warningThreshold = expirada.subtract(const Duration(hours: 24));
+        if (now.isAfter(warningThreshold)) {
+          return {
+            'status': 'warning',
+            'message': 'Atenção: Sua assinatura vence em menos de 24 horas.',
+            'aviso_expiracao': true,
+            'horas_restantes': expirada.difference(now).inHours,
+          };
+        }
+      }
+
+      // Se passou por tudo, está ativo
       return {
         'status': 'active',
-        'message': 'Verificação falhou, acesso liberado'
+        'message': 'Assinatura ativa',
+        'expira_em': admin['assinatura_expirada'],
+      };
+    } catch (e) {
+      print('Erro ao verificar assinatura: $e');
+      // Fail Safe: Bloquear se der erro? Não, Fail Open.
+      return {
+        'status': 'active',
+        'message': 'Verificação falhou, acesso liberado (Fail Open)'
       };
     }
   }

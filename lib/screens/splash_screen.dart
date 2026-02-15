@@ -181,8 +181,8 @@ class _SplashScreenState extends State<SplashScreen>
         // Admin suspenso -> Ir direto para tela de assinatura com popup
         _navigateToSubscriptionWithWarning(subStatus);
         return;
-      } else if (status == 'grace_period') {
-        // Período de graça -> Mostrar aviso mas deixar entrar
+      } else if (status == 'grace_period' || status == 'warning') {
+        // Aviso de Vencimento -> Mostrar aviso mas deixar entrar
         _showGracePeriodWarning(subStatus);
         // Continua para o dashboard normalmente após o aviso
       }
