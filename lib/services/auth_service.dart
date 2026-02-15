@@ -544,7 +544,7 @@ class AuthService {
       final admin = await _client
           .from('users_adm')
           .select(
-              'id, nome, email, telefone, academia, cpf, endereco, plano_mensal, is_blocked, photo_url')
+              'id, nome, email, telefone, academia, cpf, endereco, plano_mensal, is_blocked, photo_url, assinatura_status, assinatura_expirada')
           .eq('id', userId)
           .maybeSingle();
       if (admin != null) {
@@ -945,7 +945,7 @@ class AuthService {
     try {
       final admin = await _client
           .from('users_adm')
-          .select('assinatura_status, academia, assinatura_tolerancia')
+          .select('assinatura_status, academia, assinatura_expirada')
           .eq('id', idAcademia)
           .maybeSingle();
 
@@ -955,29 +955,30 @@ class AuthService {
 
       final status = admin['assinatura_status'] ?? 'active';
 
-      // Verificação de Data (Robustez contra falha de cron job)
-      bool isToleranciaExpirada = false;
-      if (admin['assinatura_tolerancia'] != null) {
+      // BLOQUEIO RÍGIDO - REPLICADO PARA SUBORDINADOS
+      bool isDataExpirada = false;
+      if (admin['assinatura_expirada'] != null) {
         try {
-          final tolerancia = DateTime.parse(admin['assinatura_tolerancia']);
-          if (DateTime.now().isAfter(tolerancia)) {
-            isToleranciaExpirada = true;
+          final expirada = DateTime.parse(admin['assinatura_expirada']);
+          if (DateTime.now().isAfter(expirada)) {
+            isDataExpirada = true;
           }
-        } catch (e) {
-          print('Erro date parse: $e');
-        }
+        } catch (_) {}
       }
 
+      // Se status for suspenso OU data expirada, bloqueia.
+      // Ignora grace_period (não existe mais).
       final isSuspended = status == 'suspended' ||
           status == 'pending_deletion' ||
-          (status == 'grace_period' && isToleranciaExpirada);
+          status == 'canceled' ||
+          isDataExpirada;
 
       return {
         'suspended': isSuspended,
         'status': isSuspended ? 'suspended' : status,
         'academia': admin['academia'] ?? 'Academia',
         'message': isSuspended
-            ? 'O acesso a conta está temporariamente suspenso até a renovação da Assinatura Spartan!'
+            ? 'O acesso a conta está interrompido por falta de pagamento da assinatura da academia!'
             : 'Academia ativa',
       };
     } catch (e) {
@@ -991,78 +992,78 @@ class AuthService {
   /// Use antes de ações críticas: criar usuário, acessar financeiro, etc.
   static Future<Map<String, dynamic>> verificarAssinaturaAtiva() async {
     try {
+      final user = _client.auth.currentUser;
+      if (user == null) {
+        return {'ativo': false, 'message': 'Usuário não logado'};
+      }
+
       final userData = await getCurrentUserData();
-      if (userData == null) {
-        return {
-          'ativo': false,
-          'status': 'not_found',
-          'message': 'Usuário não encontrado'
-        };
+      if (userData == null || userData['role'] != 'admin') {
+        // Se não é admin, considera ativo (verificação feita via academia para subs)
+        return {'ativo': true, 'status': 'active', 'message': 'Usuário ativo'};
       }
 
-      // Se não for admin, verificar academia
-      if (userData['role'] != 'admin') {
-        final idAcademia = userData['id_academia'];
-        if (idAcademia != null) {
-          final academiaStatus = await verificarAcademiaSuspensa(idAcademia);
-          if (academiaStatus['suspended'] == true) {
-            return {
-              'ativo': false,
-              'status': academiaStatus['status'],
-              'message': academiaStatus['message'],
-            };
-          }
-        }
-        return {
-          'ativo': true,
-          'status': 'active',
-          'message': 'Acesso permitido'
-        };
-      }
-
-      // Para admin, buscar status direto do banco
       final admin = await _client
           .from('users_adm')
-          .select('assinatura_status, is_blocked')
+          .select('assinatura_status, assinatura_expirada, is_blocked')
           .eq('id', userData['id'])
-          .maybeSingle();
-
-      if (admin == null) {
-        return {'ativo': true, 'status': 'active', 'message': 'Admin legado'};
-      }
+          .single();
 
       final status = admin['assinatura_status'] ?? 'active';
       final isBlocked = admin['is_blocked'] ?? false;
 
+      // BLOQUEIO RÍGIDO - SEM TOLERÂNCIA
+      if (admin['assinatura_expirada'] != null) {
+        final expirada = DateTime.parse(admin['assinatura_expirada']);
+        final now = DateTime.now();
+
+        // 1. Falta menos de 24h -> AVISO (E data ainda não passou)
+        final warningThreshold = expirada.subtract(const Duration(hours: 24));
+        if (now.isAfter(warningThreshold) && now.isBefore(expirada)) {
+          return {
+            'ativo': true,
+            'status': 'warning', // Status especial para mostrar aviso laranja
+            'message':
+                'Atenção: Sua assinatura vence em menos de 24 horas. Renove para evitar bloqueio.',
+            'aviso': true,
+          };
+        }
+
+        // 2. Passou da Data -> BLOQUEIO TOTAL
+        if (now.isAfter(expirada)) {
+          // AUTO-FIX: Se expirou e ainda não está suspended
+          if (status != 'suspended') {
+            try {
+              await _client.from('users_adm').update({
+                'assinatura_status': 'suspended',
+                'is_blocked': true
+              }).eq('id', userData['id']);
+            } catch (_) {}
+          }
+
+          return {
+            'ativo': false,
+            'status': 'suspended',
+            'message': 'Sua assinatura está suspensa. Renove para continuar.',
+          };
+        }
+      }
+
+      // 3. Status Explícito no Banco
       if (status == 'suspended' ||
           status == 'pending_deletion' ||
           isBlocked == true) {
         return {
           'ativo': false,
-          'status': status,
+          'status': 'suspended',
           'message': 'Sua assinatura está suspensa. Renove para continuar.',
-        };
-      }
-
-      if (status == 'grace_period') {
-        return {
-          'ativo': true, // Ainda pode usar, mas com aviso
-          'status': status,
-          'message':
-              'Aviso: período de tolerância ativado! Renove sua Assinatura Spartan antes de perder o acesso ao sistema!',
-          'aviso': true,
         };
       }
 
       return {'ativo': true, 'status': 'active', 'message': 'Assinatura ativa'};
     } catch (e) {
-      print('Erro ao verificar assinatura ativa: $e');
-      // Em caso de erro, deixa passar
-      return {
-        'ativo': true,
-        'status': 'active',
-        'message': 'Verificação falhou'
-      };
+      print('Erro ao verificar assinatura: $e');
+      return {'ativo': false, 'message': 'Erro na verificação'};
     }
   }
 
@@ -1284,26 +1285,28 @@ class AuthService {
         final status = data['assinatura_status'];
         final isBlocked = data['is_blocked'] ?? false;
 
-        // Verificação de Data para Auto-Correção
-        bool isExpired = false;
-        if (status == 'grace_period' && data['assinatura_tolerancia'] != null) {
+        // BLOQUEIO RÍGIDO - SEM TOLERÂNCIA
+        bool isDataExpirada = false;
+        if (data['assinatura_expirada'] != null) {
           try {
-            final tol = DateTime.parse(data['assinatura_tolerancia']);
-            if (DateTime.now().isAfter(tol)) isExpired = true;
+            final expirada = DateTime.parse(data['assinatura_expirada']);
+            if (DateTime.now().isAfter(expirada)) {
+              isDataExpirada = true;
+            }
           } catch (_) {}
         }
 
         if (status == 'suspended' ||
             status == 'pending_deletion' ||
+            status == 'canceled' ||
             isBlocked == true ||
-            isExpired == true) {
+            isDataExpirada == true) {
           shouldBlock = true;
           message = 'Sua assinatura está suspensa. Renove para continuar.';
 
-          // Auto-Fix: Atualizar banco se necessário
-          if (isExpired && status != 'suspended') {
+          // Auto-Fix: Atualizar banco se necessário (SÍNCRONO)
+          if (isDataExpirada && status != 'suspended') {
             try {
-              // Await para garantir que o banco seja atualizado
               await _client.from('users_adm').update({
                 'assinatura_status': 'suspended',
                 'is_blocked': true
@@ -1319,14 +1322,14 @@ class AuthService {
         if (data['is_blocked'] == true) {
           shouldBlock = true;
         }
-        // 2. Bloqueio da Academia (Cascata)
+        // 2. Bloqueio da Academia (Cascata RÍGIDA)
         else if (data['id_academia'] != null) {
           final academiaStatus =
               await verificarAcademiaSuspensa(data['id_academia']);
           if (academiaStatus['suspended'] == true) {
             shouldBlock = true;
             message = academiaStatus['message'] ??
-                'O acesso a conta está temporariamente suspenso até a renovação da Assinatura Spartan!';
+                'O acesso a conta está interrompido por falta de pagamento da assinatura da academia!';
           }
         }
       }
