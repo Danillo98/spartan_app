@@ -1306,19 +1306,45 @@ class AuthService {
           context: context,
           barrierDismissible: false,
           builder: (context) => AlertDialog(
-            title: const Text('Acesso Bloqueado'),
-            content: Text(message),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: [
+                Icon(Icons.block, color: Colors.red[700], size: 32),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text('Acesso Bloqueado',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.lock_outline_rounded,
+                    size: 48, color: Colors.red),
+                const SizedBox(height: 16),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 16),
+                ),
+              ],
+            ),
             actions: [
-              TextButton(
+              ElevatedButton(
                 onPressed: () async {
                   await logout();
                   if (context.mounted) {
-                    // Limpar rotas e voltar para login
                     Navigator.of(context)
                         .pushNamedAndRemoveUntil('/', (route) => false);
                   }
                 },
-                child: const Text('OK'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red[700],
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Sair'),
               ),
             ],
           ),
