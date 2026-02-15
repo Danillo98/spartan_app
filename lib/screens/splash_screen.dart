@@ -10,6 +10,7 @@ import 'nutritionist/nutritionist_dashboard.dart';
 import 'trainer/trainer_dashboard.dart';
 import 'student/student_dashboard.dart';
 import 'admin_register_screen.dart';
+import '../services/version_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -55,6 +56,14 @@ class _SplashScreenState extends State<SplashScreen>
 
   Future<void> _checkLoginStatus() async {
     if (!mounted) return;
+
+    // 1. CHECAR VERSÃO DO APP (Update Enforced)
+    final newVersion = await VersionService.checkForUpdate();
+    if (newVersion != null) {
+      if (!mounted) return;
+      _showUpdateDialog(newVersion);
+      return; // Interrompe fluxo de login
+    }
 
     try {
       // Verificar se é uma sessão de password recovery
@@ -522,6 +531,62 @@ class _SplashScreenState extends State<SplashScreen>
               child: CircularProgressIndicator(
                 valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryGold),
                 strokeWidth: 4,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showUpdateDialog(String version) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Icon(Icons.system_update, color: AppTheme.primaryRed, size: 30),
+              const SizedBox(width: 12),
+              const Expanded(
+                  child: Text('Atualização Disponível!',
+                      style: TextStyle(fontWeight: FontWeight.bold))),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Nova Versão: $version',
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Uma nova versão do Spartan App está pronta para instalação. Atualize agora para continuar.',
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+          actions: [
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  VersionService.forceUpdate();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryRed,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                ),
+                child: const Text('ATUALIZAR AGORA'),
               ),
             ),
           ],

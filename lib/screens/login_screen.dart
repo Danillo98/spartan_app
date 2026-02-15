@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../models/user_role.dart';
 import '../config/app_theme.dart';
 import 'role_login_screen.dart';
+import '../config/app_version.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -31,11 +32,11 @@ class _LoginScreenState extends State<LoginScreen>
 
     _slideAnimation =
         Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero).animate(
-          CurvedAnimation(
-            parent: _animationController,
-            curve: Curves.easeOutCubic,
-          ),
-        );
+      CurvedAnimation(
+        parent: _animationController,
+        curve: Curves.easeOutCubic,
+      ),
+    );
 
     _animationController.forward();
   }
@@ -227,7 +228,7 @@ class _LoginScreenState extends State<LoginScreen>
         ),
         const SizedBox(height: 16),
         Text(
-          'Versão 1.0.0',
+          'Versão ${AppVersion.current}',
           style: GoogleFonts.lato(fontSize: 12, color: AppTheme.hintText),
         ),
       ],
