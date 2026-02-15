@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/auth_service.dart';
 import '../../config/app_theme.dart';
@@ -27,6 +28,7 @@ class _TrainerDashboardState extends State<TrainerDashboard>
   late Animation<Offset> _slideAnimation;
 
   int _bulletinKey = 0; // Key para forçar rebuild do BulletinBoard
+  Timer? _statusMonitorTimer;
 
   @override
   void initState() {
@@ -56,15 +58,33 @@ class _TrainerDashboardState extends State<TrainerDashboard>
     _loadUserData();
     _animationController.forward();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      AuthService.checkBlockedStatus(context);
-    });
+    _animationController.forward();
+
+    // Verificação periódica de bloqueio
+    _startBlockedStatusMonitor();
   }
 
   @override
   void dispose() {
+    _statusMonitorTimer?.cancel();
     _animationController.dispose();
     super.dispose();
+  }
+
+  void _startBlockedStatusMonitor() {
+    // Check inicial imediato
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AuthService.checkBlockedStatus(context);
+    });
+
+    // Check periódico a cada 30 segundos
+    _statusMonitorTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      AuthService.checkBlockedStatus(context);
+    });
   }
 
   Future<void> _loadUserData() async {

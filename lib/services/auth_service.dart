@@ -961,7 +961,7 @@ class AuthService {
         'status': status,
         'academia': admin['academia'] ?? 'Academia',
         'message': isSuspended
-            ? 'A academia está com pagamento pendente. Contate o administrador.'
+            ? 'O acesso a conta está temporariamente suspenso até a renovação da Assinatura Spartan!'
             : 'Academia ativa',
       };
     } catch (e) {
