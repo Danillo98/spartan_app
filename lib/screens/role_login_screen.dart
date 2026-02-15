@@ -157,6 +157,26 @@ class _RoleLoginScreenState extends State<RoleLoginScreen>
             }
           }
         }
+        // =============================================
+        // NOVO: VERIFICAÇÃO PARA SUBORDINADOS (Nutri, Personal, Aluno)
+        // =============================================
+        else if ((widget.role == UserRole.nutritionist ||
+                widget.role == UserRole.trainer ||
+                widget.role == UserRole.student) &&
+            result['user'] != null) {
+          final userData = result['user'] as Map<String, dynamic>;
+          final idAcademia = userData['id_academia'];
+
+          if (idAcademia != null) {
+            final academiaStatus =
+                await AuthService.verificarAcademiaSuspensa(idAcademia);
+
+            if (academiaStatus['suspended'] == true) {
+              _showSuspendedDialogAndLogout(academiaStatus);
+              return;
+            }
+          }
+        }
 
         Widget dashboard;
         switch (widget.role) {
@@ -263,6 +283,70 @@ class _RoleLoginScreenState extends State<RoleLoginScreen>
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  // SUBORDINADO DE ACADEMIA SUSPENSA -> Popup de bloqueio + Logout
+  void _showSuspendedDialogAndLogout(Map<String, dynamic> status) {
+    if (!mounted) return;
+
+    final nomeAcademia = status['academia'] ?? 'Academia';
+    setState(() => _isLoading = false); // Garantir que loader pare
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.block, color: Colors.red[700], size: 32),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text('Acesso Bloqueado',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const Icon(Icons.lock_outline_rounded, size: 48, color: Colors.red),
+            const SizedBox(height: 16),
+            const Text(
+              'O acesso ao sistema está temporariamente suspenso. Sendo necessária a renovação da Assinatura Spartan!',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Entre em contato com a administração da academia "$nomeAcademia".',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.grey, fontSize: 13),
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await AuthService.signOut();
+              if (mounted) {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  (route) => false,
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryRed,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Sair'),
+          ),
+        ],
+      ),
+    );
   }
 
   // Mostra popup de conta suspensa e navega para tela de assinatura
