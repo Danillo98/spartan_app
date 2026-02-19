@@ -75,6 +75,8 @@ class PaymentService {
         return StripeConfig.priceOuro;
       case 'platina':
         return StripeConfig.pricePlatina;
+      case 'diamante':
+        return StripeConfig.priceDiamante;
       default:
         throw Exception('Plano desconhecido: $planName');
     }

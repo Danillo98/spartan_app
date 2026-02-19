@@ -744,10 +744,10 @@ class AuthService {
       try {
         await NotificationService.loginUser(
             userData['id_academia'] ?? userData['id']);
-        print(
+        debugPrint(
             "🔔 Notificações configuradas para academia: ${userData['id_academia'] ?? userData['id']}");
       } catch (e) {
-        print("Erro ao configurar notificações no login: $e");
+        debugPrint("Erro ao configurar notificações no login: $e");
       }
 
       return {
@@ -782,7 +782,7 @@ class AuthService {
             userData['id_academia'] ?? userData['id']);
       }
     } catch (e) {
-      print(
+      debugPrint(
           "Aviso: Falha ao desinscrever notificações no logout (prosseguindo): $e");
     }
 
@@ -895,7 +895,7 @@ class AuthService {
         'expira_em': admin['assinatura_expirada'],
       };
     } catch (e) {
-      print('Erro ao verificar assinatura: $e');
+      debugPrint('Erro ao verificar assinatura: $e');
       // Fail Safe: Bloquear se der erro? Não, Fail Open.
       return {
         'status': 'active',
@@ -947,7 +947,7 @@ class AuthService {
             : 'Academia ativa',
       };
     } catch (e) {
-      print('Erro ao verificar academia: $e');
+      debugPrint('Erro ao verificar academia: $e');
       return {'suspended': false, 'message': 'Erro na verificação'};
     }
   }

@@ -631,19 +631,18 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
                             // OURO
                             _buildInteractableCard(
                               title: 'OURO',
-                              tag: 'MAIS ESCOLHIDO', // Tag interna
+                              tag: 'CRESCIMENTO',
                               price: '239,90',
                               description:
                                   'Para quem já validou e precisa escalar.',
-                              bgColor: const Color(0xFFFBF9F2),
-                              borderColor: const Color(0xFFD4AF37),
+                              bgColor: const Color(0xFFFFF8E1),
+                              borderColor: const Color(0xFFFFC107),
                               cardColorName: 'Ouro',
                               features: [
                                 'Módulos: Administrador, Nutricionista, Personal Trainer e Aluno.',
-                                'Dietas, Relatórios Físicos e Treinos.',
+                                'Dietas, Relatórios Físicos e Treinos Integrados.',
                                 'Monitoramento de Mensalidades, Controle Financeiro, Fluxo de Caixa e Relatórios Mensais e Anuais em PDF.',
                                 'Suporta até 500 alunos.',
-                                'Maior margem de lucro por aluno.',
                                 'Estrutura para crescimento forte.'
                               ],
                             ),
@@ -652,20 +651,40 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
                             // PLATINA
                             _buildInteractableCard(
                               title: 'PLATINA',
-                              tag: 'INFINITO',
+                              tag: 'MAIS ESCOLHIDO',
                               price: '349,90',
-                              description:
-                                  'A liberdade absoluta. O céu é o limite.',
-                              bgColor: const Color(0xFFE8F6F9),
+                              description: 'A liberdade absoluta.',
+                              bgColor: const Color(
+                                  0xFFE0F7FA), // Cyan background mais forte
                               borderColor: const Color(0xFF00BCD4),
                               cardColorName: 'Platina',
                               features: [
                                 'Módulos: Administrador, Nutricionista, Personal Trainer e Aluno.',
                                 'Dietas, Relatórios Físicos e Treinos Integrados.',
                                 'Monitoramento de Mensalidades, Controle Financeiro, Fluxo de Caixa e Relatórios Mensais e Anuais em PDF.',
-                                'Alunos ILIMITADOS.',
-                                'O céu é o limite! Aqui o lucro é exponencial.',
+                                'Suporta até 800 alunos.',
+                                'Maior margem de lucro por aluno.',
                                 'Estrutura para grandes empreendimentos.'
+                              ],
+                            ),
+                            const SizedBox(width: 24),
+
+                            // DIAMANTE
+                            _buildInteractableCard(
+                              title: 'DIAMANTE',
+                              tag: 'INFINITO',
+                              price: '459,90',
+                              description: 'O auge da evolução. Sem limites.',
+                              bgColor: const Color(0xFFF3E5F5),
+                              borderColor: const Color(0xFF9C27B0),
+                              cardColorName: 'Diamante',
+                              features: [
+                                'Módulos: Administrador, Nutricionista, Personal Trainer e Aluno.',
+                                'Dietas, Relatórios Físicos e Treinos Integrados.',
+                                'Monitoramento de Mensalidades, Controle Financeiro, Fluxo de Caixa e Relatórios Mensais e Anuais em PDF.',
+                                'Alunos ILIMITADOS.',
+                                'O céu é o limite e o lucro é exponencial.',
+                                'Estrutura para redes de academias.'
                               ],
                             ),
                           ],
@@ -1131,30 +1150,37 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
                 const SizedBox(height: 24),
 
                 // Features
-                ...features.map((feature) => Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(
-                            Icons.flash_on_rounded,
-                            size: 18,
-                            color: borderColor,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              feature,
-                              style: GoogleFonts.inter(
-                                fontSize: 14,
-                                color: const Color(0xFF444444),
-                                height: 1.4,
-                              ),
+                ...features.map((feature) {
+                  final isBold = feature.contains('Suporta até') ||
+                      feature.contains('Alunos ILIMITADOS') ||
+                      feature.contains('Maior margem de lucro');
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          isBold ? Icons.star_rounded : Icons.flash_on_rounded,
+                          size: 18,
+                          color: borderColor,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            feature,
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              fontWeight:
+                                  isBold ? FontWeight.bold : FontWeight.normal,
+                              color: const Color(0xFF444444),
+                              height: 1.4,
                             ),
                           ),
-                        ],
-                      ),
-                    )),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
 
                 const SizedBox(height: 16),
 

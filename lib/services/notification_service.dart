@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import '../config/firebase_options.dart';
@@ -14,7 +15,7 @@ class NotificationService {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
-      print("🔥 Firebase Initialized");
+      debugPrint("🔥 Firebase Initialized");
 
       // 2. Pedir Permissão
       NotificationSettings settings = await _messaging.requestPermission(
@@ -22,18 +23,18 @@ class NotificationService {
         badge: true,
         sound: true,
       );
-      print('🔔 Permissão de notificação: ${settings.authorizationStatus}');
+      debugPrint('🔔 Permissão: ${settings.authorizationStatus}');
 
       // 3. Pegar Token FCM e Salvar no Supabase
       String? token = await _messaging.getToken();
       if (token != null) {
-        print("🎟️ FCM Token obtido: $token");
+        debugPrint("🎟️ FCM Token obtido: $token");
         await _saveTokenToSupabase(token);
       }
 
       // 4. Ouvir atualização de Token
       _messaging.onTokenRefresh.listen((newToken) {
-        print("🔄 FCM Token atualizado: $newToken");
+        debugPrint("🔄 FCM Token atualizado: $newToken");
         _saveTokenToSupabase(newToken);
       });
 
@@ -44,7 +45,7 @@ class NotificationService {
         // Aqui você pode mostrar um SnackBar ou Dialog se quiser
       });
     } catch (e) {
-      print("❌ Erro ao inicializar Firebase Messaging: $e");
+      debugPrint("❌ Erro ao inicializar Firebase Messaging: $e");
     }
   }
 
@@ -63,9 +64,9 @@ class NotificationService {
         },
         onConflict: 'user_id, fcm_token',
       );
-      print("💾 Token salvo no Supabase para user: ${user.id}");
+      debugPrint("💾 Token salvo no Supabase para user: ${user.id}");
     } catch (e) {
-      print("❌ Erro ao salvar token no Supabase: $e");
+      debugPrint("❌ Erro ao salvar token no Supabase: $e");
     }
   }
 
@@ -79,7 +80,7 @@ class NotificationService {
     if (idAcademia != null) {
       final topic = 'academy_${idAcademia.replaceAll('-', '')}';
       await _messaging.subscribeToTopic(topic);
-      print("📢 Inscrito no tópico: $topic");
+      debugPrint("📢 Inscrito no tópico: $topic");
     }
   }
 
@@ -89,10 +90,10 @@ class NotificationService {
       if (oldIdAcademia != null) {
         final topic = 'academy_${oldIdAcademia.replaceAll('-', '')}';
         await _messaging.unsubscribeFromTopic(topic);
-        print("🔕 Desinscrito do tópico: $topic");
+        debugPrint("🔕 Desinscrito do tópico: $topic");
       }
     } catch (e) {
-      print("❌ Erro ao deslogar notificações: $e");
+      debugPrint("❌ Erro ao deslogar notificações: $e");
     }
   }
 
@@ -117,14 +118,15 @@ class NotificationService {
       );
 
       if (response.status == 200) {
-        print("✅ Push sent successfully via Edge Function");
+        debugPrint("✅ Push sent successfully via Edge Function");
         return true;
       } else {
-        print("❌ Error sending Push: ${response.status} - ${response.data}");
+        debugPrint(
+            "❌ Error sending Push: ${response.status} - ${response.data}");
         return false;
       }
     } catch (e) {
-      print("❌ Exception sending Push: $e");
+      debugPrint("❌ Exception sending Push: $e");
       return false;
     }
   }

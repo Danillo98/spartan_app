@@ -518,7 +518,8 @@ class UserService {
       // Definir limites
       int limit = 200; // Prata default
       if (plan.toLowerCase() == 'ouro') limit = 500;
-      if (plan.toLowerCase() == 'platina') limit = 999999;
+      if (plan.toLowerCase() == 'platina') limit = 800;
+      if (plan.toLowerCase() == 'diamante') limit = 999999;
 
       final count = await _client
           .from('users_alunos')
