@@ -175,22 +175,46 @@ class UserService {
   }
 
   // Buscar todos os usuários da academia do admin logado
+  // Helper para buscar todos os registros com paginação automática (Chunk Fetch)
+  static Future<List<Map<String, dynamic>>> _fetchAll(
+      String table, String idAcademia) async {
+    List<Map<String, dynamic>> allData = [];
+    int offset = 0;
+    const int limit = 1000; // Limite padrão do Supabase
+    bool hasMore = true;
+
+    while (hasMore) {
+      final response = await _client
+          .from(table)
+          .select()
+          .eq('id_academia', idAcademia)
+          .range(offset, offset + limit - 1);
+
+      final List<Map<String, dynamic>> data =
+          List<Map<String, dynamic>>.from(response);
+      allData.addAll(data);
+
+      if (data.length < limit) {
+        hasMore = false;
+      } else {
+        offset += limit;
+      }
+    }
+    return allData;
+  }
+
+  // Buscar todos os usuários da academia do admin logado
   static Future<List<Map<String, dynamic>>> getAllUsers() async {
     try {
       final academyContext = await _getAcademyContext();
       final idAcademia = academyContext['id_academia'];
 
-      // Buscar em paralelo nas 4 tabelas filtrando por ID da Academia
+      // Buscar com paginação para superar limite de 1000 linhas
       // O admin da academia é o próprio idAcademia
       final adminsF = _client.from('users_adm').select().eq('id', idAcademia);
-      final nutrisF = _client
-          .from('users_nutricionista')
-          .select()
-          .eq('id_academia', idAcademia);
-      final trainersF =
-          _client.from('users_personal').select().eq('id_academia', idAcademia);
-      final studentsF =
-          _client.from('users_alunos').select().eq('id_academia', idAcademia);
+      final nutrisF = _fetchAll('users_nutricionista', idAcademia);
+      final trainersF = _fetchAll('users_personal', idAcademia);
+      final studentsF = _fetchAll('users_alunos', idAcademia);
 
       final results =
           await Future.wait([adminsF, nutrisF, trainersF, studentsF]);
@@ -277,11 +301,13 @@ class UserService {
       else
         tableName = 'users_alunos';
 
-      final response = await _client
-          .from(tableName)
-          .select()
-          .eq('id_academia', idAcademia)
-          .order('nome'); // Campo 'nome' existe em todas agora
+      final response = await _fetchAll(tableName, idAcademia);
+
+      // Ordenação precisa ser feita em memória agora, pois _fetchAll traz tudo
+      response.sort((a, b) => (a['nome'] ?? '')
+          .toString()
+          .toLowerCase()
+          .compareTo((b['nome'] ?? '').toString().toLowerCase()));
 
       return List<Map<String, dynamic>>.from(
           response.map((u) => _normalizeUser(u, roleString)));
@@ -404,6 +430,7 @@ class UserService {
           .from('users_alunos')
           .select()
           .inFilter('id', studentIds)
+          .range(0, 4999)
           .order('nome'); // Ordenação alfabética
 
       return List<Map<String, dynamic>>.from(
@@ -421,13 +448,14 @@ class UserService {
       final academyContext = await _getAcademyContext();
       final idAcademia = academyContext['id_academia'];
 
-      // 4. Buscar alunos desta academia
-      final data = await _client
-          .from('users_alunos')
-          .select(
-              'id, nome, email, telefone') // cnpj_academia REMOVIDO pois foi deletado do banco
-          .eq('id_academia', idAcademia)
-          .order('nome');
+      // 4. Buscar alunos desta academia com paginação
+      final data = await _fetchAll('users_alunos', idAcademia);
+
+      // Ordenar em memória
+      data.sort((a, b) => (a['nome'] ?? '')
+          .toString()
+          .toLowerCase()
+          .compareTo((b['nome'] ?? '').toString().toLowerCase()));
 
       // Normalizar campos (nome→name, telefone→phone) e adicionar role
       final List<dynamic> responseList = data as List<dynamic>;

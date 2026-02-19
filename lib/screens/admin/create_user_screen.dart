@@ -657,7 +657,7 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
                   hint: 'João Silva',
                   icon: Icons.person_outline_rounded,
                   inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z\s]')),
+                    FilteringTextInputFormatter.allow(RegExp(r'[a-zA-ZÀ-ÿ\s]')),
                     TitleCaseInputFormatter(),
                   ],
                   textCapitalization:
