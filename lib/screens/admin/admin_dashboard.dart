@@ -13,6 +13,7 @@ import 'notice_manager_screen.dart';
 import 'admin_profile_screen.dart';
 import 'subscription_screen.dart'; // Add Import
 import 'support_screen.dart'; // Import Support
+import 'admin_turnstiles_screen.dart'; // Import Turnstiles
 import '../../widgets/responsive_utils.dart';
 import 'dart:async'; // Timer
 import 'package:supabase_flutter/supabase_flutter.dart'; // Supabase
@@ -43,7 +44,7 @@ class _AdminDashboardState extends State<AdminDashboard>
   void initState() {
     super.initState();
     _animationController = AnimationController(
-      duration: const Duration(milliseconds: 1000),
+      duration: const Duration(milliseconds: 400),
       vsync: this,
     );
 
@@ -549,6 +550,21 @@ class _AdminDashboardState extends State<AdminDashboard>
                                     MaterialPageRoute(
                                       builder: (context) =>
                                           const NoticeManagerScreen(),
+                                    ),
+                                  );
+                                  _refreshDashboard();
+                                },
+                              ),
+                              _buildModernFeatureCard(
+                                title: 'Minhas Catracas',
+                                icon: Icons.sensors_rounded,
+                                color: const Color(0xFF673AB7), // Roxo Tech
+                                onTap: () async {
+                                  await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const AdminTurnstilesScreen(),
                                     ),
                                   );
                                   _refreshDashboard();
