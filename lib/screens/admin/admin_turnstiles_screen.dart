@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'; // kIsWeb, defaultTargetPlatform
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../config/app_theme.dart';
 import '../../services/control_id_service.dart';
-import '../../services/user_service.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AdminTurnstilesScreen extends StatefulWidget {
   const AdminTurnstilesScreen({super.key});
@@ -25,7 +25,15 @@ class _AdminTurnstilesScreenState extends State<AdminTurnstilesScreen> {
   @override
   void initState() {
     super.initState();
-    _loadSavedIp();
+    if (_isWindowsApp) {
+      _loadSavedIp();
+    }
+  }
+
+  bool get _isWindowsApp {
+    // Retorna true somente se for aplicação nativa Windows
+    // Web no Windows retorna false aqui porque kIsWeb é true
+    return !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
   }
 
   Future<void> _loadSavedIp() async {
@@ -80,16 +88,10 @@ class _AdminTurnstilesScreenState extends State<AdminTurnstilesScreen> {
       final userId = int.tryParse(_testUserIdController.text);
       if (userId == null) throw 'ID inválido';
 
-      // Busca dados reais do usuário no Supabase para garantir permissão
-      // Mas para teste, vamos confiar no ID digitado e nome "Usuario Teste"
-      // Ou melhor, buscar o nome se possível.
-
-      // Simulação de busca rápida ou uso do nome genérico
       final result = await ControlIdService.addUser(
         ip: _ipController.text,
         id: userId,
-        name: 'Usuario Teste $userId', // Nome genérico para teste rápido
-        // password: admin (padrão no service)
+        name: 'Usuario Teste $userId',
       );
 
       setState(() {
@@ -108,6 +110,77 @@ class _AdminTurnstilesScreenState extends State<AdminTurnstilesScreen> {
     }
   }
 
+  Future<void> _launchDownloadLink() async {
+    final Uri url = Uri.parse(
+        'https://drive.google.com/drive/folders/1IE_-rruGTbb2GpbrFmPxI5qqRt07RBGH?usp=sharing');
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Não foi possível abrir o link de download')),
+        );
+      }
+    }
+  }
+
+  Widget _buildWebWarning() {
+    return Center(
+      child: Card(
+        elevation: 4,
+        color: const Color(0xFFFFF3CD),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(32.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.desktop_windows_rounded,
+                  size: 64, color: Color(0xFF856404)),
+              const SizedBox(height: 24),
+              Text(
+                'Módulo Desktop Necessário',
+                style: GoogleFonts.cinzel(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF856404)),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Por motivos de segurança, navegadores (Web) não podem acessar a catraca na sua rede local.\n\n'
+                'Para controlar sua catraca Control iD, você precisa baixar e usar o Módulo Desktop Oficial.',
+                style: TextStyle(fontSize: 16, color: Color(0xFF856404)),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 32),
+              ElevatedButton.icon(
+                onPressed: _launchDownloadLink,
+                icon: const Icon(Icons.download_rounded),
+                label: const Text('Baixar Instalador Windows'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF856404),
+                  foregroundColor: Colors.white,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
+                  textStyle: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Dica: Após instalar, remova o atalho do site para evitar confusão.',
+                style: TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF856404),
+                    fontStyle: FontStyle.italic),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -120,138 +193,145 @@ class _AdminTurnstilesScreenState extends State<AdminTurnstilesScreen> {
         elevation: 0,
         iconTheme: const IconThemeData(color: AppTheme.primaryText),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Card de Aviso
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF3CD),
-                border: Border.all(color: const Color(0xFFFFECB5)),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Row(
+      body: _isWindowsApp
+          ? SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Icon(Icons.warning_amber_rounded, color: Color(0xFF856404)),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Esta configuração é exclusiva para catracas Control iD (iDFace/iDAccess). '
-                      'Certifique-se que este computador está na mesma rede Wi-Fi/Cabo da catraca.',
-                      style: TextStyle(color: Color(0xFF856404)),
+                  // Card de Aviso
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE3F2FD), // Azul suave
+                      border: Border.all(color: const Color(0xFFBBDEFB)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.verified_user_rounded,
+                            color: Color(0xFF1976D2)),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Módulo Nativo Ativo. Você tem permissão para acessar a rede local da catraca.',
+                            style: TextStyle(color: Color(0xFF0D47A1)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+
+                  // Configuração de IP
+                  Text('Endereço IP da Catraca',
+                      style: GoogleFonts.lato(
+                          fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _ipController,
+                    decoration: InputDecoration(
+                      hintText: 'Ex: 192.168.1.99',
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      filled: true,
+                      fillColor: Colors.white,
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.refresh),
+                        tooltip: 'Testar Conexão',
+                        onPressed: _isLoading ? null : _testConnection,
+                      ),
+                    ),
+                    keyboardType: TextInputType.number,
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Status da Conexão
+                  if (_statusMessage.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: _statusColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        _statusMessage,
+                        style: TextStyle(
+                            color: _statusColor, fontWeight: FontWeight.bold),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+
+                  const SizedBox(height: 32),
+
+                  // Ações
+                  Text('Ações de Sincronização',
+                      style: GoogleFonts.lato(
+                          fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 16),
+
+                  // Modo Teste
+                  Card(
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.science, color: Colors.blue),
+                              const SizedBox(width: 10),
+                              Text('Modo Teste (Seguro)',
+                                  style: GoogleFonts.lato(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          const Text(
+                              'Sincroniza apenas UM usuário específico para validar a comunicação sem alterar os outros.'),
+                          const SizedBox(height: 16),
+                          TextField(
+                            controller: _testUserIdController,
+                            decoration: const InputDecoration(
+                              labelText: 'ID do Usuário (ex: 9999)',
+                              border: OutlineInputBorder(),
+                              contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 8),
+                            ),
+                            keyboardType: TextInputType.number,
+                          ),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: (_isLoading || !_isConnected)
+                                  ? null
+                                  : _syncTestUser,
+                              icon: const Icon(Icons.sync),
+                              label: const Text('Sincronizar Apenas Este ID'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue,
+                                foregroundColor: Colors.white,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 14),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
               ),
+            )
+          : Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: _buildWebWarning(),
             ),
-            const SizedBox(height: 32),
-
-            // Configuração de IP
-            Text('Endereço IP da Catraca',
-                style: GoogleFonts.lato(
-                    fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _ipController,
-              decoration: InputDecoration(
-                hintText: 'Ex: 192.168.1.99',
-                border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                filled: true,
-                fillColor: Colors.white,
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.refresh),
-                  tooltip: 'Testar Conexão',
-                  onPressed: _isLoading ? null : _testConnection,
-                ),
-              ),
-              keyboardType: TextInputType.number,
-            ),
-            const SizedBox(height: 16),
-
-            // Status da Conexão
-            if (_statusMessage.isNotEmpty)
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: _statusColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  _statusMessage,
-                  style: TextStyle(
-                      color: _statusColor, fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-
-            const SizedBox(height: 32),
-
-            // Ações (Só aparecem se conectado ou se quiser forçar)
-            Text('Ações de Sincronização',
-                style: GoogleFonts.lato(
-                    fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-
-            // Modo Teste
-            Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16)),
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.science, color: Colors.blue),
-                        const SizedBox(width: 10),
-                        Text('Modo Teste (Seguro)',
-                            style: GoogleFonts.lato(
-                                fontSize: 16, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    const Text(
-                        'Sincroniza apenas UM usuário específico para validar a comunicação sem alterar os outros.'),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: _testUserIdController,
-                      decoration: const InputDecoration(
-                        labelText: 'ID do Usuário (ex: 9999)',
-                        border: OutlineInputBorder(),
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      ),
-                      keyboardType: TextInputType.number,
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: (_isLoading || !_isConnected)
-                            ? null
-                            : _syncTestUser,
-                        icon: const Icon(Icons.sync),
-                        label: const Text('Sincronizar Apenas Este ID'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

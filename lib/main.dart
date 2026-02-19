@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:google_fonts/google_fonts.dart'; // Import Fonts
 import 'screens/splash_screen.dart';
 import 'screens/email_confirmation_screen.dart';
 import 'screens/reset_password_screen.dart';
@@ -54,6 +55,12 @@ void main(List<String> args) async {
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
+  ]);
+
+  // Preload Fonts to optimize performance and prevent lag on screen transitions
+  await GoogleFonts.pendingFonts([
+    GoogleFonts.lato(),
+    GoogleFonts.cinzel(),
   ]);
 
   runApp(const SpartanApp());
