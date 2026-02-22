@@ -11,13 +11,14 @@ class ControlIdService {
     required String name,
   }) async {
     try {
-      String session = await _login(ip);
+      final sanitizedIp = sanitizeIp(ip);
+      String session = await _login(sanitizedIp);
       if (session.isEmpty) throw 'Falha de login';
 
       final urlCreate =
-          Uri.parse('http://$ip/create_objects.fcgi?session=$session');
+          Uri.parse('http://$sanitizedIp/create_objects.fcgi?session=$session');
       final urlModify =
-          Uri.parse('http://$ip/modify_objects.fcgi?session=$session');
+          Uri.parse('http://$sanitizedIp/modify_objects.fcgi?session=$session');
 
       // 1. Tenta criar o usuário. Se já existir, tudo bem.
       final createUserBody = jsonEncode({
@@ -103,11 +104,24 @@ class ControlIdService {
   /// Verifica conexão com a catraca (Ping)
   static Future<bool> testConnection(String ip) async {
     try {
+      final sanitizedIp = sanitizeIp(ip);
       // Tenta login como ping
-      final session = await _login(ip);
+      final session = await _login(sanitizedIp);
       return session.isNotEmpty;
     } catch (e) {
       return false;
+    }
+  }
+
+  /// Limpa zeros à esquerda e espaços do IP (ex: 192.168.001.050 -> 192.168.1.50)
+  static String sanitizeIp(String ip) {
+    if (ip.isEmpty) return ip;
+    try {
+      return ip.trim().split('.').map((part) {
+        return int.parse(part).toString();
+      }).join('.');
+    } catch (e) {
+      return ip.trim(); // Se falhar o parse (ex: ip invalido), retorna trimado
     }
   }
 
@@ -117,11 +131,12 @@ class ControlIdService {
     required int id,
   }) async {
     try {
-      String session = await _login(ip);
+      final sanitizedIp = sanitizeIp(ip);
+      String session = await _login(sanitizedIp);
       if (session.isEmpty) throw 'Falha ao autenticar na catraca';
 
       final urlWithSession =
-          Uri.parse('http://$ip/remote_enroll.fcgi?session=$session');
+          Uri.parse('http://$sanitizedIp/remote_enroll.fcgi?session=$session');
 
       final body = jsonEncode({
         "type": "face",
@@ -171,9 +186,10 @@ class ControlIdService {
     required int id,
   }) async {
     try {
-      String session = await _login(ip);
-      final urlWithSession =
-          Uri.parse('http://$ip/destroy_objects.fcgi?session=$session');
+      final sanitizedIp = sanitizeIp(ip);
+      String session = await _login(sanitizedIp);
+      final urlWithSession = Uri.parse(
+          'http://$sanitizedIp/destroy_objects.fcgi?session=$session');
 
       // Deleta unicamente a REGRA DE ACESSO do ID do usuário.
       // O usuário físico continua na memória da catraca, mas a porta não abre mais.

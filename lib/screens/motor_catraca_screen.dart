@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
@@ -135,29 +136,32 @@ class _MotorCatracaScreenState extends State<MotorCatracaScreen> {
   }
 
   Future<void> _startMotor() async {
-    final ip = _ipController.text.trim();
-    if (ip.isEmpty) {
+    final rawIp = _ipController.text.trim();
+    if (rawIp.isEmpty) {
       _addLog('❌ ERRO: IP Inválido');
       return;
     }
 
+    final sanitizedIp = ControlIdService.sanitizeIp(rawIp);
+    _ipController.text = sanitizedIp; // Atualiza UI
+
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('control_id_ip', ip);
+    await prefs.setString('control_id_ip', sanitizedIp);
 
     setState(() {
       _isRunning = true;
       _statusMessage = 'Testando conexão com a Catraca...';
     });
 
-    _addLog('Iniciando comunicação com $ip...');
-    bool connected = await ControlIdService.testConnection(ip);
+    _addLog('Iniciando comunicação com $sanitizedIp...');
+    bool connected = await ControlIdService.testConnection(sanitizedIp);
 
     if (!connected) {
       setState(() {
         _isRunning = false;
         _statusMessage = 'Conexão com a catraca falhou!';
       });
-      _addLog('❌ ERRO: Não foi possível conectar a $ip.');
+      _addLog('❌ ERRO: Não foi possível conectar a $sanitizedIp.');
       return;
     }
 
@@ -188,11 +192,13 @@ class _MotorCatracaScreenState extends State<MotorCatracaScreen> {
   }
 
   Future<void> _syncManual() async {
-    final ip = _ipController.text.trim();
-    if (ip.isEmpty) {
+    final rawIp = _ipController.text.trim();
+    if (rawIp.isEmpty) {
       _addLog('❌ ERRO: Configure o IP para sincronizar.');
       return;
     }
+    final sanitizedIp = ControlIdService.sanitizeIp(rawIp);
+    _ipController.text = sanitizedIp;
 
     setState(() {
       _isSyncingManual = true;
@@ -200,7 +206,7 @@ class _MotorCatracaScreenState extends State<MotorCatracaScreen> {
 
     _addLog('Iniciando sincronização manual...');
     try {
-      final connected = await ControlIdService.testConnection(ip);
+      final connected = await ControlIdService.testConnection(sanitizedIp);
       if (!connected) {
         _addLog('❌ ERRO: Catraca offline ou ausente.');
       } else {
@@ -304,6 +310,11 @@ class _MotorCatracaScreenState extends State<MotorCatracaScreen> {
                     child: TextField(
                       controller: _ipController,
                       enabled: !_isRunning,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                        _IpInputFormatter(),
+                      ],
                       style: const TextStyle(color: Colors.white, fontSize: 18),
                       decoration: InputDecoration(
                         labelText: 'IP Local da Catraca (ex: 192.168.1.99)',
@@ -500,5 +511,37 @@ class _MotorCatracaScreenState extends State<MotorCatracaScreen> {
         ),
       ),
     );
+  }
+}
+
+/// Formatador para máscara de IP (000.000.000.000)
+class _IpInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    var text = newValue.text;
+
+    if (newValue.selection.baseOffset == 0) {
+      return newValue;
+    }
+
+    // Se o usuário apagou algo, não interfere
+    if (text.length < oldValue.text.length) {
+      return newValue;
+    }
+
+    // Lógica simples: se o último caractere digitado faz o segmento ter 3 dígitos, adiciona ponto
+    final parts = text.split('.');
+    final lastPart = parts.last;
+
+    if (lastPart.length == 3 && parts.length < 4) {
+      text += '.';
+      return TextEditingValue(
+        text: text,
+        selection: TextSelection.collapsed(offset: text.length),
+      );
+    }
+
+    return newValue;
   }
 }
