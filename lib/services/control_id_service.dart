@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'financial_service.dart';
+import 'user_service.dart';
 
 class ControlIdService {
   static Future<Map<String, dynamic>> addUser({
@@ -240,7 +241,11 @@ class ControlIdService {
   /// Deve ser chamado em background ao cadastrar um aluno ou registrar um pagamento.
   /// Ele roda silenciosamente. Se o PC estiver na rede da catraca (Recepção), ele executa.
   /// Se o acesso for via 4G ou Nutricionista em casa, simplesmente falha no log e ignora o erro.
-  static Future<void> syncStudentRealtime(String userUuid) async {
+  /// Sincroniza um aluno específico em tempo real.
+  /// userUuid: ID do aluno
+  /// forcedStatus: Se já tivermos o status calculado (ex: via Realtime payload), passamos aqui para evitar query.
+  static Future<void> syncStudentRealtime(String userUuid,
+      {String? forcedStatus}) async {
     try {
       if (userUuid.isEmpty) return;
 
@@ -251,29 +256,27 @@ class ControlIdService {
         return; // Módulo Desktop/Catraca não configurado neste dispositivo
       }
 
-      print(
-          '🌐 [Control iD] Analisando status do aluno $userUuid e avisando a Catraca...');
+      String status = forcedStatus ?? 'unknown';
+      String name = 'Aluno';
 
-      final now = DateTime.now();
-      // Puxa o painel financeiro geral (Contém as regras de cobrança Ledger)
-      final studentsStatus = await FinancialService.getMonthlyPaymentsStatus(
-          month: now.month, year: now.year);
+      // Se não temos o status forçado, buscamos o "Status Master" no banco
+      if (status == 'unknown') {
+        print('🌐 [Control iD] Buscando Status Master para $userUuid...');
+        final student = await UserService.getUserById(userUuid);
+        if (student != null) {
+          status = student['status_financeiro'] ?? 'pending';
+          name = student['name'] ?? 'Aluno';
+        }
+      }
 
-      // Localiza apenas o aluno alvo
-      final studentMap = studentsStatus.firstWhere(
-        (s) => s['id'] == userUuid,
-        orElse: () => <String, dynamic>{}, // Vazio se não achar
-      );
-
-      if (studentMap.isEmpty) {
+      if (status == 'unknown') {
         print(
-            '⚠️ [Control iD] Aluno não encontrado na base financeira. Ignorando.');
+            '⚠️ [Control iD] Status ainda desconhecido para $userUuid. Abortando.');
         return;
       }
 
       final int catracaId = generateCatracaId(userUuid);
-      final String name = studentMap['name'] ?? 'Aluno';
-      final String status = studentMap['status'];
+      print('📊 [Control iD] Aluno: $userUuid | Status Master: $status');
 
       if (status == 'paid' || status == 'pending') {
         final res = await addUser(ip: savedIp, id: catracaId, name: name);
@@ -283,8 +286,7 @@ class ControlIdService {
         print('🚫 [Control iD] Sinc real-time (Bloquear): ${res['message']}');
       }
     } catch (e) {
-      print(
-          '⚠️ [Control iD] Ignorado: Dispositivo possivelmente fora da rede local ($e)');
+      print('⚠️ [Control iD] Erro na sincronização real-time ($e)');
     }
   }
 

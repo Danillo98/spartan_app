@@ -398,11 +398,13 @@ class FinancialService {
     // 1. Buscar todos os alunos
     final students = await UserService.getUsersByRole(UserRole.student);
 
-    // 2. Buscar TODAS as transações de entrada de alunos (Histórico Completo)
-    // Ordenado por data crescente para mapear: 1ª Mensalidade -> 1º Pagamento, etc.
+    // 2. Buscar TODAS as transações de entrada de alunos desta academia (Histórico Completo)
+    final idAcademia = await _getAcademyId();
+
     final response = await _client
         .from('financial_transactions')
         .select()
+        .eq('id_academia', idAcademia)
         .eq('type', 'income')
         .eq('related_user_role', 'student')
         .order('transaction_date', ascending: true);
@@ -426,7 +428,8 @@ class FinancialService {
 
     for (var student in students) {
       final studentId = student['id'];
-      final dueDay = student['payment_due'] as int?;
+      final dueDay =
+          (student['payment_due'] ?? student['payment_due_day']) as int?;
       final createdAtStr = student['created_at'] as String?;
 
       // Ignorar alunos sem data de criação (banco inconsistente) ou tratar como novos
@@ -630,5 +633,65 @@ class FinancialService {
         'message': 'Erro ao processar notificações: $e'
       };
     }
+  }
+
+  // --- (NOVO) Lógica centralizada para um único aluno (Realtime friendly) ---
+  static Future<Map<String, dynamic>> checkStudentStatus(
+      String studentId) async {
+    final student = await UserService.getUserById(studentId);
+    if (student == null) return {'status': 'unknown'};
+
+    // Obtendo o contexto para garantir a query correta (embora student_id seja único)
+    final idAcademia = student['id_academia'] ?? '';
+    final createdAtStr = student['created_at'] as String?;
+    if (createdAtStr == null) return {'status': 'unknown'};
+
+    final createdAt = DateTime.parse(createdAtStr);
+    final now = DateTime.now();
+
+    // 1. Buscar pagamentos deste aluno
+    final response = await _client
+        .from('financial_transactions')
+        .select()
+        .eq('id_academia', idAcademia)
+        .eq('related_user_id', studentId)
+        .eq('type', 'income')
+        .eq('related_user_role', 'student')
+        .order('transaction_date', ascending: true);
+
+    final myPayments = List<Map<String, dynamic>>.from(response);
+
+    // 2. Calcular meses desde a entrada
+    int monthsSinceStart =
+        (now.year - createdAt.year) * 12 + (now.month - createdAt.month) + 1;
+
+    if (monthsSinceStart < 1) monthsSinceStart = 1;
+
+    int currentPaidCount = myPayments.length;
+    String status = 'pending';
+
+    if (currentPaidCount >= monthsSinceStart) {
+      status = 'paid';
+    } else {
+      if (currentPaidCount < monthsSinceStart - 1) {
+        status = 'overdue';
+      } else {
+        final dueDay =
+            (student['payment_due'] ?? student['payment_due_day']) as int?;
+        if (dueDay != null) {
+          if (now.day > dueDay) {
+            status = 'overdue';
+          } else {
+            status = 'pending';
+          }
+        }
+      }
+    }
+
+    return {
+      'id': studentId,
+      'name': student['name'] ?? student['nome'] ?? 'Aluno',
+      'status': status,
+    };
   }
 }

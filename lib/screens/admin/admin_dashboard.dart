@@ -103,13 +103,15 @@ class _AdminDashboardState extends State<AdminDashboard>
             schema: 'public',
             table: 'users_alunos',
             callback: (payload) async {
-              // Dá um pequeno atraso para garantir que a API do Supabase
-              // já reflita os dados commitados no banco para o próximo select
-              await Future.delayed(const Duration(milliseconds: 1500));
+              await Future.delayed(const Duration(milliseconds: 1000));
 
               final newRecord = payload.newRecord;
               if (newRecord.containsKey('id')) {
-                ControlIdService.syncStudentRealtime(newRecord['id']);
+                final status = newRecord['status_financeiro'] as String?;
+                ControlIdService.syncStudentRealtime(
+                  newRecord['id'],
+                  forcedStatus: status,
+                );
               }
             })
         .subscribe();
@@ -121,21 +123,15 @@ class _AdminDashboardState extends State<AdminDashboard>
             schema: 'public',
             table: 'financial_transactions',
             callback: (payload) async {
-              // Dá um pequeno atraso para garantir que a API do Supabase
-              // já reflita os dados commitados no banco (PostgREST)
-              await Future.delayed(const Duration(milliseconds: 1500));
+              await Future.delayed(const Duration(milliseconds: 1000));
 
               final record = payload.newRecord.isNotEmpty
                   ? payload.newRecord
                   : payload.oldRecord;
 
               if (record.containsKey('related_user_id')) {
-                // Sincroniza apenas o aluno específico afetado
                 ControlIdService.syncStudentRealtime(record['related_user_id']);
               } else if (payload.eventType == PostgresChangeEvent.delete) {
-                // Caso seja um estorno (DELETE) e o banco envie apenas o ID (Replica Identity Default),
-                // fazemos a varredura e bloqueio de inadimplentes silenciosamente de forma global,
-                // garantindo que o estornado perca o acesso IMEDIATAMENTE.
                 ControlIdService.syncAllStudentsSilently();
               }
             })

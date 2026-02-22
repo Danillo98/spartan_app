@@ -171,6 +171,10 @@ class UserService {
     if (user.containsKey('payment_due_day')) {
       normalized['payment_due_day'] = user['payment_due_day'];
     }
+    // Novo status master do banco
+    if (user.containsKey('status_financeiro')) {
+      normalized['status_financeiro'] = user['status_financeiro'];
+    }
     return normalized;
   }
 

@@ -228,12 +228,18 @@ class _MotorCatracaScreenState extends State<MotorCatracaScreen> {
             schema: 'public',
             table: 'users_alunos',
             callback: (payload) async {
-              await Future.delayed(const Duration(milliseconds: 1500));
+              // Pequeno delay para garantir que o trigger no banco terminou
+              await Future.delayed(const Duration(milliseconds: 1000));
               final newRecord = payload.newRecord;
               if (newRecord.containsKey('id')) {
-                _addLog('🔔 Alerta (Cadastro): Mudança em Aluno detectada!');
-                await ControlIdService.syncStudentRealtime(newRecord['id']);
-                _addLog('✅ Acesso atualizado!');
+                final status = newRecord['status_financeiro'] as String?;
+                _addLog(
+                    '🔔 Alerta: Mudança no status do aluno (${status ?? "verificando..."})');
+                await ControlIdService.syncStudentRealtime(
+                  newRecord['id'],
+                  forcedStatus: status,
+                );
+                _addLog('✅ Sincronismo concluído.');
               }
             })
         .subscribe();
@@ -245,20 +251,19 @@ class _MotorCatracaScreenState extends State<MotorCatracaScreen> {
             schema: 'public',
             table: 'financial_transactions',
             callback: (payload) async {
-              await Future.delayed(const Duration(milliseconds: 1500));
+              await Future.delayed(const Duration(milliseconds: 1000));
               final record = payload.newRecord.isNotEmpty
                   ? payload.newRecord
                   : payload.oldRecord;
 
               if (record.containsKey('related_user_id')) {
-                _addLog('🔔 Alerta (Finanças): Nova transação financeira.');
+                _addLog('🔔 Alerta: Nova transação financeira.');
                 await ControlIdService.syncStudentRealtime(
                     record['related_user_id']);
-                _addLog('✅ Acesso atualizado!');
+                _addLog('✅ Sincronismo concluído.');
               } else if (payload.eventType == PostgresChangeEvent.delete) {
-                _addLog('🔔 Alerta (Finanças): Estorno Global Detectado!');
+                _addLog('🔔 Alerta: Estorno Global!');
                 await ControlIdService.syncAllStudentsSilently();
-                _addLog('✅ Travamento global atualizado!');
               }
             })
         .subscribe();
