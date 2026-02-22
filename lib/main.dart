@@ -12,6 +12,9 @@ import 'services/supabase_service.dart';
 import 'services/cache_manager.dart';
 import 'services/notification_service.dart';
 import 'config/app_theme.dart';
+import 'models/user_role.dart';
+import 'screens/role_login_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:app_links/app_links.dart';
 // REMOVIDO: import 'dart:io' show Platform; // Quebra na Web
 import 'package:flutter/foundation.dart'; // Para kIsWeb e defaultTargetPlatform
@@ -139,6 +142,43 @@ class _SpartanAppState extends State<SpartanApp> {
     // Caso 2: Fragmento Supabase (Hash ou URL Base na Web)
     final fragment = uri.fragment;
     final queryParams = uri.queryParameters;
+
+    if (uri.scheme == 'spartan' && uri.host == 'open') {
+      final role = queryParams['role'];
+      if (role != null) {
+        print('📱 Deep Link Role detectado! Role: $role');
+
+        SharedPreferences.getInstance().then((prefs) {
+          if (role == 'clear' || role == 'admin') {
+            prefs.remove('saved_login_role');
+          } else {
+            prefs.setString('saved_login_role', role);
+          }
+        });
+
+        Widget targetScreen = const LoginScreen();
+        if (role == 'student') {
+          targetScreen = const RoleLoginScreen(
+              role: UserRole.student, roleTitle: 'Aluno', isLocked: true);
+        } else if (role == 'nutritionist') {
+          targetScreen = const RoleLoginScreen(
+              role: UserRole.nutritionist,
+              roleTitle: 'Nutricionista',
+              isLocked: true);
+        } else if (role == 'trainer') {
+          targetScreen = const RoleLoginScreen(
+              role: UserRole.trainer,
+              roleTitle: 'Personal Trainer',
+              isLocked: true);
+        }
+
+        _navigatorKey.currentState?.pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => targetScreen),
+          (route) => false,
+        );
+        return;
+      }
+    }
 
     if (fragment.contains('type=recovery') ||
         queryParams['type'] == 'recovery') {
@@ -369,6 +409,36 @@ class _SpartanAppState extends State<SpartanApp> {
 
         final uri = Uri.parse(settings.name!);
         final token = uri.queryParameters['token'];
+        final role = uri.queryParameters['role'];
+
+        if (role != null && role.isNotEmpty) {
+          print('📱 Web Route Role detectado. Role: $role');
+
+          SharedPreferences.getInstance().then((prefs) {
+            if (role == 'clear' || role == 'admin') {
+              prefs.remove('saved_login_role');
+            } else {
+              prefs.setString('saved_login_role', role);
+            }
+          });
+
+          Widget targetScreen = const LoginScreen();
+          if (role == 'student') {
+            targetScreen = const RoleLoginScreen(
+                role: UserRole.student, roleTitle: 'Aluno', isLocked: true);
+          } else if (role == 'nutritionist') {
+            targetScreen = const RoleLoginScreen(
+                role: UserRole.nutritionist,
+                roleTitle: 'Nutricionista',
+                isLocked: true);
+          } else if (role == 'trainer') {
+            targetScreen = const RoleLoginScreen(
+                role: UserRole.trainer,
+                roleTitle: 'Personal Trainer',
+                isLocked: true);
+          }
+          return MaterialPageRoute(builder: (context) => targetScreen);
+        }
 
         // Rota de Redefinição de Senha
         if (uri.path.contains('/reset-password') ||

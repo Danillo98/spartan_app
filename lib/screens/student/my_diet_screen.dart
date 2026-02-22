@@ -1,6 +1,6 @@
 import 'dart:convert';
 // ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
+import 'package:universal_html/html.dart' as html;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/diet_service.dart';
@@ -28,7 +28,7 @@ class _MyDietScreenState extends State<MyDietScreen> {
   }
 
   Future<void> _loadDiets() async {
-    setState(() => _isLoading = true);
+    if (_diets.isEmpty) setState(() => _isLoading = true);
     try {
       // Obter ID do aluno logado
       final userData = await AuthService.getCurrentUserData();
@@ -357,7 +357,7 @@ class _DietDetailsStudentScreenState extends State<DietDetailsStudentScreen> {
   }
 
   Future<void> _loadDiet() async {
-    setState(() => _isLoading = true);
+    if (_diet == null) setState(() => _isLoading = true);
     try {
       final diet = await DietService.getDietById(widget.dietId);
       print('DEBUG: Diet data: $diet'); // Debug

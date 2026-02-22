@@ -49,10 +49,8 @@ class ResponsiveGrid extends StatelessWidget {
     final width = MediaQuery.of(context).size.width;
     int crossAxisCount = 2; // Padrão: 2 colunas (Celular)
 
-    if (width > 1200) {
-      crossAxisCount = 4; // PC Grande
-    } else if (width > 800) {
-      crossAxisCount = 3; // Tablet / Laptop
+    if (width > 800) {
+      crossAxisCount = 5; // PC / Tablet
     }
 
     // A lógica de reduzir colunas se tiver poucos itens foi removida

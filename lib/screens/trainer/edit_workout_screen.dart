@@ -1,5 +1,9 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../services/workout_service.dart';
 import '../../config/app_theme.dart';
 
@@ -24,6 +28,8 @@ class _EditWorkoutScreenState extends State<EditWorkoutScreen> {
   DateTime? _endDate;
   bool _isActive = true;
   bool _isLoading = false;
+
+  final List<Uint8List> _attachedImages = [];
 
   static const trainerPrimary = AppTheme.primaryRed;
 
@@ -52,8 +58,25 @@ class _EditWorkoutScreenState extends State<EditWorkoutScreen> {
 
   void _initializeFields() {
     _nameController = TextEditingController(text: widget.workout['name'] ?? '');
-    _descriptionController =
-        TextEditingController(text: widget.workout['description'] ?? '');
+    String rawDescription = widget.workout['description'] ?? '';
+
+    final RegExp regExp = RegExp(r'\[IMG_BASE64:([^\]]+)\]');
+    final matches = regExp.allMatches(rawDescription);
+
+    for (var match in matches) {
+      final base64String = match.group(1);
+      if (base64String != null) {
+        try {
+          _attachedImages.add(base64Decode(base64String.trim()));
+        } catch (e) {
+          // ignore
+        }
+      }
+    }
+
+    rawDescription = rawDescription.replaceAll(regExp, '').trim();
+    _descriptionController = TextEditingController(text: rawDescription);
+
     _selectedGoal = widget.workout['goal'];
     _selectedLevel = widget.workout['difficulty_level'];
     _isActive = widget.workout['is_active'] ?? true;
@@ -85,12 +108,20 @@ class _EditWorkoutScreenState extends State<EditWorkoutScreen> {
     setState(() => _isLoading = true);
 
     try {
+      String finalDescription = _descriptionController.text;
+
+      // Anexar base64 das imagens comprimidas na descrição
+      if (_attachedImages.isNotEmpty) {
+        for (var bytes in _attachedImages) {
+          final base64String = base64Encode(bytes);
+          finalDescription += '\n[IMG_BASE64:$base64String]';
+        }
+      }
+
       final result = await WorkoutService.updateWorkout(
         workoutId: widget.workout['id'],
         name: _nameController.text,
-        description: _descriptionController.text.isEmpty
-            ? null
-            : _descriptionController.text,
+        description: finalDescription.isEmpty ? null : finalDescription,
         goal: _selectedGoal,
         difficultyLevel: _selectedLevel,
         isActive: _isActive,
@@ -148,8 +179,7 @@ class _EditWorkoutScreenState extends State<EditWorkoutScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      resizeToAvoidBottomInset: true,
+      backgroundColor: AppTheme.lightGrey,
       appBar: AppBar(
         title: Text('Editar Ficha',
             style: GoogleFonts.lato(
@@ -157,147 +187,343 @@ class _EditWorkoutScreenState extends State<EditWorkoutScreen> {
         backgroundColor: trainerPrimary,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Nome da Ficha
-              TextFormField(
-                controller: _nameController,
-                decoration: InputDecoration(
-                  labelText: 'Nome da Ficha',
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                  prefixIcon:
-                      const Icon(Icons.fitness_center, color: trainerPrimary),
-                ),
-                validator: (v) => v!.isEmpty ? 'Informe o nome' : null,
-              ),
-              const SizedBox(height: 16),
-
-              // Objetivo e Nível
-              Row(
-                children: [
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      value: _selectedGoal,
-                      isExpanded: true,
-                      items: _goals
-                          .map(
-                              (g) => DropdownMenuItem(value: g, child: Text(g)))
-                          .toList(),
-                      onChanged: (v) => setState(() => _selectedGoal = v),
-                      decoration: InputDecoration(
-                          labelText: 'Objetivo',
-                          border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12))),
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(color: trainerPrimary))
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: trainerPrimary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: trainerPrimary.withOpacity(0.3),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.info_outline_rounded,
+                              color: trainerPrimary),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Edite os dados principais desta ficha de treino atual.',
+                              style: GoogleFonts.lato(
+                                color: trainerPrimary,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      value: _selectedLevel,
-                      isExpanded: true,
-                      items: _levels
-                          .map(
-                              (l) => DropdownMenuItem(value: l, child: Text(l)))
-                          .toList(),
-                      onChanged: (v) => setState(() => _selectedLevel = v),
+                    const SizedBox(height: 24),
+
+                    // Nome da Ficha
+                    TextFormField(
+                      controller: _nameController,
                       decoration: InputDecoration(
-                          labelText: 'Nível',
-                          border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12))),
+                        labelText: 'Nome da Ficha',
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        filled: true,
+                        fillColor: Colors.white,
+                        prefixIcon: const Icon(Icons.fitness_center,
+                            color: trainerPrimary),
+                      ),
+                      validator: (v) => v!.isEmpty ? 'Informe o nome' : null,
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-              // Descrição
-              TextFormField(
-                controller: _descriptionController,
-                maxLines: 3,
-                decoration: InputDecoration(
-                  labelText: 'Descrição',
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                  prefixIcon:
-                      const Icon(Icons.description, color: trainerPrimary),
+                    // Objetivo e Nível
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: _selectedGoal,
+                            decoration: InputDecoration(
+                              labelText: 'Objetivo',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              filled: true,
+                              fillColor: Colors.white,
+                            ),
+                            items: _goals
+                                .map((g) =>
+                                    DropdownMenuItem(value: g, child: Text(g)))
+                                .toList(),
+                            onChanged: (v) => setState(() => _selectedGoal = v),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: _selectedLevel,
+                            decoration: InputDecoration(
+                              labelText: 'Nível',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              filled: true,
+                              fillColor: Colors.white,
+                            ),
+                            items: _levels
+                                .map((l) =>
+                                    DropdownMenuItem(value: l, child: Text(l)))
+                                .toList(),
+                            onChanged: (v) =>
+                                setState(() => _selectedLevel = v),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Descrição
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: Column(
+                        children: [
+                          TextFormField(
+                            controller: _descriptionController,
+                            textCapitalization: TextCapitalization.sentences,
+                            maxLines: 4,
+                            decoration: const InputDecoration(
+                              labelText: 'Descrição / Informações Adicionais',
+                              alignLabelWithHint: true,
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.all(16),
+                            ),
+                          ),
+                          if (_attachedImages.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 8),
+                              child: Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: _attachedImages
+                                    .asMap()
+                                    .entries
+                                    .map((entry) {
+                                  final index = entry.key;
+                                  final bytes = entry.value;
+                                  return Stack(
+                                    children: [
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Image.memory(
+                                          bytes,
+                                          height: 100,
+                                          width: 100,
+                                          fit: BoxFit.cover,
+                                        ),
+                                      ),
+                                      Positioned(
+                                        top: 0,
+                                        right: 0,
+                                        child: GestureDetector(
+                                          onTap: () {
+                                            setState(() {
+                                              _attachedImages.removeAt(index);
+                                            });
+                                          },
+                                          child: Container(
+                                            margin: const EdgeInsets.all(4),
+                                            padding: const EdgeInsets.all(2),
+                                            decoration: BoxDecoration(
+                                              color:
+                                                  Colors.black.withOpacity(0.6),
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: const Icon(Icons.close,
+                                                color: Colors.white, size: 16),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                }).toList(),
+                              ),
+                            ),
+                          const Divider(height: 1),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.start,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.image,
+                                      color: Colors.blueGrey),
+                                  onPressed: () async {
+                                    try {
+                                      final picker = ImagePicker();
+                                      final image = await picker.pickImage(
+                                          source: ImageSource.gallery);
+                                      if (image != null) {
+                                        Uint8List bytes =
+                                            await image.readAsBytes();
+
+                                        try {
+                                          final compressed =
+                                              await FlutterImageCompress
+                                                  .compressWithList(
+                                            bytes,
+                                            minHeight: 1024,
+                                            minWidth: 1024,
+                                            quality: 75,
+                                          );
+                                          bytes =
+                                              Uint8List.fromList(compressed);
+                                        } catch (e) {
+                                          // Handle error
+                                        }
+                                        setState(() {
+                                          _attachedImages.add(bytes);
+                                        });
+                                      }
+                                    } catch (e) {
+                                      // Ignore
+                                    }
+                                  },
+                                  tooltip: 'Anexar Imagem',
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Datas
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            readOnly: true,
+                            onTap: _selectStartDate,
+                            decoration: InputDecoration(
+                              labelText: 'Data Início',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              filled: true,
+                              fillColor: Colors.white,
+                              suffixIcon: const Icon(Icons.calendar_today,
+                                  color: trainerPrimary),
+                            ),
+                            controller: TextEditingController(
+                              text: _startDate != null
+                                  ? '${_startDate!.day.toString().padLeft(2, '0')}/${_startDate!.month.toString().padLeft(2, '0')}/${_startDate!.year}'
+                                  : '',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: TextFormField(
+                            readOnly: true,
+                            onTap: _selectEndDate,
+                            decoration: InputDecoration(
+                              labelText: 'Data Fim (Opcional)',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              filled: true,
+                              fillColor: Colors.white,
+                              suffixIcon: const Icon(Icons.calendar_today,
+                                  color: trainerPrimary),
+                            ),
+                            controller: TextEditingController(
+                              text: _endDate != null
+                                  ? '${_endDate!.day.toString().padLeft(2, '0')}/${_endDate!.month.toString().padLeft(2, '0')}/${_endDate!.year}'
+                                  : '',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 32),
+
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 10,
+                            offset: const Offset(0, -4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.pop(context),
+                              style: OutlinedButton.styleFrom(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                side: BorderSide(color: AppTheme.borderGrey),
+                              ),
+                              child: Text(
+                                'Cancelar',
+                                style: GoogleFonts.lato(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.secondaryText,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: _saveChanges,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: trainerPrimary,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                elevation: 4,
+                              ),
+                              child: Text(
+                                'Salvar',
+                                style: GoogleFonts.lato(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 16),
-
-              // Datas
-              Row(
-                children: [
-                  Expanded(
-                      child: _buildDateButton(
-                          'Início', _startDate, _selectStartDate)),
-                  const SizedBox(width: 12),
-                  Expanded(
-                      child: _buildDateButton('Fim', _endDate, _selectEndDate)),
-                ],
-              ),
-              const SizedBox(height: 32),
-
-              // Botão Salvar
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _saveChanges,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: trainerPrimary,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : Text('Salvar Alterações',
-                          style: GoogleFonts.lato(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white)),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDateButton(String label, DateTime? date, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.withOpacity(0.5)),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label,
-                style: GoogleFonts.lato(color: Colors.grey[600], fontSize: 12)),
-            const SizedBox(height: 4),
-            Row(children: [
-              const Icon(Icons.calendar_today, size: 16, color: trainerPrimary),
-              const SizedBox(width: 8),
-              Text(
-                  date != null
-                      ? '${date.day}/${date.month}/${date.year}'
-                      : 'Selecionar',
-                  style: GoogleFonts.lato(fontWeight: FontWeight.bold)),
-            ]),
-          ],
-        ),
-      ),
+            ),
     );
   }
 }

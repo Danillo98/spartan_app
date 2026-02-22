@@ -6,11 +6,14 @@ import '../services/auth_service.dart';
 import '../services/supabase_service.dart';
 import 'admin/admin_dashboard.dart';
 import 'admin/subscription_screen.dart';
+import 'student/student_dashboard.dart';
 import 'nutritionist/nutritionist_dashboard.dart';
 import 'trainer/trainer_dashboard.dart';
-import 'student/student_dashboard.dart';
 import 'admin_register_screen.dart';
 import '../services/version_service.dart';
+import '../models/user_role.dart';
+import 'role_login_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -425,13 +428,62 @@ class _SplashScreenState extends State<SplashScreen>
     );
   }
 
-  void _navigateToLogin() {
+  Future<void> _navigateToLogin() async {
     if (!mounted) return;
+
+    final uri = Uri.base;
+    var roleParam = uri.queryParameters['role'];
+    if (roleParam == null && uri.fragment.contains('role=')) {
+      try {
+        final fragUri = Uri.parse(uri.fragment.contains('?')
+            ? uri.fragment
+            : '?${uri.fragment.split('?').last}');
+        roleParam = fragUri.queryParameters['role'];
+      } catch (e) {
+        print('Error parsing fragment role: $e');
+      }
+    }
+
+    // Lógica para salvar "eternamente" a escolha da role
+    final prefs = await SharedPreferences.getInstance();
+
+    // Se passar 'clear' na URL, o usuário zera as preferências
+    if (roleParam == 'clear' || roleParam == 'admin') {
+      await prefs.remove('saved_login_role');
+      roleParam = null;
+    } else if (roleParam != null) {
+      // Salva a preferência
+      await prefs.setString('saved_login_role', roleParam);
+    } else {
+      // Tenta carregar do disco (salvo anteriormente em algum link de PWA/Web)
+      roleParam = prefs.getString('saved_login_role');
+    }
+
+    if (!mounted) return;
+
+    Widget targetScreen = const LoginScreen();
+
+    if (roleParam != null) {
+      if (roleParam == 'student') {
+        targetScreen = const RoleLoginScreen(
+            role: UserRole.student, roleTitle: 'Aluno', isLocked: true);
+      } else if (roleParam == 'nutritionist') {
+        targetScreen = const RoleLoginScreen(
+            role: UserRole.nutritionist,
+            roleTitle: 'Nutricionista',
+            isLocked: true);
+      } else if (roleParam == 'trainer') {
+        targetScreen = const RoleLoginScreen(
+            role: UserRole.trainer,
+            roleTitle: 'Personal Trainer',
+            isLocked: true);
+      }
+    }
+
     Navigator.pushReplacement(
       context,
       PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            const LoginScreen(),
+        pageBuilder: (context, animation, secondaryAnimation) => targetScreen,
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(opacity: animation, child: child);
         },

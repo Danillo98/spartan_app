@@ -31,7 +31,7 @@ class _DietsListScreenState extends State<DietsListScreen> {
   }
 
   Future<void> _loadDiets() async {
-    setState(() => _isLoading = true);
+    if (_diets.isEmpty) setState(() => _isLoading = true);
     try {
       final diets = await DietService.getAllDiets();
       setState(() {
@@ -408,29 +408,23 @@ class _DietsListScreenState extends State<DietsListScreen> {
   }
 
   void _navigateToCreateDiet() async {
-    final result = await Navigator.push(
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => const CreateDietScreen(),
       ),
     );
-
-    if (result == true) {
-      _loadDiets();
-    }
+    _loadDiets();
   }
 
   void _navigateToDietDetails(Map<String, dynamic> diet) async {
-    final result = await Navigator.push(
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => DietDetailsScreen(dietId: diet['id']),
       ),
     );
-
-    if (result == true) {
-      _loadDiets();
-    }
+    _loadDiets();
   }
 
   void _confirmDelete(Map<String, dynamic> diet) {

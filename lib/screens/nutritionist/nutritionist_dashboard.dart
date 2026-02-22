@@ -342,7 +342,7 @@ class _NutritionistDashboardState extends State<NutritionistDashboard>
                                 },
                               ),
                               _buildModernFeatureCard(
-                                title: 'Relatórios',
+                                title: 'Avaliações Físicas',
                                 icon: Icons.analytics_rounded,
                                 color: const Color(0xFF2A9D8F),
                                 onTap: () async {

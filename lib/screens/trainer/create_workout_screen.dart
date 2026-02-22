@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+
 import '../../services/workout_service.dart';
+import '../../services/workout_template_service.dart';
 import '../../config/app_theme.dart';
 import '../../widgets/searchable_selection.dart';
+import 'create_workout_template_screen.dart';
+import 'workout_details_screen.dart';
 
 class CreateWorkoutScreen extends StatefulWidget {
   const CreateWorkoutScreen({super.key});
@@ -13,33 +17,14 @@ class CreateWorkoutScreen extends StatefulWidget {
 
 class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _descriptionController = TextEditingController();
 
   Map<String, dynamic>? _selectedStudent;
+  Map<String, dynamic>? _selectedTemplate;
+
   String? _selectedGoal;
   String? _selectedLevel;
   DateTime? _startDate;
   DateTime? _endDate;
-  bool _isLoading = false;
-  bool _isLoadingStudents = false;
-  List<Map<String, dynamic>> _students = [];
-
-  // Nova estrutura: Map com detalhes de cada dia selecionado
-  final List<String> _availableDays = [
-    'Segunda-feira',
-    'Terça-feira',
-    'Quarta-feira',
-    'Quinta-feira',
-    'Sexta-feira',
-    'Sábado',
-    'Domingo'
-  ];
-
-  // Armazena os dias configurados: {dayName: {description, duration, sets}}
-  final Map<String, Map<String, dynamic>> _configuredDays = {};
-
-  static const trainerPrimary = AppTheme.primaryRed;
 
   final List<String> _goals = [
     'Hipertrofia',
@@ -58,38 +43,106 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
     'Atleta',
   ];
 
+  bool _isLoading = false;
+  bool _isLoadingStudents = true;
+  bool _isLoadingTemplates = true;
+
+  List<Map<String, dynamic>> _students = [];
+  List<Map<String, dynamic>> _templates = [];
+
+  static const trainerPrimary = AppTheme.primaryRed;
+
   @override
   void initState() {
     super.initState();
-    _loadStudents();
     _startDate = DateTime.now();
+    _loadData();
   }
 
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _descriptionController.dispose();
-    super.dispose();
-  }
+  Future<void> _loadData() async {
+    setState(() {
+      _isLoadingStudents = true;
+      _isLoadingTemplates = true;
+    });
 
-  Future<void> _loadStudents() async {
-    setState(() => _isLoadingStudents = true);
     try {
       final students = await WorkoutService.getMyStudents();
-      setState(() {
-        _students = students;
-        _isLoadingStudents = false;
-      });
+      final templates = await WorkoutTemplateService.getTemplates();
+
+      if (mounted) {
+        setState(() {
+          _students = students;
+          _isLoadingStudents = false;
+          _templates = templates;
+          _isLoadingTemplates = false;
+        });
+      }
     } catch (e) {
       if (mounted) {
-        setState(() => _isLoadingStudents = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro ao carregar alunos: $e'),
-            backgroundColor: AppTheme.accentRed,
-          ),
-        );
+        setState(() {
+          _isLoadingStudents = false;
+          _isLoadingTemplates = false;
+        });
       }
+    }
+  }
+
+  void _confirmDeleteTemplate(Map<String, dynamic> template) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Excluir Modelo',
+            style: GoogleFonts.lato(fontWeight: FontWeight.bold)),
+        content: Text(
+          'Deseja realmente excluir o modelo "${template['name']}"?\nToda ficha gerada com ele permanecerá intacta.',
+          style: GoogleFonts.lato(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style:
+                ElevatedButton.styleFrom(backgroundColor: AppTheme.accentRed),
+            onPressed: () async {
+              Navigator.pop(dialogContext); // fecha dialog
+              setState(() => _isLoading = true);
+              try {
+                final res =
+                    await WorkoutTemplateService.deleteTemplate(template['id']);
+                if (mounted) {
+                  ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(
+                    content: Text(res['message']),
+                    backgroundColor:
+                        res['success'] ? Colors.green : AppTheme.accentRed,
+                  ));
+                  _selectedTemplate = null;
+                  await _loadData();
+                }
+              } finally {
+                if (mounted) {
+                  setState(() => _isLoading = false);
+                }
+              }
+            },
+            child: const Text('Excluir', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmEditTemplate(Map<String, dynamic> template) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            CreateWorkoutTemplateScreen(templateToEdit: template),
+      ),
+    );
+    if (result == true) {
+      _loadData();
     }
   }
 
@@ -97,20 +150,13 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedStudent == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Selecione um aluno'),
-          backgroundColor: AppTheme.accentRed,
-        ),
+        const SnackBar(content: Text('Selecione um aluno')),
       );
       return;
     }
-
-    if (_configuredDays.isEmpty) {
+    if (_selectedTemplate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Configure pelo menos um dia de treino'),
-          backgroundColor: AppTheme.accentRed,
-        ),
+        const SnackBar(content: Text('Selecione um modelo de treino')),
       );
       return;
     }
@@ -118,15 +164,22 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 1. Criar o Treino (Header)
+      // 1. Obter modelo com seus dias
+      final templateData = await WorkoutTemplateService.getTemplateById(
+          _selectedTemplate!['id']);
+
+      if (templateData == null) {
+        throw Exception("Não foi possível carregar o modelo de treino.");
+      }
+
+      // 2. Criar Ficha no Banco
       final result = await WorkoutService.createWorkout(
         studentId: _selectedStudent!['id'],
-        name: _nameController.text,
-        description: _descriptionController.text.isEmpty
-            ? null
-            : _descriptionController.text,
-        goal: _selectedGoal,
-        difficultyLevel: _selectedLevel,
+        name:
+            '${_selectedStudent!['nome'] ?? _selectedStudent!['name']} - ${templateData['name']}',
+        description: templateData['description'],
+        goal: _selectedGoal ?? templateData['goal'],
+        difficultyLevel: _selectedLevel ?? templateData['difficulty_level'],
         startDate: _startDate,
         endDate: _endDate,
       );
@@ -137,16 +190,13 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
 
       final workoutId = result['workout']['id'];
 
-      // 2. Criar os Dias Configurados
-      int dayNumber = 1;
-      for (var entry in _configuredDays.entries) {
-        final dayName = entry.key;
-        final dayConfig = entry.value;
-
+      // 3. Clonar os Dias do Modelo se existirem
+      final List<dynamic> days = templateData['workout_template_days'] ?? [];
+      for (var dayConfig in days) {
         await WorkoutService.addWorkoutDay(
           workoutId: workoutId,
-          dayName: dayName,
-          dayNumber: dayNumber++,
+          dayName: dayConfig['day_name'],
+          dayNumber: dayConfig['day_number'],
           description: dayConfig['description'],
         );
       }
@@ -154,7 +204,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Ficha de treino criada com sucesso!'),
+            content: const Text('Ficha de treino gerada e atribuída!'),
             backgroundColor: trainerPrimary,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
@@ -162,13 +212,23 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
             ),
           ),
         );
-        Navigator.pop(context, true);
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => WorkoutDetailsScreen(
+              workoutId: workoutId,
+              workoutName: _selectedStudent!['nome'] ??
+                  _selectedStudent!['name'] ??
+                  'Treino',
+            ),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erro ao criar treino: $e'),
+            content: Text('Erro ao gerar ficha: $e'),
             backgroundColor: AppTheme.accentRed,
           ),
         );
@@ -186,7 +246,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
       backgroundColor: AppTheme.lightGrey,
       appBar: AppBar(
         title: Text(
-          'Nova Ficha de Treino',
+          'Gerar Nova Ficha',
           style: GoogleFonts.lato(
             fontWeight: FontWeight.bold,
             color: Colors.white,
@@ -206,7 +266,6 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Texto introdutório
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
@@ -218,12 +277,12 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.info_outline_rounded,
+                          const Icon(Icons.info_outline_rounded,
                               color: trainerPrimary),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              'Crie uma nova ficha de treino personalizada para seu aluno.',
+                              'Selecione um aluno e um modelo de treino já cadastrado para gerar a ficha automaticamente.',
                               style: GoogleFonts.lato(
                                 color: trainerPrimary,
                                 fontSize: 14,
@@ -235,7 +294,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                     ),
                     const SizedBox(height: 24),
 
-                    // Seleção de Aluno com Pesquisa
+                    // Seleção de Aluno
                     SearchableSelection<Map<String, dynamic>>(
                       label: 'Selecione o Aluno',
                       value: _selectedStudent,
@@ -250,35 +309,78 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
 
                     const SizedBox(height: 16),
 
-                    // Nome da Ficha
-                    TextFormField(
-                      controller: _nameController,
-                      textCapitalization: TextCapitalization.sentences,
-                      decoration: InputDecoration(
-                        labelText: 'Nome da Ficha',
-                        hintText: 'Ex: Hipertrofia Fase 1',
-                        prefixIcon: const Icon(Icons.fitness_center,
-                            color: trainerPrimary),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                    // Seleção de Modelo de Treino
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            key: ValueKey(_selectedTemplate?['id']),
+                            readOnly: true,
+                            onTap: _openTemplateSelector,
+                            initialValue: _selectedTemplate != null
+                                ? _selectedTemplate!['name']
+                                : '',
+                            decoration: InputDecoration(
+                              labelText:
+                                  'Selecione um modelo de treino já criado',
+                              hintText: 'Ex: Hipertrofia A/B',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              filled: true,
+                              fillColor: Colors.white,
+                              suffixIcon: const Icon(
+                                  Icons.arrow_drop_down_rounded,
+                                  color: trainerPrimary),
+                            ),
+                            validator: (v) => _selectedTemplate == null
+                                ? 'Obrigatório selecionar um modelo'
+                                : null,
+                          ),
                         ),
-                        filled: true,
-                        fillColor: Colors.white,
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Por favor informe o nome da ficha';
-                        }
-                        return null;
-                      },
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          height: 58,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: trainerPrimary,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              elevation: 2,
+                            ),
+                            onPressed: () async {
+                              final result = await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const CreateWorkoutTemplateScreen(),
+                                ),
+                              );
+                              if (result == true) {
+                                _loadData();
+                              }
+                            },
+                            child: Text(
+                              'Criar Treino',
+                              style: GoogleFonts.lato(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 16),
 
-                    // Objetivo e Nível
+                    const SizedBox(height: 16),
                     Row(
                       children: [
                         Expanded(
                           child: DropdownButtonFormField<String>(
+                            value: _selectedGoal,
                             decoration: InputDecoration(
                               labelText: 'Objetivo',
                               border: OutlineInputBorder(
@@ -287,25 +389,17 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                               filled: true,
                               fillColor: Colors.white,
                             ),
-                            value: _selectedGoal,
-                            items: _goals.map((goal) {
-                              return DropdownMenuItem(
-                                value: goal,
-                                child: Text(
-                                  goal,
-                                  style: const TextStyle(fontSize: 13),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              );
-                            }).toList(),
-                            onChanged: (value) {
-                              setState(() => _selectedGoal = value);
-                            },
+                            items: _goals
+                                .map((g) =>
+                                    DropdownMenuItem(value: g, child: Text(g)))
+                                .toList(),
+                            onChanged: (v) => setState(() => _selectedGoal = v),
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 16),
                         Expanded(
                           child: DropdownButtonFormField<String>(
+                            value: _selectedLevel,
                             decoration: InputDecoration(
                               labelText: 'Nível',
                               border: OutlineInputBorder(
@@ -314,277 +408,150 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                               filled: true,
                               fillColor: Colors.white,
                             ),
-                            value: _selectedLevel,
-                            items: _levels.map((level) {
-                              return DropdownMenuItem(
-                                value: level,
-                                child: Text(level),
-                              );
-                            }).toList(),
-                            onChanged: (value) {
-                              setState(() => _selectedLevel = value);
-                            },
+                            items: _levels
+                                .map((l) =>
+                                    DropdownMenuItem(value: l, child: Text(l)))
+                                .toList(),
+                            onChanged: (v) =>
+                                setState(() => _selectedLevel = v),
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 16),
-
-                    // Descrição
-                    TextFormField(
-                      controller: _descriptionController,
-                      textCapitalization: TextCapitalization.sentences,
-                      maxLines: 3,
-                      decoration: InputDecoration(
-                        labelText: 'Descrição / Observações',
-                        hintText: 'Detalhes sobre a periodização...',
-                        alignLabelWithHint: true,
-                        prefixIcon: const Icon(Icons.description,
-                            color: trainerPrimary),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Seleção de Dias (Novo - Com Configuração)
-                    Text(
-                      'Dias de Treino',
-                      style: GoogleFonts.lato(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.primaryText,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-
-                    // Dias já configurados
-                    if (_configuredDays.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                              color: trainerPrimary.withOpacity(0.3)),
-                        ),
-                        child: Column(
-                          children: _configuredDays.entries.map((entry) {
-                            return Container(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: trainerPrimary.withOpacity(0.05),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                    color: trainerPrimary.withOpacity(0.2)),
-                              ),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      entry.key,
-                                      style: GoogleFonts.lato(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
-                                        color: trainerPrimary,
-                                      ),
-                                    ),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.delete,
-                                        size: 18, color: AppTheme.accentRed),
-                                    onPressed: () {
-                                      setState(() =>
-                                          _configuredDays.remove(entry.key));
-                                    },
-                                    constraints: const BoxConstraints(),
-                                    padding: const EdgeInsets.all(8),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-
-                    const SizedBox(height: 12),
-
-                    // Botão para adicionar dia
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.withOpacity(0.3)),
-                      ),
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: _availableDays.map((day) {
-                          final isConfigured = _configuredDays.containsKey(day);
-                          return FilterChip(
-                            label: Text(day),
-                            selected: isConfigured,
-                            onSelected: (selected) {
-                              setState(() {
-                                if (selected) {
-                                  // Adiciona o dia diretamente sem popup
-                                  _configuredDays[day] = {
-                                    'description': 'Treino de $day',
-                                  };
-                                } else {
-                                  _configuredDays.remove(day);
-                                }
-                              });
-                            },
-                            checkmarkColor: Colors.white,
-                            backgroundColor: Colors.grey[100],
-                            selectedColor: trainerPrimary,
-                            labelStyle: GoogleFonts.lato(
-                              color:
-                                  isConfigured ? Colors.white : Colors.black87,
-                              fontWeight: isConfigured
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Período de Validade (Calendário)
-                    Text(
-                      'Período de Validade',
-                      style: GoogleFonts.lato(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.primaryText,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
                     Row(
                       children: [
                         Expanded(
-                          child: InkWell(
-                            onTap: _selectStartDate,
-                            borderRadius: BorderRadius.circular(12),
-                            child: Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
+                          child: TextFormField(
+                            readOnly: true,
+                            onTap: () async {
+                              final date = await showDatePicker(
+                                context: context,
+                                initialDate: _startDate ?? DateTime.now(),
+                                firstDate: DateTime(2000),
+                                lastDate: DateTime(2100),
+                              );
+                              if (date != null) {
+                                setState(() => _startDate = date);
+                              }
+                            },
+                            decoration: InputDecoration(
+                              labelText: 'Data Início',
+                              border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: Colors.grey.withOpacity(0.3),
-                                ),
                               ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Início',
-                                    style: GoogleFonts.lato(
-                                      fontSize: 12,
-                                      color: AppTheme.secondaryText,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Row(
-                                    children: [
-                                      Icon(Icons.calendar_today,
-                                          size: 16, color: trainerPrimary),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        _startDate != null
-                                            ? '${_startDate!.day}/${_startDate!.month}/${_startDate!.year}'
-                                            : 'Selecionar',
-                                        style: GoogleFonts.lato(
-                                          fontWeight: FontWeight.bold,
-                                          color: AppTheme.primaryText,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
+                              filled: true,
+                              fillColor: Colors.white,
+                              suffixIcon: const Icon(Icons.calendar_today,
+                                  color: trainerPrimary),
+                            ),
+                            controller: TextEditingController(
+                              text: _startDate != null
+                                  ? '${_startDate!.day.toString().padLeft(2, '0')}/${_startDate!.month.toString().padLeft(2, '0')}/${_startDate!.year}'
+                                  : '',
                             ),
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 16),
                         Expanded(
-                          child: InkWell(
-                            onTap: _selectEndDate,
-                            borderRadius: BorderRadius.circular(12),
-                            child: Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
+                          child: TextFormField(
+                            readOnly: true,
+                            onTap: () async {
+                              final date = await showDatePicker(
+                                context: context,
+                                initialDate: _endDate ??
+                                    _startDate?.add(const Duration(days: 30)) ??
+                                    DateTime.now()
+                                        .add(const Duration(days: 30)),
+                                firstDate: DateTime(2000),
+                                lastDate: DateTime(2100),
+                              );
+                              if (date != null) {
+                                setState(() => _endDate = date);
+                              }
+                            },
+                            decoration: InputDecoration(
+                              labelText: 'Data Fim (Opcional)',
+                              border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: Colors.grey.withOpacity(0.3),
-                                ),
                               ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Fim (Opcional)',
-                                    style: GoogleFonts.lato(
-                                      fontSize: 12,
-                                      color: AppTheme.secondaryText,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Row(
-                                    children: [
-                                      Icon(Icons.event,
-                                          size: 16, color: trainerPrimary),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        _endDate != null
-                                            ? '${_endDate!.day}/${_endDate!.month}/${_endDate!.year}'
-                                            : 'Selecionar',
-                                        style: GoogleFonts.lato(
-                                          fontWeight: FontWeight.bold,
-                                          color: AppTheme.primaryText,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
+                              filled: true,
+                              fillColor: Colors.white,
+                              suffixIcon: const Icon(Icons.calendar_today,
+                                  color: trainerPrimary),
+                            ),
+                            controller: TextEditingController(
+                              text: _endDate != null
+                                  ? '${_endDate!.day.toString().padLeft(2, '0')}/${_endDate!.month.toString().padLeft(2, '0')}/${_endDate!.year}'
+                                  : '',
                             ),
                           ),
                         ),
                       ],
                     ),
+
                     const SizedBox(height: 32),
 
-                    // Botão Salvar
-                    SizedBox(
-                      height: 56,
-                      child: ElevatedButton(
-                        onPressed: _saveWorkout,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: trainerPrimary,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 10,
+                            offset: const Offset(0, -4),
                           ),
-                          elevation: 4,
-                          shadowColor: trainerPrimary.withOpacity(0.4),
-                        ),
-                        child: Text(
-                          'Criar Ficha',
-                          style: GoogleFonts.lato(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.pop(context),
+                              style: OutlinedButton.styleFrom(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                side: BorderSide(color: AppTheme.borderGrey),
+                              ),
+                              child: Text(
+                                'Cancelar',
+                                style: GoogleFonts.lato(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.secondaryText,
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: _saveWorkout,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: trainerPrimary,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                elevation: 4,
+                              ),
+                              child: Text(
+                                'Salvar',
+                                style: GoogleFonts.lato(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -594,48 +561,149 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
     );
   }
 
-  Future<void> _selectStartDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _startDate ?? DateTime.now(),
-      firstDate: DateTime.now().subtract(const Duration(days: 365)),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: trainerPrimary,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-    if (picked != null) {
-      setState(() => _startDate = picked);
-    }
-  }
+  void _openTemplateSelector() {
+    if (_isLoadingTemplates) return;
 
-  Future<void> _selectEndDate() async {
-    final picked = await showDatePicker(
+    String searchQuery = '';
+
+    showModalBottomSheet(
       context: context,
-      initialDate: _endDate ??
-          (_startDate?.add(const Duration(days: 30)) ?? DateTime.now()),
-      firstDate: _startDate ?? DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: trainerPrimary,
-            ),
-          ),
-          child: child!,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final filteredTemplates = _templates.where((t) {
+              final name = t['name']?.toLowerCase() ?? '';
+              return name.contains(searchQuery.toLowerCase());
+            }).toList();
+
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.7,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    margin: const EdgeInsets.only(top: 8, bottom: 8),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text(
+                      'Selecione um modelo de treino já criado',
+                      style: GoogleFonts.lato(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.primaryText),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: TextField(
+                      decoration: InputDecoration(
+                        hintText: 'Pesquisar treino...',
+                        prefixIcon:
+                            const Icon(Icons.search, color: trainerPrimary),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                      ),
+                      onChanged: (val) {
+                        setSheetState(() {
+                          searchQuery = val;
+                        });
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: filteredTemplates.isEmpty
+                        ? Center(
+                            child: Text(
+                            searchQuery.isNotEmpty
+                                ? 'Nenhum treino encontrado com "$searchQuery"'
+                                : 'Nenhum modelo cadastrado.\nClique em "Criar Treino" para começar.',
+                            textAlign: TextAlign.center,
+                            style:
+                                GoogleFonts.lato(color: AppTheme.secondaryText),
+                          ))
+                        : ListView.separated(
+                            itemCount: filteredTemplates.length,
+                            separatorBuilder: (context, index) =>
+                                const Divider(height: 1),
+                            itemBuilder: (context, index) {
+                              final template = filteredTemplates[index];
+                              final isSelected =
+                                  _selectedTemplate?['id'] == template['id'];
+                              return ListTile(
+                                tileColor: isSelected
+                                    ? trainerPrimary.withOpacity(0.05)
+                                    : Colors.transparent,
+                                title: Text(
+                                  template['name'] ?? 'Sem nome',
+                                  style: GoogleFonts.lato(
+                                    fontWeight: isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.w600,
+                                    color: isSelected
+                                        ? trainerPrimary
+                                        : AppTheme.primaryText,
+                                  ),
+                                ),
+                                subtitle: template['goal'] != null &&
+                                        template['goal'].isNotEmpty
+                                    ? Text(
+                                        template['goal'],
+                                        style: GoogleFonts.lato(
+                                            fontSize: 12,
+                                            color: AppTheme.secondaryText),
+                                      )
+                                    : null,
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.edit,
+                                          color: trainerPrimary),
+                                      onPressed: () {
+                                        Navigator.pop(context); // Close sheet
+                                        _confirmEditTemplate(template);
+                                      },
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.delete,
+                                          color: AppTheme.accentRed),
+                                      onPressed: () {
+                                        Navigator.pop(context); // Close sheet
+                                        _confirmDeleteTemplate(template);
+                                      },
+                                    ),
+                                  ],
+                                ),
+                                onTap: () {
+                                  setState(() => _selectedTemplate = template);
+                                  Navigator.pop(context);
+                                },
+                              );
+                            },
+                          ),
+                  )
+                ],
+              ),
+            );
+          },
         );
       },
     );
-    if (picked != null) {
-      setState(() => _endDate = picked);
-    }
   }
 }

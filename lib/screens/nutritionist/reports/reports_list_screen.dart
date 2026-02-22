@@ -47,7 +47,7 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
         setState(() => _isLoading = false);
         // Possível erro se a tabela não existir ainda
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao carregar relatórios: $e')),
+          SnackBar(content: Text('Erro ao carregar avaliações: $e')),
         );
       }
     }
@@ -68,8 +68,8 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
     final confirm = await showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Excluir Relatório'),
-        content: const Text('Tem certeza que deseja excluir este relatório?'),
+        title: const Text('Excluir Avaliação'),
+        content: const Text('Tem certeza que deseja excluir esta avaliação?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -89,7 +89,7 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
         _loadReports();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Relatório excluído com sucesso')),
+            const SnackBar(content: Text('Avaliação excluída com sucesso')),
           );
         }
       } catch (e) {
@@ -115,7 +115,7 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Relatórios de Evolução',
+          'Avaliações Físicas',
           style: GoogleFonts.cinzel(
             color: AppTheme.primaryText,
             fontWeight: FontWeight.bold,
@@ -158,7 +158,7 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
                                 size: 60, color: Colors.grey[400]),
                             const SizedBox(height: 16),
                             Text(
-                              'Nenhum relatório encontrado',
+                              'Nenhuma avaliação encontrada',
                               style: TextStyle(color: Colors.grey[600]),
                             ),
                           ],
@@ -259,7 +259,7 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
         },
         backgroundColor: const Color(0xFF2A9D8F),
         icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text('NOVO RELATÓRIO',
+        label: const Text('NOVA AVALIAÇÃO',
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
     );

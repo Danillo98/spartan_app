@@ -1,10 +1,26 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
-import 'notification_service.dart'; // Import Notification
 
 /*
   SQL REQUIRED FOR THIS SERVICE:
 
+  -- New columns needed for the updated physical assessment form:
+  alter table public.physical_assessments
+  add column shoulder numeric,
+  add column right_forearm numeric,
+  add column left_forearm numeric,
+  add column skinfold_chest numeric,
+  add column skinfold_abdomen numeric,
+  add column skinfold_thigh numeric,
+  add column skinfold_calf numeric,
+  add column skinfold_triceps numeric,
+  add column skinfold_biceps numeric,
+  add column skinfold_subscapular numeric,
+  add column skinfold_suprailiac numeric,
+  add column skinfold_midaxillary numeric,
+  add column workout_focus text;
+
+  -- Previous table definition:
   create table public.physical_assessments (
     id uuid default gen_random_uuid() primary key,
     created_at timestamp with time zone default timezone('utc'::text, now()) not null,
@@ -13,21 +29,35 @@ import 'notification_service.dart'; // Import Notification
     student_id uuid not null references public.users_alunos(id),
     assessment_date timestamp with time zone not null,
     weight numeric, -- Peso (kg)
-    height numeric, -- Altura (cm)
+    height numeric, -- Estatura (cm)
     neck numeric,   -- Pescoço
-    chest numeric,  -- Peitoral
+    chest numeric,  -- Tórax
     waist numeric,  -- Cintura
     abdomen numeric, -- Abdômen
     hips numeric,   -- Quadril
-    right_arm numeric, -- Braço Direito
-    left_arm numeric,  -- Braço Esquerdo
-    right_thigh numeric, -- Coxa Direita
-    left_thigh numeric,  -- Coxa Esquerda
-    right_calf numeric,  -- Panturrilha Direita
-    left_calf numeric,   -- Panturrilha Esquerda
+    right_arm numeric, -- Mesoumeral Dir.
+    left_arm numeric,  -- Mesoumeral Esq.
+    right_thigh numeric, -- Mesofemural Dir.
+    left_thigh numeric,  -- Mesofemural Esq.
+    right_calf numeric,  -- Perna Dir.
+    left_calf numeric,   -- Perna Esq.
     body_fat numeric,    -- % Gordura
     muscle_mass numeric, -- % Massa Muscular
-    notes text
+    notes text,
+    -- New fields
+    shoulder numeric,
+    right_forearm numeric,
+    left_forearm numeric,
+    skinfold_chest numeric,
+    skinfold_abdomen numeric,
+    skinfold_thigh numeric,
+    skinfold_calf numeric,
+    skinfold_triceps numeric,
+    skinfold_biceps numeric,
+    skinfold_subscapular numeric,
+    skinfold_suprailiac numeric,
+    skinfold_midaxillary numeric,
+    workout_focus text
   );
 
   -- RLS Policies
@@ -220,7 +250,6 @@ class PhysicalAssessmentService {
     required DateTime date,
     double? weight,
     double? height,
-    double? neck,
     double? chest,
     double? waist,
     double? abdomen,
@@ -232,8 +261,19 @@ class PhysicalAssessmentService {
     double? rightCalf,
     double? leftCalf,
     double? bodyFat,
-    double? muscleMass,
-    String? notes,
+    double? shoulder,
+    double? rightForearm,
+    double? leftForearm,
+    double? skinfoldChest,
+    double? skinfoldAbdomen,
+    double? skinfoldThigh,
+    double? skinfoldCalf,
+    double? skinfoldTriceps,
+    double? skinfoldBiceps,
+    double? skinfoldSubscapular,
+    double? skinfoldSuprailiac,
+    double? skinfoldMidaxillary,
+    String? workoutFocus,
   }) async {
     final user = _client.auth.currentUser;
     if (user == null) throw Exception('Usuário não autenticado');
@@ -248,7 +288,6 @@ class PhysicalAssessmentService {
       'assessment_date': date.toIso8601String(),
       'weight': weight,
       'height': height,
-      'neck': neck,
       'chest': chest,
       'waist': waist,
       'abdomen': abdomen,
@@ -260,8 +299,19 @@ class PhysicalAssessmentService {
       'right_calf': rightCalf,
       'left_calf': leftCalf,
       'body_fat': bodyFat,
-      'muscle_mass': muscleMass,
-      'notes': notes,
+      'shoulder': shoulder,
+      'right_forearm': rightForearm,
+      'left_forearm': leftForearm,
+      'skinfold_chest': skinfoldChest,
+      'skinfold_abdomen': skinfoldAbdomen,
+      'skinfold_thigh': skinfoldThigh,
+      'skinfold_calf': skinfoldCalf,
+      'skinfold_triceps': skinfoldTriceps,
+      'skinfold_biceps': skinfoldBiceps,
+      'skinfold_subscapular': skinfoldSubscapular,
+      'skinfold_suprailiac': skinfoldSuprailiac,
+      'skinfold_midaxillary': skinfoldMidaxillary,
+      'workout_focus': workoutFocus,
     });
   }
 
@@ -271,7 +321,6 @@ class PhysicalAssessmentService {
     DateTime? date,
     double? weight,
     double? height,
-    double? neck,
     double? chest,
     double? waist,
     double? abdomen,
@@ -283,14 +332,24 @@ class PhysicalAssessmentService {
     double? rightCalf,
     double? leftCalf,
     double? bodyFat,
-    double? muscleMass,
-    String? notes,
+    double? shoulder,
+    double? rightForearm,
+    double? leftForearm,
+    double? skinfoldChest,
+    double? skinfoldAbdomen,
+    double? skinfoldThigh,
+    double? skinfoldCalf,
+    double? skinfoldTriceps,
+    double? skinfoldBiceps,
+    double? skinfoldSubscapular,
+    double? skinfoldSuprailiac,
+    double? skinfoldMidaxillary,
+    String? workoutFocus,
   }) async {
     final Map<String, dynamic> updates = {};
     if (date != null) updates['assessment_date'] = date.toIso8601String();
     updates['weight'] = weight;
     updates['height'] = height;
-    updates['neck'] = neck;
     updates['chest'] = chest;
     updates['waist'] = waist;
     updates['abdomen'] = abdomen;
@@ -302,8 +361,19 @@ class PhysicalAssessmentService {
     updates['right_calf'] = rightCalf;
     updates['left_calf'] = leftCalf;
     updates['body_fat'] = bodyFat;
-    updates['muscle_mass'] = muscleMass;
-    if (notes != null) updates['notes'] = notes;
+    updates['shoulder'] = shoulder;
+    updates['right_forearm'] = rightForearm;
+    updates['left_forearm'] = leftForearm;
+    updates['skinfold_chest'] = skinfoldChest;
+    updates['skinfold_abdomen'] = skinfoldAbdomen;
+    updates['skinfold_thigh'] = skinfoldThigh;
+    updates['skinfold_calf'] = skinfoldCalf;
+    updates['skinfold_triceps'] = skinfoldTriceps;
+    updates['skinfold_biceps'] = skinfoldBiceps;
+    updates['skinfold_subscapular'] = skinfoldSubscapular;
+    updates['skinfold_suprailiac'] = skinfoldSuprailiac;
+    updates['skinfold_midaxillary'] = skinfoldMidaxillary;
+    if (workoutFocus != null) updates['workout_focus'] = workoutFocus;
 
     await _client.from('physical_assessments').update(updates).eq('id', id);
   }

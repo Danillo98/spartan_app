@@ -135,21 +135,32 @@ class WorkoutCard extends StatelessWidget {
             ),
 
             // Descrição
-            if (workout['description'] != null &&
-                workout['description'].toString().isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                child: Text(
-                  workout['description'],
-                  style: GoogleFonts.lato(
-                    fontSize: 14,
-                    color: AppTheme.secondaryText,
-                    height: 1.4,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
+            if (workout['description'] != null) ...[
+              Builder(
+                builder: (context) {
+                  final cleanDesc = workout['description']
+                      .toString()
+                      .replaceAll(RegExp(r'\[IMG_BASE64:[^\]]+\]'), '')
+                      .trim();
+
+                  if (cleanDesc.isEmpty) return const SizedBox.shrink();
+
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: Text(
+                      cleanDesc,
+                      style: GoogleFonts.lato(
+                        fontSize: 14,
+                        color: AppTheme.secondaryText,
+                        height: 1.4,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  );
+                },
               ),
+            ],
 
             // Informações
             Padding(

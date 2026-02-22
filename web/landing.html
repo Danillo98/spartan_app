@@ -418,18 +418,18 @@
 
         // Funções do Modal
         function openDesktopApp() {
-            // Tenta abrir via Deep Link (se configurado) ou redireciona para login (WebApp atua como Desktop)
-            // Como é um PWA, "Abrir Desktop" muitas vezes significa abrir a janela PWA instalada.
-            // O navegador cuida disso se o usuário instalou.
-            // Se for exe nativo, precisaria de protocolo customizado.
-
             // Tenta abrir protocolo customizado (se existir)
-            window.location.href = "spartan://open";
+            const urlParams = new URLSearchParams(window.location.search);
+            const role = urlParams.get('role');
+            const suffix = role ? "?role=" + role : "";
+            const webSuffix = role ? "/#/?role=" + role : "/";
+
+            window.location.href = "spartan://open" + suffix;
 
             // Fallback visual
             setTimeout(() => {
-                // Se o deep link falhar, vai para a home do PWA
-                window.location.href = "/";
+                // Se o deep link falhar, vai para a home do PWA com formato hash
+                window.location.href = webSuffix;
             }, 500);
         }
 

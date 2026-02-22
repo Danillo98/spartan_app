@@ -1,6 +1,6 @@
 import 'dart:convert';
 // ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
+import 'package:universal_html/html.dart' as html;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/workout_service.dart';
@@ -27,7 +27,7 @@ class _MyWorkoutScreenState extends State<MyWorkoutScreen> {
   }
 
   Future<void> _loadWorkouts() async {
-    setState(() => _isLoading = true);
+    if (_workouts.isEmpty) setState(() => _isLoading = true);
     try {
       final userData = await AuthService.getCurrentUserData();
       _studentId = userData?['id'];
@@ -186,18 +186,32 @@ class _MyWorkoutScreenState extends State<MyWorkoutScreen> {
                   _buildStatusBadge(isActive),
                 ],
               ),
-              if (workout['description'] != null &&
-                  workout['description'].toString().isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Text(
-                  workout['description'],
-                  style: GoogleFonts.lato(
-                    fontSize: 14,
-                    color: AppTheme.secondaryText,
-                    height: 1.4,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+              if (workout['description'] != null) ...[
+                Builder(
+                  builder: (context) {
+                    final cleanDesc = workout['description']
+                        .toString()
+                        .replaceAll(RegExp(r'\[IMG_BASE64:[^\]]+\]'), '')
+                        .trim();
+                    if (cleanDesc.isEmpty) return const SizedBox.shrink();
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 12),
+                        Text(
+                          cleanDesc,
+                          style: GoogleFonts.lato(
+                            fontSize: 14,
+                            color: AppTheme.secondaryText,
+                            height: 1.4,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ],
               const SizedBox(height: 16),
@@ -600,6 +614,76 @@ class _WorkoutDetailsStudentScreenState
     );
   }
 
+  Widget _buildDescriptionWithImages(String description) {
+    if (!description.contains('[IMG_BASE64:')) {
+      return Text(
+        description,
+        style: GoogleFonts.lato(
+          fontSize: 15,
+          color: AppTheme.primaryText,
+          height: 1.5,
+        ),
+      );
+    }
+
+    final RegExp exp = RegExp(r'\[IMG_BASE64:(.*?)\]');
+    final Iterable<RegExpMatch> matches = exp.allMatches(description);
+
+    int lastEnd = 0;
+    List<Widget> children = [];
+
+    for (final match in matches) {
+      if (match.start > lastEnd) {
+        children.add(Text(
+          description.substring(lastEnd, match.start).trimRight(),
+          style: GoogleFonts.lato(
+            fontSize: 15,
+            color: AppTheme.primaryText,
+            height: 1.5,
+          ),
+        ));
+      }
+
+      final base64String = match.group(1);
+      if (base64String != null && base64String.isNotEmpty) {
+        try {
+          children.add(
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.memory(
+                  base64Decode(base64String),
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+          );
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      lastEnd = match.end;
+    }
+
+    if (lastEnd < description.length) {
+      children.add(Text(
+        description.substring(lastEnd).trimLeft(),
+        style: GoogleFonts.lato(
+          fontSize: 15,
+          color: AppTheme.primaryText,
+          height: 1.5,
+        ),
+      ));
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: children,
+    );
+  }
+
   Widget _buildBody() {
     if (_workout == null) {
       return const Center(child: Text('Treino não encontrado'));
@@ -607,14 +691,16 @@ class _WorkoutDetailsStudentScreenState
 
     final days = (_workout!['days'] as List?) ?? [];
     final sortedDays = WorkoutService.sortDays(days);
+    final hasDescription = _workout!['description'] != null &&
+        _workout!['description'].toString().trim().isNotEmpty;
 
     return CustomScrollView(
       slivers: [
         _buildSliverAppBar(),
         SliverToBoxAdapter(child: _buildWorkoutInfo()),
-        if (sortedDays.isEmpty)
+        if (sortedDays.isEmpty && !hasDescription)
           SliverFillRemaining(child: _buildEmptyDays())
-        else
+        else if (sortedDays.isNotEmpty)
           SliverToBoxAdapter(child: _buildDaysSection(sortedDays)),
       ],
     );
@@ -746,14 +832,7 @@ class _WorkoutDetailsStudentScreenState
               ),
             ),
             const SizedBox(height: 8),
-            Text(
-              _workout!['description'],
-              style: GoogleFonts.lato(
-                fontSize: 15,
-                color: AppTheme.primaryText,
-                height: 1.5,
-              ),
-            ),
+            _buildDescriptionWithImages(_workout!['description']),
             const SizedBox(height: 20),
           ],
           Row(

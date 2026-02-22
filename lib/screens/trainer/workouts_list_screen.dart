@@ -30,7 +30,7 @@ class _WorkoutsListScreenState extends State<WorkoutsListScreen> {
   }
 
   Future<void> _loadWorkouts() async {
-    setState(() => _isLoading = true);
+    if (_workouts.isEmpty) setState(() => _isLoading = true);
     try {
       final workouts = await WorkoutService.getWorkouts();
       setState(() {
@@ -396,6 +396,7 @@ class _WorkoutsListScreenState extends State<WorkoutsListScreen> {
 
   Widget _buildFAB() {
     return FloatingActionButton.extended(
+      heroTag: 'fab_nova_ficha',
       onPressed: _navigateToCreateWorkout,
       backgroundColor: trainerPrimary,
       icon: const Icon(Icons.add_rounded),
@@ -409,20 +410,17 @@ class _WorkoutsListScreenState extends State<WorkoutsListScreen> {
   }
 
   void _navigateToCreateWorkout() async {
-    final result = await Navigator.push(
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => const CreateWorkoutScreen(),
       ),
     );
-
-    if (result == true) {
-      _loadWorkouts();
-    }
+    _loadWorkouts();
   }
 
   void _navigateToWorkoutDetails(Map<String, dynamic> workout) async {
-    final result = await Navigator.push(
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => WorkoutDetailsScreen(
@@ -431,10 +429,7 @@ class _WorkoutsListScreenState extends State<WorkoutsListScreen> {
         ),
       ),
     );
-
-    if (result == true) {
-      _loadWorkouts();
-    }
+    _loadWorkouts();
   }
 
   void _confirmDelete(Map<String, dynamic> workout) {

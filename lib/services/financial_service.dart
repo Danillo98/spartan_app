@@ -3,6 +3,7 @@ import 'supabase_service.dart';
 import 'user_service.dart';
 import 'notification_service.dart'; // Import Notification
 import '../models/user_role.dart';
+// Import ControliD Sync
 
 class FinancialService {
   static final SupabaseClient _client = SupabaseService.client;
@@ -41,6 +42,10 @@ class FinancialService {
       'related_user_id': relatedUserId,
       'related_user_role': relatedUserRole,
     });
+
+    // Phase 2: Gatilho automático da Control iD
+    // A sincronização realtime da catraca será feita automaticamente pelo PC
+    // que está escutando o webhook (admin_dashboard)
   }
 
   // Buscar transações (com replicação de fixas)
@@ -369,11 +374,21 @@ class FinancialService {
       'related_user_id': relatedUserId,
       'related_user_role': relatedUserRole,
     }).eq('id', id);
+
+    // Phase 2: Gatilho automático da Control iD
+    // A sincronização realtime da catraca será feita automaticamente pelo PC
+    // que está escutando o webhook (admin_dashboard)
   }
 
   // Deletar transação
   static Future<void> deleteTransaction(String id) async {
+    // A transação será deletada e o PC com o Admin Dashboard
+    // atualizará a catraca via Realtime (WebSockets)
+
     await _client.from('financial_transactions').delete().eq('id', id);
+
+    // A sincronização realtime da catraca será feita automaticamente pelo PC
+    // que está escutando o webhook (admin_dashboard)
   }
 
   static Future<List<Map<String, dynamic>>> getMonthlyPaymentsStatus({

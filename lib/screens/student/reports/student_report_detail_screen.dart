@@ -1,6 +1,6 @@
 import 'dart:convert';
 // ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
+import 'package:universal_html/html.dart' as html;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -35,22 +35,22 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
           widget.report['student']?['name'] ??
           'Aluno';
 
-      // 1. Tentar pegar o nome que já temos
-      String resolvedName = widget.report['users_nutricionista']?['nome'] ??
-          'Nutricionista-Geral';
+      String professionalLabel = 'Nutricionista';
+      String professionalName =
+          widget.report['users_nutricionista']?['nome'] ?? 'Profissional';
 
-      final nutritionistName = resolvedName;
+      // Nota: No perfil do aluno, os relatórios são geralmente de nutricionistas,
+      // mas podem ser de administradores ou personais também.
+      // O join 'users_nutricionista' no PhysicalAssessmentService já tenta resolver isso.
 
       final printData = {
         'student_name': studentName,
-        'nutritionist_name':
-            nutritionistName, // Agora usa a variável resolvida na hora
+        'professional_name': professionalName,
+        'professional_label': professionalLabel,
         'assessment_date': widget.report['assessment_date'],
         'weight': widget.report['weight'],
         'height': widget.report['height'],
         'body_fat': widget.report['body_fat'],
-        'muscle_mass': widget.report['muscle_mass'],
-        'neck': widget.report['neck'],
         'chest': widget.report['chest'],
         'waist': widget.report['waist'],
         'abdomen': widget.report['abdomen'],
@@ -61,7 +61,19 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
         'left_thigh': widget.report['left_thigh'],
         'right_calf': widget.report['right_calf'],
         'left_calf': widget.report['left_calf'],
-        'notes': widget.report['notes'],
+        'shoulder': widget.report['shoulder'],
+        'right_forearm': widget.report['right_forearm'],
+        'left_forearm': widget.report['left_forearm'],
+        'skinfold_chest': widget.report['skinfold_chest'],
+        'skinfold_abdomen': widget.report['skinfold_abdomen'],
+        'skinfold_thigh': widget.report['skinfold_thigh'],
+        'skinfold_calf': widget.report['skinfold_calf'],
+        'skinfold_triceps': widget.report['skinfold_triceps'],
+        'skinfold_biceps': widget.report['skinfold_biceps'],
+        'skinfold_subscapular': widget.report['skinfold_subscapular'],
+        'skinfold_suprailiac': widget.report['skinfold_suprailiac'],
+        'skinfold_midaxillary': widget.report['skinfold_midaxillary'],
+        'workout_focus': widget.report['workout_focus'],
       };
 
       final jsonData = jsonEncode(printData);
@@ -108,7 +120,7 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
       backgroundColor: AppTheme.lightGrey,
       appBar: AppBar(
         title: Text(
-          'Detalhes Físicos',
+          'Avaliação Física',
           style: GoogleFonts.cinzel(
             color: AppTheme.primaryText,
             fontWeight: FontWeight.bold,
@@ -431,7 +443,7 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
       ),
       child: Column(
         children: [
-          _buildMeasureRow('Pescoço', report['neck']),
+          _buildMeasureRow('Ombro', report['shoulder']),
           _buildMeasureRow('Peitoral', report['chest']),
           _buildMeasureRow('Cintura', report['waist']),
           _buildMeasureRow('Abdômen', report['abdomen']),
@@ -439,12 +451,17 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
           const Divider(height: 24),
           _buildMeasureRow('Braço Dir.', report['right_arm']),
           _buildMeasureRow('Braço Esq.', report['left_arm']),
+          _buildMeasureRow('Ante-braço Dir.', report['right_forearm']),
+          _buildMeasureRow('Ante-braço Esq.', report['left_forearm']),
           const Divider(height: 24),
           _buildMeasureRow('Coxa Dir.', report['right_thigh']),
           _buildMeasureRow('Coxa Esq.', report['left_thigh']),
-          const Divider(height: 24),
-          _buildMeasureRow('Panturrilha Dir.', report['right_calf']),
-          _buildMeasureRow('Panturrilha Esq.', report['left_calf']),
+          _buildMeasureRow('Perna Dir.', report['right_calf']),
+          _buildMeasureRow('Perna Esq.', report['left_calf']),
+          if (report['workout_focus'] != null) ...[
+            const Divider(height: 24),
+            _buildMeasureTextRow('Foco do Treino', report['workout_focus']),
+          ],
         ],
       ),
     );
@@ -466,6 +483,33 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
           ),
           Text(
             '${value.toString()} cm',
+            style: GoogleFonts.lato(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.primaryText,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMeasureTextRow(String label, dynamic value) {
+    if (value == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.lato(
+              fontSize: 15,
+              color: AppTheme.secondaryText,
+            ),
+          ),
+          Text(
+            value.toString(),
             style: GoogleFonts.lato(
               fontSize: 15,
               fontWeight: FontWeight.bold,

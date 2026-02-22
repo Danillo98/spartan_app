@@ -8,17 +8,18 @@ import '../login_screen.dart';
 import 'admin_users_screen.dart';
 import 'financial/financial_dashboard_screen.dart';
 import 'financial/monthly_payment_screen.dart';
-import 'assessment_list_screen.dart';
 import 'notice_manager_screen.dart';
 import 'admin_profile_screen.dart';
 import 'subscription_screen.dart'; // Add Import
 import 'support_screen.dart'; // Import Support
 import 'admin_turnstiles_screen.dart'; // Import Turnstiles
+import 'admin_assessment_chooser_screen.dart';
+import '../nutritionist/diets_list_screen.dart';
+import '../trainer/workouts_list_screen.dart';
 import '../../widgets/responsive_utils.dart';
 import 'dart:async'; // Timer
 import 'package:supabase_flutter/supabase_flutter.dart'; // Supabase
-import 'package:supabase_flutter/supabase_flutter.dart'; // Import Supabase
-import 'dart:async'; // Import Timer
+import '../../services/control_id_service.dart'; // Sync da Catraca
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -37,6 +38,9 @@ class _AdminDashboardState extends State<AdminDashboard>
   late Animation<Offset> _slideAnimation;
 
   Timer? _subscriptionTimer; // Timer para monitoramento silencioso
+
+  RealtimeChannel? _alunosChannel;
+  RealtimeChannel? _financialChannel;
 
   final Color _adminColor = const Color(0xFF1A1A1A); // Admin Black theme
 
@@ -74,18 +78,72 @@ class _AdminDashboardState extends State<AdminDashboard>
 
     // Iniciar monitoramento silencioso de assinatura
     _startSubscriptionMonitor();
+
+    // Sincronizar catraca em background
+    ControlIdService.syncAllStudentsSilently();
+
+    // Iniciar ouvinte em tempo real para agir como "PONTE" (PC -> Catraca)
+    _startRealtimeControlIdSync();
   }
 
   @override
   void dispose() {
     _subscriptionTimer?.cancel(); // Cancelar Timer ao sair
-    _subscriptionTimer?.cancel();
+    _alunosChannel?.unsubscribe();
+    _financialChannel?.unsubscribe();
     _animationController.dispose();
     super.dispose();
   }
 
+  void _startRealtimeControlIdSync() {
+    _alunosChannel = Supabase.instance.client
+        .channel('public:users_alunos:dashboard')
+        .onPostgresChanges(
+            event: PostgresChangeEvent.update,
+            schema: 'public',
+            table: 'users_alunos',
+            callback: (payload) async {
+              // Dá um pequeno atraso para garantir que a API do Supabase
+              // já reflita os dados commitados no banco para o próximo select
+              await Future.delayed(const Duration(milliseconds: 1500));
+
+              final newRecord = payload.newRecord;
+              if (newRecord.containsKey('id')) {
+                ControlIdService.syncStudentRealtime(newRecord['id']);
+              }
+            })
+        .subscribe();
+
+    _financialChannel = Supabase.instance.client
+        .channel('public:financial_transactions:dashboard')
+        .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'financial_transactions',
+            callback: (payload) async {
+              // Dá um pequeno atraso para garantir que a API do Supabase
+              // já reflita os dados commitados no banco (PostgREST)
+              await Future.delayed(const Duration(milliseconds: 1500));
+
+              final record = payload.newRecord.isNotEmpty
+                  ? payload.newRecord
+                  : payload.oldRecord;
+
+              if (record.containsKey('related_user_id')) {
+                // Sincroniza apenas o aluno específico afetado
+                ControlIdService.syncStudentRealtime(record['related_user_id']);
+              } else if (payload.eventType == PostgresChangeEvent.delete) {
+                // Caso seja um estorno (DELETE) e o banco envie apenas o ID (Replica Identity Default),
+                // fazemos a varredura e bloqueio de inadimplentes silenciosamente de forma global,
+                // garantindo que o estornado perca o acesso IMEDIATAMENTE.
+                ControlIdService.syncAllStudentsSilently();
+              }
+            })
+        .subscribe();
+  }
+
   Future<void> _loadUserData() async {
-    setState(() => _isLoading = true);
+    if (_userData == null) setState(() => _isLoading = true);
     try {
       final data = await AuthService.getCurrentUserData();
       if (mounted) {
@@ -478,6 +536,22 @@ class _AdminDashboardState extends State<AdminDashboard>
                             runSpacing: 16,
                             children: [
                               _buildModernFeatureCard(
+                                title: 'Controle Financeiro',
+                                icon: Icons.account_balance_wallet_rounded,
+                                color: const Color(
+                                    0xFF00695C), // Verde Petróleo/Gestão
+                                onTap: () async {
+                                  await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const FinancialDashboardScreen(),
+                                    ),
+                                  );
+                                  _refreshDashboard();
+                                },
+                              ),
+                              _buildModernFeatureCard(
                                 title: 'Mensalidades',
                                 icon: Icons.attach_money_rounded,
                                 color:
@@ -509,23 +583,38 @@ class _AdminDashboardState extends State<AdminDashboard>
                                 },
                               ),
                               _buildModernFeatureCard(
-                                title: 'Controle Financeiro',
-                                icon: Icons.account_balance_wallet_rounded,
-                                color: const Color(
-                                    0xFF00695C), // Verde Petróleo/Gestão
+                                title: 'Nutrição',
+                                icon: Icons.restaurant_menu_rounded,
+                                color: const Color(0xFF4CAF50), // Verde Maçã
                                 onTap: () async {
                                   await Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) =>
-                                          const FinancialDashboardScreen(),
+                                          const DietsListScreen(),
                                     ),
                                   );
                                   _refreshDashboard();
                                 },
                               ),
                               _buildModernFeatureCard(
-                                title: 'Avaliações físicas',
+                                title: 'Treino',
+                                icon: Icons.fitness_center_rounded,
+                                color:
+                                    const Color(0xFFD32F2F), // Vermelho Força
+                                onTap: () async {
+                                  await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const WorkoutsListScreen(),
+                                    ),
+                                  );
+                                  _refreshDashboard();
+                                },
+                              ),
+                              _buildModernFeatureCard(
+                                title: 'Avaliações Físicas',
                                 icon: Icons.monitor_weight_rounded,
                                 color: const Color(0xFFE65100), // Laranja Saúde
                                 onTap: () async {
@@ -533,7 +622,7 @@ class _AdminDashboardState extends State<AdminDashboard>
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) =>
-                                          const AssessmentListScreen(),
+                                          const AdminAssessmentChooserScreen(),
                                     ),
                                   );
                                   _refreshDashboard();
@@ -571,21 +660,6 @@ class _AdminDashboardState extends State<AdminDashboard>
                                 },
                               ),
                               _buildModernFeatureCard(
-                                title: 'Assinatura Spartan',
-                                icon: Icons.verified_rounded,
-                                color: const Color(0xFF212121), // Preto Premium
-                                onTap: () async {
-                                  await Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          const SubscriptionScreen(),
-                                    ),
-                                  );
-                                  _refreshDashboard();
-                                },
-                              ),
-                              _buildModernFeatureCard(
                                 title: 'Suporte',
                                 icon: Icons.support_agent_rounded,
                                 color: const Color(0xFF455A64), // Blue Grey
@@ -595,6 +669,21 @@ class _AdminDashboardState extends State<AdminDashboard>
                                     MaterialPageRoute(
                                       builder: (context) =>
                                           const SupportScreen(),
+                                    ),
+                                  );
+                                  _refreshDashboard();
+                                },
+                              ),
+                              _buildModernFeatureCard(
+                                title: 'Assinatura Spartan',
+                                icon: Icons.verified_rounded,
+                                color: const Color(0xFF212121), // Preto Premium
+                                onTap: () async {
+                                  await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const SubscriptionScreen(),
                                     ),
                                   );
                                   _refreshDashboard();

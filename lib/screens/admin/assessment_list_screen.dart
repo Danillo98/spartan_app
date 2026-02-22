@@ -63,7 +63,7 @@ class _AssessmentListScreenState extends State<AssessmentListScreen> {
       backgroundColor: AppTheme.lightGrey,
       appBar: AppBar(
         title: Text(
-          'Avaliações Físicas',
+          'Avaliações Agendadas',
           style: GoogleFonts.cinzel(
             color: AppTheme.primaryText,
             fontWeight: FontWeight.bold,

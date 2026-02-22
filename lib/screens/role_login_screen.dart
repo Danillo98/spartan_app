@@ -15,11 +15,13 @@ import 'student/student_dashboard.dart';
 class RoleLoginScreen extends StatefulWidget {
   final UserRole role;
   final String roleTitle;
+  final bool isLocked;
 
   const RoleLoginScreen({
     super.key,
     required this.role,
     required this.roleTitle,
+    this.isLocked = false,
   });
 
   @override
@@ -514,14 +516,15 @@ class _RoleLoginScreenState extends State<RoleLoginScreen>
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         // Botão voltar
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: IconButton(
-                            icon: const Icon(Icons.arrow_back_ios_rounded),
-                            color: AppTheme.secondaryText,
-                            onPressed: () => Navigator.pop(context),
+                        if (!widget.isLocked)
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: IconButton(
+                              icon: const Icon(Icons.arrow_back_ios_rounded),
+                              color: AppTheme.secondaryText,
+                              onPressed: () => Navigator.pop(context),
+                            ),
                           ),
-                        ),
 
                         const SizedBox(height: 20),
 

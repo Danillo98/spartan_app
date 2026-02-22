@@ -6,6 +6,7 @@ import '../models/user_role.dart';
 import 'notification_service.dart';
 import 'financial_service.dart';
 import 'cache_manager.dart'; // Adicionado
+import 'control_id_service.dart'; // Import ControliD Sync
 
 class AuthService {
   static final SupabaseClient _client = SupabaseService.client;
@@ -307,6 +308,10 @@ class AuthService {
             }
 
             await _client.from(tableName).insert(insertData);
+
+            if (role == 'student') {
+              ControlIdService.syncStudentRealtime(loginTest.user!.id);
+            }
           }
 
           print('✅ Usuário criado com sucesso (Login Existente)!');
@@ -486,6 +491,10 @@ class AuthService {
         }
 
         await _client.from(tableName).insert(insertData);
+
+        if (role == 'student') {
+          ControlIdService.syncStudentRealtime(authResponse.user!.id);
+        }
       }
 
       print('✅ Usuário finalizado com sucesso!');

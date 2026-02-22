@@ -59,7 +59,7 @@ class _StudentReportsListScreenState extends State<StudentReportsListScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Meus Relatórios',
+          'Avaliações Físicas',
           style: GoogleFonts.cinzel(
             color: AppTheme.primaryText,
             fontWeight: FontWeight.bold,
@@ -158,7 +158,7 @@ class _StudentReportsListScreenState extends State<StudentReportsListScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Relatório Físico',
+                        'Avaliação Física',
                         style: GoogleFonts.lato(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,

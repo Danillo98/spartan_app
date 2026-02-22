@@ -466,6 +466,7 @@ class UserService {
           'name': student['nome'] ?? 'Sem Nome',
           'email': student['email'] ?? '',
           'phone': student['telefone'] ?? '',
+          'birth_date': student['dt_nascimento'],
           'role': 'student',
         };
       }).toList();

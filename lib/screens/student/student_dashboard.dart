@@ -88,7 +88,7 @@ class _StudentDashboardState extends State<StudentDashboard>
   }
 
   Future<void> _loadUserData() async {
-    setState(() => _isLoading = true);
+    if (_userData == null) setState(() => _isLoading = true);
     try {
       final data = await AuthService.getCurrentUserData();
 
@@ -431,9 +431,9 @@ class _StudentDashboardState extends State<StudentDashboard>
                                 },
                               ),
                               _buildModernFeatureCard(
-                                title: 'Relatórios',
-                                icon: Icons.analytics_rounded,
-                                color: const Color(0xFF457B9D),
+                                title: 'Avaliações Físicas',
+                                icon: Icons.monitor_weight_rounded,
+                                color: const Color(0xFFE65100),
                                 onTap: () async {
                                   await Navigator.push(
                                     context,

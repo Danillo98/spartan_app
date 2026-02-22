@@ -3,13 +3,15 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 // ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
+import 'package:universal_html/html.dart' as html;
 import 'dart:convert';
 import '../../../services/physical_assessment_service.dart';
+import '../../../services/supabase_service.dart';
 import '../../../services/user_service.dart';
 import '../../../config/app_theme.dart';
 import '../../../services/auth_service.dart';
 import '../../../widgets/searchable_selection.dart';
+import '../../../models/user_role.dart';
 
 class CreateEditReportScreen extends StatefulWidget {
   final Map<String, dynamic>? reportToEdit;
@@ -45,10 +47,24 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
   final _rightCalfController = TextEditingController();
   final _leftCalfController = TextEditingController();
   final _bodyFatController = TextEditingController();
-  final _muscleMassController = TextEditingController();
-  final _notesController = TextEditingController();
+
+  // Novas medidas e dobras cutâneas
+  final _shoulderController = TextEditingController();
+  final _rightForearmController = TextEditingController();
+  final _leftForearmController = TextEditingController();
+  final _skinfoldChestController = TextEditingController();
+  final _skinfoldAbdomenController = TextEditingController();
+  final _skinfoldThighController = TextEditingController();
+  final _skinfoldCalfController = TextEditingController();
+  final _skinfoldTricepsController = TextEditingController();
+  final _skinfoldBicepsController = TextEditingController();
+  final _skinfoldSubscapularController = TextEditingController();
+  final _skinfoldSuprailiacController = TextEditingController();
+  final _skinfoldMidaxillaryController = TextEditingController();
+  final _workoutFocusController = TextEditingController();
 
   DateTime _assessmentDate = DateTime.now();
+  DateTime? _studentBirthDate;
 
   @override
   void initState() {
@@ -65,7 +81,6 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
 
     _weightController.text = report['weight']?.toString() ?? '';
     _heightController.text = report['height']?.toString() ?? '';
-    _neckController.text = report['neck']?.toString() ?? '';
     _chestController.text = report['chest']?.toString() ?? '';
     _waistController.text = report['waist']?.toString() ?? '';
     _abdomenController.text = report['abdomen']?.toString() ?? '';
@@ -77,8 +92,25 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
     _rightCalfController.text = report['right_calf']?.toString() ?? '';
     _leftCalfController.text = report['left_calf']?.toString() ?? '';
     _bodyFatController.text = report['body_fat']?.toString() ?? '';
-    _muscleMassController.text = report['muscle_mass']?.toString() ?? '';
-    _notesController.text = report['notes'] ?? '';
+    _shoulderController.text = report['shoulder']?.toString() ?? '';
+    _rightForearmController.text = report['right_forearm']?.toString() ?? '';
+    _leftForearmController.text = report['left_forearm']?.toString() ?? '';
+    _skinfoldChestController.text = report['skinfold_chest']?.toString() ?? '';
+    _skinfoldAbdomenController.text =
+        report['skinfold_abdomen']?.toString() ?? '';
+    _skinfoldThighController.text = report['skinfold_thigh']?.toString() ?? '';
+    _skinfoldCalfController.text = report['skinfold_calf']?.toString() ?? '';
+    _skinfoldTricepsController.text =
+        report['skinfold_triceps']?.toString() ?? '';
+    _skinfoldBicepsController.text =
+        report['skinfold_biceps']?.toString() ?? '';
+    _skinfoldSubscapularController.text =
+        report['skinfold_subscapular']?.toString() ?? '';
+    _skinfoldSuprailiacController.text =
+        report['skinfold_suprailiac']?.toString() ?? '';
+    _skinfoldMidaxillaryController.text =
+        report['skinfold_midaxillary']?.toString() ?? '';
+    _workoutFocusController.text = report['workout_focus'] ?? '';
   }
 
   Future<void> _loadStudents() async {
@@ -88,6 +120,15 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
       setState(() {
         _students = students;
         _isLoading = false;
+
+        // Puxar data de nascimento se for edição
+        if (widget.reportToEdit != null && _selectedStudentId != null) {
+          final st = _students.firstWhere((s) => s['id'] == _selectedStudentId,
+              orElse: () => {});
+          if (st['birth_date'] != null) {
+            _studentBirthDate = DateTime.tryParse(st['birth_date']);
+          }
+        }
       });
     } catch (e) {
       if (mounted) {
@@ -113,8 +154,19 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
     _rightCalfController.dispose();
     _leftCalfController.dispose();
     _bodyFatController.dispose();
-    _muscleMassController.dispose();
-    _notesController.dispose();
+    _shoulderController.dispose();
+    _rightForearmController.dispose();
+    _leftForearmController.dispose();
+    _skinfoldChestController.dispose();
+    _skinfoldAbdomenController.dispose();
+    _skinfoldThighController.dispose();
+    _skinfoldCalfController.dispose();
+    _skinfoldTricepsController.dispose();
+    _skinfoldBicepsController.dispose();
+    _skinfoldSubscapularController.dispose();
+    _skinfoldSuprailiacController.dispose();
+    _skinfoldMidaxillaryController.dispose();
+    _workoutFocusController.dispose();
     super.dispose();
   }
 
@@ -136,6 +188,17 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
 
     setState(() => _isSaving = true);
     try {
+      // Atualizar data de nascimento se necessário
+      if (_studentBirthDate != null && _selectedStudentId != null) {
+        try {
+          await SupabaseService.client.from('users_alunos').update({
+            'dt_nascimento': _studentBirthDate!.toIso8601String().split('T')[0]
+          }).eq('id', _selectedStudentId!);
+        } catch (e) {
+          debugPrint('Erro ao salvar dt_nascimento: $e');
+        }
+      }
+
       if (widget.reportToEdit == null) {
         // Create
         await PhysicalAssessmentService.createAssessment(
@@ -143,7 +206,6 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
           date: _assessmentDate,
           weight: double.tryParse(_weightController.text),
           height: double.tryParse(_heightController.text),
-          neck: double.tryParse(_neckController.text),
           chest: double.tryParse(_chestController.text),
           waist: double.tryParse(_waistController.text),
           abdomen: double.tryParse(_abdomenController.text),
@@ -155,8 +217,22 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
           rightCalf: double.tryParse(_rightCalfController.text),
           leftCalf: double.tryParse(_leftCalfController.text),
           bodyFat: double.tryParse(_bodyFatController.text),
-          muscleMass: double.tryParse(_muscleMassController.text),
-          notes: _notesController.text,
+          shoulder: double.tryParse(_shoulderController.text),
+          rightForearm: double.tryParse(_rightForearmController.text),
+          leftForearm: double.tryParse(_leftForearmController.text),
+          skinfoldChest: double.tryParse(_skinfoldChestController.text),
+          skinfoldAbdomen: double.tryParse(_skinfoldAbdomenController.text),
+          skinfoldThigh: double.tryParse(_skinfoldThighController.text),
+          skinfoldCalf: double.tryParse(_skinfoldCalfController.text),
+          skinfoldTriceps: double.tryParse(_skinfoldTricepsController.text),
+          skinfoldBiceps: double.tryParse(_skinfoldBicepsController.text),
+          skinfoldSubscapular:
+              double.tryParse(_skinfoldSubscapularController.text),
+          skinfoldSuprailiac:
+              double.tryParse(_skinfoldSuprailiacController.text),
+          skinfoldMidaxillary:
+              double.tryParse(_skinfoldMidaxillaryController.text),
+          workoutFocus: _workoutFocusController.text,
         );
       } else {
         // Update
@@ -165,7 +241,6 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
           date: _assessmentDate,
           weight: double.tryParse(_weightController.text),
           height: double.tryParse(_heightController.text),
-          neck: double.tryParse(_neckController.text),
           chest: double.tryParse(_chestController.text),
           waist: double.tryParse(_waistController.text),
           abdomen: double.tryParse(_abdomenController.text),
@@ -177,8 +252,22 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
           rightCalf: double.tryParse(_rightCalfController.text),
           leftCalf: double.tryParse(_leftCalfController.text),
           bodyFat: double.tryParse(_bodyFatController.text),
-          muscleMass: double.tryParse(_muscleMassController.text),
-          notes: _notesController.text,
+          shoulder: double.tryParse(_shoulderController.text),
+          rightForearm: double.tryParse(_rightForearmController.text),
+          leftForearm: double.tryParse(_leftForearmController.text),
+          skinfoldChest: double.tryParse(_skinfoldChestController.text),
+          skinfoldAbdomen: double.tryParse(_skinfoldAbdomenController.text),
+          skinfoldThigh: double.tryParse(_skinfoldThighController.text),
+          skinfoldCalf: double.tryParse(_skinfoldCalfController.text),
+          skinfoldTriceps: double.tryParse(_skinfoldTricepsController.text),
+          skinfoldBiceps: double.tryParse(_skinfoldBicepsController.text),
+          skinfoldSubscapular:
+              double.tryParse(_skinfoldSubscapularController.text),
+          skinfoldSuprailiac:
+              double.tryParse(_skinfoldSuprailiacController.text),
+          skinfoldMidaxillary:
+              double.tryParse(_skinfoldMidaxillaryController.text),
+          workoutFocus: _workoutFocusController.text,
         );
       }
 
@@ -186,8 +275,8 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(widget.reportToEdit == null
-                ? 'Relatório criado com sucesso!'
-                : 'Relatório atualizado!'),
+                ? 'Avaliação criada com sucesso!'
+                : 'Avaliação atualizada!'),
             backgroundColor: const Color(0xFF2A9D8F),
           ),
         );
@@ -228,17 +317,27 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
       }
 
       final userData = await AuthService.getCurrentUserData();
-      final nutritionistName = userData?['name'] ?? 'Nutricionista';
+      final role = await AuthService.getCurrentUserRole();
+
+      String professionalLabel = 'Nutricionista';
+      String professionalName = userData?['name'] ?? 'Nutricionista';
+
+      if (role == UserRole.admin) {
+        professionalLabel = 'Academia';
+        professionalName =
+            userData?['academia'] ?? userData?['name'] ?? 'Academia';
+      } else if (role == UserRole.trainer) {
+        professionalLabel = 'Personal Trainer';
+      }
 
       final printData = {
         'student_name': studentName,
-        'nutritionist_name': nutritionistName,
+        'professional_name': professionalName,
+        'professional_label': professionalLabel,
         'assessment_date': widget.reportToEdit!['assessment_date'],
         'weight': widget.reportToEdit!['weight'],
         'height': widget.reportToEdit!['height'],
         'body_fat': widget.reportToEdit!['body_fat'],
-        'muscle_mass': widget.reportToEdit!['muscle_mass'],
-        'neck': widget.reportToEdit!['neck'],
         'chest': widget.reportToEdit!['chest'],
         'waist': widget.reportToEdit!['waist'],
         'abdomen': widget.reportToEdit!['abdomen'],
@@ -249,7 +348,19 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
         'left_thigh': widget.reportToEdit!['left_thigh'],
         'right_calf': widget.reportToEdit!['right_calf'],
         'left_calf': widget.reportToEdit!['left_calf'],
-        'notes': widget.reportToEdit!['notes'],
+        'shoulder': widget.reportToEdit!['shoulder'],
+        'right_forearm': widget.reportToEdit!['right_forearm'],
+        'left_forearm': widget.reportToEdit!['left_forearm'],
+        'skinfold_chest': widget.reportToEdit!['skinfold_chest'],
+        'skinfold_abdomen': widget.reportToEdit!['skinfold_abdomen'],
+        'skinfold_thigh': widget.reportToEdit!['skinfold_thigh'],
+        'skinfold_calf': widget.reportToEdit!['skinfold_calf'],
+        'skinfold_triceps': widget.reportToEdit!['skinfold_triceps'],
+        'skinfold_biceps': widget.reportToEdit!['skinfold_biceps'],
+        'skinfold_subscapular': widget.reportToEdit!['skinfold_subscapular'],
+        'skinfold_suprailiac': widget.reportToEdit!['skinfold_suprailiac'],
+        'skinfold_midaxillary': widget.reportToEdit!['skinfold_midaxillary'],
+        'workout_focus': widget.reportToEdit!['workout_focus'],
       };
 
       final jsonData = jsonEncode(printData);
@@ -284,7 +395,7 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
       backgroundColor: AppTheme.white,
       appBar: AppBar(
         title: Text(
-          widget.reportToEdit == null ? 'Novo Relatório' : 'Editar Relatório',
+          widget.reportToEdit == null ? 'Nova Avaliação' : 'Editar Avaliação',
           style: GoogleFonts.cinzel(
               fontWeight: FontWeight.bold, color: AppTheme.primaryText),
         ),
@@ -321,54 +432,61 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
                         _buildSectionTitle('Aluno & Data'),
                         const SizedBox(height: 16),
                         // Dropdown Aluno replaced with SearchableSelection
-                        widget.reportToEdit == null
-                            ? SearchableSelection<Map<String, dynamic>>(
-                                label: 'Selecione o Aluno',
-                                value: _selectedStudentId != null
-                                    ? _students.firstWhere(
-                                        (s) => s['id'] == _selectedStudentId,
-                                        orElse: () => {})
-                                    : null,
-                                items: _students,
-                                labelBuilder: (s) => s['name'] ?? 'Sem Nome',
-                                hintText: 'Buscar aluno...',
-                                onChanged: (val) {
-                                  if (val != null)
-                                    setState(
-                                        () => _selectedStudentId = val['id']);
-                                },
-                              )
-                            : Container(
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade200,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border:
-                                      Border.all(color: Colors.grey.shade300),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.person,
-                                        color: Colors.grey),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Text(
-                                        _students.firstWhere(
-                                              (s) =>
-                                                  s['id'] == _selectedStudentId,
-                                              orElse: () =>
-                                                  {'name': 'Carregando...'},
-                                            )['name'] ??
-                                            'Aluno não encontrado',
-                                        style: GoogleFonts.lato(
-                                          fontSize: 16,
-                                          color: Colors.grey.shade700,
-                                        ),
-                                      ),
+                        if (widget.reportToEdit == null &&
+                            _students.isNotEmpty) ...[
+                          SearchableSelection<Map<String, dynamic>>(
+                            label: 'Selecione o Aluno',
+                            value: _selectedStudentId != null
+                                ? _students.firstWhere(
+                                    (s) => s['id'] == _selectedStudentId,
+                                    orElse: () => {})
+                                : null,
+                            items: _students,
+                            labelBuilder: (s) =>
+                                s['nome'] ?? s['name'] ?? 'Sem Nome',
+                            onChanged: (val) {
+                              setState(() {
+                                _selectedStudentId = val?['id'];
+                                // Puxar data de nascimento ao selecionar
+                                if (val != null && val['birth_date'] != null) {
+                                  _studentBirthDate =
+                                      DateTime.tryParse(val['birth_date']);
+                                } else {
+                                  _studentBirthDate = null;
+                                }
+                              });
+                            },
+                          ),
+                        ] else if (widget.reportToEdit != null) ...[
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade200,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.shade300),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.person, color: Colors.grey),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    _students.firstWhere(
+                                          (s) => s['id'] == _selectedStudentId,
+                                          orElse: () =>
+                                              {'nome': 'Carregando...'},
+                                        )['nome'] ??
+                                        'Aluno não encontrado',
+                                    style: GoogleFonts.lato(
+                                      fontSize: 16,
+                                      color: Colors.grey.shade700,
                                     ),
-                                  ],
+                                  ),
                                 ),
-                              ),
+                              ],
+                            ),
+                          ),
+                        ],
 
                         const SizedBox(height: 16),
                         // Date Picker
@@ -407,61 +525,76 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
                           ),
                         ),
 
+                        // Renderizar data de nascimento do aluno selecionado
+                        if (_selectedStudentId != null) ...[
+                          Padding(
+                            padding: const EdgeInsets.only(top: 16),
+                            child: InkWell(
+                              onTap: () async {
+                                final date = await showDatePicker(
+                                  context: context,
+                                  initialDate:
+                                      _studentBirthDate ?? DateTime.now(),
+                                  firstDate: DateTime(1900),
+                                  lastDate: DateTime.now(),
+                                  builder: (context, child) => Theme(
+                                    data: ThemeData.light().copyWith(
+                                      colorScheme: const ColorScheme.light(
+                                          primary: Color(0xFF2A9D8F)),
+                                    ),
+                                    child: child!,
+                                  ),
+                                );
+                                if (date != null) {
+                                  setState(() => _studentBirthDate = date);
+                                }
+                              },
+                              child: InputDecorator(
+                                decoration:
+                                    _inputDecoration('Data de Nascimento'),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      _studentBirthDate != null
+                                          ? DateFormat('dd/MM/yyyy')
+                                              .format(_studentBirthDate!)
+                                          : 'Não informada',
+                                      style: GoogleFonts.lato(fontSize: 16),
+                                    ),
+                                    const Icon(Icons.edit_calendar, size: 18),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+
                         const SizedBox(height: 24),
-                        _buildSectionTitle('Dados Físicos'),
-                        const SizedBox(height: 16),
-
-                        Row(
-                          children: [
-                            Expanded(
-                                child: _buildNumberField(
-                                    _weightController, 'Peso (kg)',
-                                    required: true)),
-                            const SizedBox(width: 16),
-                            Expanded(
-                                child: _buildNumberField(
-                                    _heightController, 'Altura (cm)',
-                                    required: true)),
-                          ],
-                        ),
+                        _buildSectionTitle('Dados Físicos:'),
                         const SizedBox(height: 16),
                         Row(
                           children: [
                             Expanded(
                                 child: _buildNumberField(
-                                    _bodyFatController, '% Gordura')),
+                                    _heightController, 'Estatura')),
                             const SizedBox(width: 16),
                             Expanded(
                                 child: _buildNumberField(
-                                    _muscleMassController, '% Massa Muscular')),
-                          ],
-                        ),
-
-                        const SizedBox(height: 24),
-                        _buildSectionTitle('Circunferências (cm)'),
-                        const SizedBox(height: 16),
-
-                        Row(
-                          children: [
-                            Expanded(
-                                child: _buildNumberField(
-                                    _neckController, 'Pescoço')),
-                            const SizedBox(width: 16),
-                            Expanded(
-                                child: _buildNumberField(
-                                    _chestController, 'Peitoral')),
+                                    _shoulderController, 'Ombro')),
                           ],
                         ),
                         const SizedBox(height: 12),
                         Row(
                           children: [
+                            Expanded(
+                                child: _buildNumberField(
+                                    _chestController, 'Tórax')),
+                            const SizedBox(width: 16),
                             Expanded(
                                 child: _buildNumberField(
                                     _waistController, 'Cintura')),
-                            const SizedBox(width: 16),
-                            Expanded(
-                                child: _buildNumberField(
-                                    _abdomenController, 'Abdômen')),
                           ],
                         ),
                         const SizedBox(height: 12),
@@ -469,45 +602,86 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
                           children: [
                             Expanded(
                                 child: _buildNumberField(
+                                    _abdomenController, 'Abdômen')),
+                            const SizedBox(width: 16),
+                            Expanded(
+                                child: _buildNumberField(
                                     _hipsController, 'Quadril')),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                                child: _buildNumberField(
+                                    _rightArmController, 'Mesoumeral Dir.')),
+                            const SizedBox(width: 16),
+                            Expanded(
+                                child: _buildNumberField(
+                                    _leftArmController, 'Mesoumeral Esq.')),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                                child: _buildNumberField(
+                                    _rightForearmController,
+                                    'Ante-Braço Dir.')),
+                            const SizedBox(width: 16),
+                            Expanded(
+                                child: _buildNumberField(
+                                    _leftForearmController, 'Ante-Braço Esq.')),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                                child: _buildNumberField(
+                                    _rightThighController, 'Mesofemural Dir.')),
+                            const SizedBox(width: 16),
+                            Expanded(
+                                child: _buildNumberField(
+                                    _leftThighController, 'Mesofemural Esq.')),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                                child: _buildNumberField(
+                                    _rightCalfController, 'Perna Dir.')),
+                            const SizedBox(width: 16),
+                            Expanded(
+                                child: _buildNumberField(
+                                    _leftCalfController, 'Perna Esq.')),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                                child: _buildNumberField(
+                                    _weightController, 'Peso')),
                             const SizedBox(width: 16),
                             Expanded(child: Container()), // Spacer
                           ],
                         ),
 
+                        const SizedBox(height: 24),
+                        _buildSectionTitle(
+                            'Avaliação do %G (Pollock 3 ou 7 Dobras):'),
                         const SizedBox(height: 16),
-                        const Text('Membros Superiores',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.grey)),
-                        const SizedBox(height: 8),
                         Row(
                           children: [
                             Expanded(
                                 child: _buildNumberField(
-                                    _rightArmController, 'Braço Dir.')),
+                                    _skinfoldChestController, 'Peitoral')),
                             const SizedBox(width: 16),
                             Expanded(
                                 child: _buildNumberField(
-                                    _leftArmController, 'Braço Esq.')),
-                          ],
-                        ),
-
-                        const SizedBox(height: 16),
-                        const Text('Membros Inferiores',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.grey)),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                                child: _buildNumberField(
-                                    _rightThighController, 'Coxa Dir.')),
-                            const SizedBox(width: 16),
-                            Expanded(
-                                child: _buildNumberField(
-                                    _leftThighController, 'Coxa Esq.')),
+                                    _skinfoldAbdomenController, 'Abdômem')),
                           ],
                         ),
                         const SizedBox(height: 12),
@@ -515,22 +689,67 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
                           children: [
                             Expanded(
                                 child: _buildNumberField(
-                                    _rightCalfController, 'Panturrilha Dir.')),
+                                    _skinfoldThighController, 'Coxa')),
                             const SizedBox(width: 16),
                             Expanded(
                                 child: _buildNumberField(
-                                    _leftCalfController, 'Panturrilha Esq.')),
+                                    _skinfoldCalfController, 'Perna')),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                                child: _buildNumberField(
+                                    _skinfoldTricepsController, 'Tríceps')),
+                            const SizedBox(width: 16),
+                            Expanded(
+                                child: _buildNumberField(
+                                    _skinfoldBicepsController, 'Bíceps')),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                                child: _buildNumberField(
+                                    _skinfoldSubscapularController,
+                                    'Subscapular')),
+                            const SizedBox(width: 16),
+                            Expanded(
+                                child: _buildNumberField(
+                                    _skinfoldSuprailiacController,
+                                    'Suprailíaca')),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                                child: _buildNumberField(
+                                    _skinfoldMidaxillaryController,
+                                    'Axiliar Média')),
+                            const SizedBox(width: 16),
+                            Expanded(child: Container()), // Spacer
                           ],
                         ),
 
                         const SizedBox(height: 24),
-                        _buildSectionTitle('Observações'),
-                        const SizedBox(height: 8),
-                        TextFormField(
-                          controller: _notesController,
-                          maxLines: 4,
-                          decoration:
-                              _inputDecoration('Notas adicionais, metas, etc.'),
+                        _buildSectionTitle('Resultado:'),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                                child: _buildNumberField(
+                                    _bodyFatController, '%G =')),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: TextFormField(
+                                controller: _workoutFocusController,
+                                decoration: _inputDecoration('Foco do Treino'),
+                              ),
+                            ),
+                          ],
                         ),
 
                         const SizedBox(height: 32),
@@ -559,9 +778,9 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
                     ),
                   ),
                 ),
-          if (_isPrinting)
+          if (_isPrinting) ...[
             Container(
-              color: Colors.black.withOpacity(0.3),
+              color: Colors.black.withAlpha(76), // 0.3 * 255 = 76.5
               child: const Center(
                 child: Card(
                   child: Padding(
@@ -578,6 +797,7 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
                 ),
               ),
             ),
+          ],
         ],
       ),
     );

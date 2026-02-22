@@ -2,61 +2,23 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
 import 'notification_service.dart';
 import 'cache_manager.dart';
+import 'auth_service.dart';
 
 class DietService {
   static final SupabaseClient _client = SupabaseService.client;
 
-  // Helper: Obter detalhes do usuário atual (Nutricionista ou Admin)
+  // Helper: Obter detalhes do usuário atual
   static Future<Map<String, dynamic>> _getContext() async {
-    final user = _client.auth.currentUser;
-    if (user == null) throw Exception('Usuário não autenticado');
+    final userData = await AuthService.getCurrentUserData();
+    if (userData == null) throw Exception('Usuário não autenticado');
 
-    // Tentar como Nutricionista
-    final nutri = await _client
-        .from('users_nutricionista')
-        .select()
-        .eq('id', user.id)
-        .maybeSingle();
-
-    if (nutri != null) {
-      return {
-        'admin_id': nutri['created_by_admin_id'],
-        'academia': nutri['academia'],
-        'id_academia': nutri['id_academia'],
-      };
-    }
-
-    // Tentar como Personal
-    final personal = await _client
-        .from('users_personal')
-        .select()
-        .eq('id', user.id)
-        .maybeSingle();
-
-    if (personal != null) {
-      return {
-        'admin_id': personal['created_by_admin_id'] ?? personal['id_academia'],
-        'academia': personal['academia'],
-        'id_academia': personal['id_academia'],
-      };
-    }
-
-    // Tentar como Admin
-    final admin = await _client
-        .from('users_adm')
-        .select()
-        .eq('id', user.id)
-        .maybeSingle();
-
-    if (admin != null) {
-      return {
-        'admin_id': admin['id'],
-        'academia': admin['academia'],
-        'id_academia': admin['id'],
-      };
-    }
-
-    throw Exception('Usuário sem registro de academia vinculado.');
+    return {
+      'role': userData['role'] == 'admin' ? 'admin' : 'nutritionist',
+      'admin_id': userData['created_by_admin_id'] ?? userData['id'],
+      'academia': userData['academia'] ?? 'Academia Não Informada',
+      'id_academia': userData['id_academia'] ?? userData['id'],
+      'cnpj': userData['cpf'] ?? '',
+    };
   }
 
   // Buscar todas as dietas (Admin)
@@ -64,19 +26,25 @@ class DietService {
     try {
       final context = await _getContext();
       final idAcademia = context['id_academia'];
+      final role = context['role'];
+      final userId = _client.auth.currentUser!.id;
 
       // Cache Key
-      final cacheKey = CacheKeys.allDiets(idAcademia);
+      final cacheKey = role == 'admin'
+          ? CacheKeys.allDiets(idAcademia)
+          : CacheKeys.dietsByNutritionist(userId);
       final cached = await CacheManager().get<List<dynamic>>(cacheKey);
       if (cached != null) {
         return List<Map<String, dynamic>>.from(cached);
       }
 
-      final response = await _client
-          .from('diets')
-          .select()
-          .eq('id_academia', idAcademia)
-          .order('created_at', ascending: false);
+      var query = _client.from('diets').select().eq('id_academia', idAcademia);
+
+      if (role != 'admin') {
+        query = query.eq('nutritionist_id', userId);
+      }
+
+      final response = await query.order('created_at', ascending: false);
 
       final populated = await _populateUsers(response);
 
@@ -674,11 +642,15 @@ class DietService {
     try {
       final context = await _getContext();
       final idAcademia = context['id_academia'];
+      final role = context['role'];
+      final userId = _client.auth.currentUser!.id;
 
       if (idAcademia == null) return [];
 
       // Cache Key
-      final cacheKey = CacheKeys.myStudents(idAcademia);
+      final cacheKey = role == 'admin'
+          ? 'students_admin_$idAcademia'
+          : CacheKeys.myStudents(userId);
       final cached = await CacheManager().get<List<dynamic>>(cacheKey);
       if (cached != null) {
         return List<Map<String, dynamic>>.from(cached);
@@ -692,10 +664,16 @@ class DietService {
           .order('nome');
 
       // 2. Buscar dietas para calcular count (opcional)
-      final diets = await _client
+      var dietsQuery = _client
           .from('diets')
           .select('student_id')
           .eq('id_academia', idAcademia);
+
+      if (role != 'admin') {
+        dietsQuery = dietsQuery.eq('nutritionist_id', userId);
+      }
+
+      final diets = await dietsQuery;
 
       // Contar dietas por aluno
       final studentsWithCount = students.map((student) {

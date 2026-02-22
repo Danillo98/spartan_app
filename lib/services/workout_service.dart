@@ -1,38 +1,41 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'notification_service.dart';
 import 'cache_manager.dart';
+import 'auth_service.dart';
 
 class WorkoutService {
   static final _client = Supabase.instance.client;
 
+  // Helper: Obter detalhes do usuário atual
+  static Future<Map<String, dynamic>> _getContext() async {
+    final userData = await AuthService.getCurrentUserData();
+    if (userData == null) throw Exception('Usuário não autenticado');
+
+    return {
+      'role': userData['role'] == 'admin' ? 'admin' : 'personal',
+      'id_academia': userData['id_academia'] ?? userData['id'],
+    };
+  }
+
   // Buscar alunos do personal que têm fichas
-  // Buscar TODOS os alunos da academia do personal
-  // Buscar TODOS os alunos da academia do personal
-  // Buscar alunos do personal que têm fichas
-  // Buscar TODOS os alunos da academia do personal
   static Future<List<Map<String, dynamic>>> getMyStudents() async {
     try {
       final user = _client.auth.currentUser;
       if (user == null) return [];
 
+      // 1. Buscar contexto (Personal ou Admin)
+      final context = await _getContext();
+      final idAcademia = context['id_academia'];
+      final role = context['role'];
+
       // Cache Key
-      final cacheKey = CacheKeys.myStudents(user.id);
+      final cacheKey = role == 'admin'
+          ? 'students_admin_$idAcademia'
+          : CacheKeys.myStudents(user.id);
       final cached = await CacheManager().get<List<dynamic>>(cacheKey);
       if (cached != null) {
         return List<Map<String, dynamic>>.from(cached);
       }
-
-      // 1. Buscar id_academia do personal logado
-      final personalData = await _client
-          .from('users_personal')
-          .select('id_academia')
-          .eq('id', user.id)
-          .maybeSingle();
-
-      if (personalData == null || personalData['id_academia'] == null) {
-        return [];
-      }
-      final idAcademia = personalData['id_academia'];
 
       // 2. Buscar todos os alunos da mesma academia
       final students = await _client
@@ -41,11 +44,19 @@ class WorkoutService {
           .eq('id_academia', idAcademia)
           .order('nome');
 
-      // 3. Buscar fichas criadas por este personal (para contador)
-      final workouts = await _client
-          .from('workouts')
-          .select('student_id')
-          .eq('personal_id', user.id);
+      // 3. Buscar fichas criadas por este usuário (para contador)
+      var workoutsQuery = _client.from('workouts').select('student_id');
+
+      // O Admin tem acesso a todas (ou pelo menos as que ele criou)
+      // Se não filtrar por personal_id, conta todas as fichas da academia.
+      // O personal logado só vai ver as fichas dele ou de todos? As dele.
+      if (role == 'personal') {
+        workoutsQuery = workoutsQuery.eq('personal_id', user.id);
+      } else {
+        workoutsQuery = workoutsQuery.eq('id_academia', idAcademia);
+      }
+
+      final workouts = await workoutsQuery;
 
       // Contar fichas por aluno
       final studentsWithCount = students.map((student) {
@@ -84,19 +95,14 @@ class WorkoutService {
       final user = _client.auth.currentUser;
       if (user == null) throw Exception('Usuário não autenticado');
 
-      // Buscar id_academia do personal
-      final personalData = await _client
-          .from('users_personal')
-          .select('id_academia')
-          .eq('id', user.id)
-          .single();
-
-      final idAcademia = personalData['id_academia'];
+      final ctx = await _getContext();
+      final idAcademia = ctx['id_academia'];
+      final role = ctx['role'];
 
       final workoutData = await _client
           .from('workouts')
           .insert({
-            'personal_id': user.id,
+            'personal_id': role == 'admin' ? null : user.id,
             'student_id': studentId,
             'id_academia': idAcademia, // Insert id_academia
             'name': name,
@@ -111,14 +117,19 @@ class WorkoutService {
 
       // --- NOTIFICATION ---
       try {
+        String authorName = 'Administração';
+
         final personal = await _client
             .from('users_personal')
             .select('nome')
             .eq('id', user.id)
             .maybeSingle();
-        final personalName = personal?['nome'] ?? 'Seu Personal';
 
-        await NotificationService.notifyNewWorkout(studentId, personalName);
+        if (personal != null) {
+          authorName = personal['nome'] ?? 'Seu Personal';
+        }
+
+        await NotificationService.notifyNewWorkout(studentId, authorName);
       } catch (e) {
         print('Erro ao enviar push de treino: $e');
       }
@@ -183,21 +194,30 @@ class WorkoutService {
       final user = _client.auth.currentUser;
       if (user == null) return [];
 
+      final ctx = await _getContext();
+      final role = ctx['role'];
+      final idAcademia = ctx['id_academia'];
+
       // Cache Key
-      final cacheKey = CacheKeys.workoutsByPersonal(user.id);
+      final cacheKey = role == 'admin'
+          ? CacheKeys.allWorkouts(idAcademia)
+          : CacheKeys.workoutsByPersonal(user.id);
+
       final cached = await CacheManager().get<List<dynamic>>(cacheKey);
       if (cached != null) {
         return List<Map<String, dynamic>>.from(cached);
       }
 
-      final response = await _client
+      var query = _client
           .from('workouts')
-          // Join correto com users_alunos
           .select('*, student:users_alunos!student_id(nome)')
-          .eq('personal_id', user.id)
-          // RLS already handles id_academia isolation via personal_id linkage,
-          // but we rely on RLS policies.
-          .order('created_at', ascending: false);
+          .eq('id_academia', idAcademia);
+
+      if (role == 'personal') {
+        query = query.eq('personal_id', user.id);
+      }
+
+      final response = await query.order('created_at', ascending: false);
 
       // Adaptar resposta para UI
       final result = response.map((w) {
@@ -262,6 +282,13 @@ class WorkoutService {
           } catch (e) {
             print('Warning: Failed to fetch personal: $e');
           }
+        } else {
+          // Null personalId indicates it's created by Admin
+          workout['personal'] = {
+            'id': null,
+            'name': 'Administração da Academia',
+            'email': ''
+          };
         }
       }
 
@@ -338,17 +365,21 @@ class WorkoutService {
           if (personalView == null) {
             personalView = await _client
                 .from('users_adm')
-                .select('id, nome, email')
+                .select('id, nome, email, academia')
                 .eq('id', personalId)
                 .maybeSingle();
           }
 
           if (personalView != null) {
+            bool isAdminFallback = personalView.containsKey('academia');
+
             workout['personal'] = {
               'id': personalView['id'],
-              'name': personalView['nome'] ??
-                  personalView['name'] ??
-                  'Administrador',
+              'name': isAdminFallback
+                  ? 'Administração da Academia'
+                  : (personalView['nome'] ??
+                      personalView['name'] ??
+                      'Personal Trainer'),
               'email': personalView['email'] ?? ''
             };
           } else {
@@ -361,6 +392,13 @@ class WorkoutService {
         } catch (e) {
           print('Warning: Failed to fetch personal: $e');
         }
+      } else {
+        // Se personal_id for null, significa que foi criado pela Administração da Academia
+        workout['personal'] = {
+          'id': null,
+          'name': 'Administração da Academia',
+          'email': ''
+        };
       }
 
       // 3. Fetch workout days

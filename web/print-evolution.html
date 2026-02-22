@@ -205,29 +205,36 @@
                     </div>
                     <h1>Relatório de Evolução Física</h1>
                     <p class="subtitle" style="font-weight: bold; color: #2A9D8F; margin-bottom: 8px;">Spartan Gym - Nutrição e Performance</p>
-                    <p class="subtitle" style="font-size: 16px; color: #000; margin-bottom: 4px;">
-                        <strong>Aluno:</strong> ${data.student_name || 'Não informado'}
-                    </p>
-                    <p class="subtitle"><strong>Data:</strong> ${formatDate(data.assessment_date)}</p>
+                    <div style="margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+                        <p class="subtitle" style="font-size: 15px; color: #555; margin-bottom: 4px;">
+                            <strong>${data.professional_label || 'Nutricionista'}:</strong> ${data.professional_name || '-'}
+                        </p>
+                        <p class="subtitle" style="font-size: 16px; color: #000; margin-bottom: 4px;">
+                            <strong>Aluno:</strong> ${data.student_name || 'Não informado'}
+                        </p>
+                        <p class="subtitle" style="font-size: 14px; color: #666;">
+                            <strong>Data da Avaliação:</strong> ${formatDate(data.assessment_date)}
+                        </p>
+                    </div>
                 </div>
 
                 <div class="section-title">Dados Corporais Básicos</div>
                 <div class="grid">
                     <div>
+                        <div class="data-item"><span class="label">Estatura</span> <span class="value">${data.height || '-'} cm</span></div>
+                        <div class="data-item"><span class="label">Resultado %G</span> <span class="value">${data.body_fat || '-'} %</span></div>
                         <div class="data-item"><span class="label">Peso</span> <span class="value">${data.weight || '-'} kg</span></div>
-                        <div class="data-item"><span class="label">Altura</span> <span class="value">${data.height || '-'} cm</span></div>
                     </div>
                      <div>
-                        <div class="data-item"><span class="label">Gordura Corporal</span> <span class="value">${data.body_fat || '-'} %</span></div>
-                        <div class="data-item"><span class="label">Massa Muscular</span> <span class="value">${data.muscle_mass || '-'} %</span></div>
+                        <div class="data-item"><span class="label">Foco do Treino</span> <span class="value">${data.workout_focus || '-'}</span></div>
                     </div>
                 </div>
 
                 <div class="section-title">Circunferências (Tronco)</div>
                 <div class="grid">
                     <div>
-                        <div class="data-item"><span class="label">Pescoço</span> <span class="value">${data.neck || '-'} cm</span></div>
-                        <div class="data-item"><span class="label">Peitoral</span> <span class="value">${data.chest || '-'} cm</span></div>
+                        <div class="data-item"><span class="label">Ombro</span> <span class="value">${data.shoulder || '-'} cm</span></div>
+                        <div class="data-item"><span class="label">Tórax</span> <span class="value">${data.chest || '-'} cm</span></div>
                     </div>
                     <div>
                          <div class="data-item"><span class="label">Cintura</span> <span class="value">${data.waist || '-'} cm</span></div>
@@ -236,39 +243,54 @@
                     </div>
                 </div>
 
-                <div class="section-title">Membros Superiores</div>
+                <div class="section-title">Membros Superiores (Circunferências)</div>
                  <div class="grid">
                     <div>
                         <br><strong>Direito</strong>
-                        <div class="data-item"><span class="label">Braço</span> <span class="value">${data.right_arm || '-'} cm</span></div>
+                        <div class="data-item"><span class="label">Mesoumeral</span> <span class="value">${data.right_arm || '-'} cm</span></div>
+                        <div class="data-item"><span class="label">Ante-Braço</span> <span class="value">${data.right_forearm || '-'} cm</span></div>
                     </div>
                     <div>
                         <br><strong>Esquerdo</strong>
-                        <div class="data-item"><span class="label">Braço</span> <span class="value">${data.left_arm || '-'} cm</span></div>
+                        <div class="data-item"><span class="label">Mesoumeral</span> <span class="value">${data.left_arm || '-'} cm</span></div>
+                        <div class="data-item"><span class="label">Ante-Braço</span> <span class="value">${data.left_forearm || '-'} cm</span></div>
                     </div>
                 </div>
                 
-                 <div class="section-title">Membros Inferiores</div>
+                 <div class="section-title">Membros Inferiores (Circunferências)</div>
                  <div class="grid">
                     <div>
                         <br><strong>Direito</strong>
-                        <div class="data-item"><span class="label">Coxa</span> <span class="value">${data.right_thigh || '-'} cm</span></div>
-                        <div class="data-item"><span class="label">Panturrilha</span> <span class="value">${data.right_calf || '-'} cm</span></div>
+                        <div class="data-item"><span class="label">Mesofemural (Coxa)</span> <span class="value">${data.right_thigh || '-'} cm</span></div>
+                        <div class="data-item"><span class="label">Perna (Panturrilha)</span> <span class="value">${data.right_calf || '-'} cm</span></div>
                     </div>
                     <div>
                         <br><strong>Esquerdo</strong>
-                        <div class="data-item"><span class="label">Coxa</span> <span class="value">${data.left_thigh || '-'} cm</span></div>
-                        <div class="data-item"><span class="label">Panturrilha</span> <span class="value">${data.left_calf || '-'} cm</span></div>
+                        <div class="data-item"><span class="label">Mesofemural (Coxa)</span> <span class="value">${data.left_thigh || '-'} cm</span></div>
+                        <div class="data-item"><span class="label">Perna (Panturrilha)</span> <span class="value">${data.left_calf || '-'} cm</span></div>
                     </div>
                 </div>
 
-                <div class="section-title">Observações do Profissional</div>
-                <div class="notes-box">
-                    <p class="notes-text">${data.notes || 'Sem observações adicionais.'}</p>
+                 <div class="section-title" ${!data.skinfold_chest && !data.skinfold_abdomen && !data.skinfold_thigh ? 'style="display:none;"' : ''}>Dobras Cutâneas (Pollock 3/7)</div>
+                 <div class="grid" ${!data.skinfold_chest && !data.skinfold_abdomen && !data.skinfold_thigh ? 'style="display:none;"' : ''}>
+                    <div>
+                        <div class="data-item"><span class="label">Peitoral</span> <span class="value">${data.skinfold_chest || '-'} mm</span></div>
+                        <div class="data-item"><span class="label">Abdômen</span> <span class="value">${data.skinfold_abdomen || '-'} mm</span></div>
+                        <div class="data-item"><span class="label">Coxa</span> <span class="value">${data.skinfold_thigh || '-'} mm</span></div>
+                        <div class="data-item"><span class="label">Perna</span> <span class="value">${data.skinfold_calf || '-'} mm</span></div>
+                    </div>
+                    <div>
+                        <div class="data-item"><span class="label">Tríceps</span> <span class="value">${data.skinfold_triceps || '-'} mm</span></div>
+                        <div class="data-item"><span class="label">Bíceps</span> <span class="value">${data.skinfold_biceps || '-'} mm</span></div>
+                        <div class="data-item"><span class="label">Subscapular</span> <span class="value">${data.skinfold_subscapular || '-'} mm</span></div>
+                        <div class="data-item"><span class="label">Suprailíaca</span> <span class="value">${data.skinfold_suprailiac || '-'} mm</span></div>
+                        <div class="data-item"><span class="label">Axilar Média</span> <span class="value">${data.skinfold_midaxillary || '-'} mm</span></div>
+                    </div>
                 </div>
 
                 <div class="footer">
                     <p>Documento gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}</p>
+                    <p><strong>${data.professional_label || 'Nutricionista'}:</strong> ${data.professional_name || '-'}</p>
                     <p>Spartan Gym - Nutrição e Performance</p>
                 </div>
             `;

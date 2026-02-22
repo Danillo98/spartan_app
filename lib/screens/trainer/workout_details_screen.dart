@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
+
 // ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
+import 'package:universal_html/html.dart' as html;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/workout_service.dart';
@@ -234,29 +235,8 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
                 ],
               ),
             ),
-          Text(
-            _workout!['description'] ?? 'Sem descrição',
-            style: GoogleFonts.lato(
-              fontSize: 14,
-              color: AppTheme.secondaryText,
-              height: 1.5,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              _buildInfoChip(Icons.flag, _workout!['goal'] ?? 'Geral'),
-              const SizedBox(width: 8),
-              _buildInfoChip(
-                  Icons.equalizer, _workout!['difficulty_level'] ?? 'N/A'),
-            ],
-          ),
-          const SizedBox(height: 8),
-          if (_workout!['start_date'] != null)
-            Text(
-              'Validade: ${_formatDate(_workout!['start_date'])} - ${_workout!['end_date'] != null ? _formatDate(_workout!['end_date']) : "Indeterminado"}',
-              style: GoogleFonts.lato(fontSize: 12, color: Colors.grey),
-            )
+          _buildDescriptionWithImages(
+              _workout!['description'] ?? 'Sem descrição'),
         ],
       ),
     );
@@ -341,34 +321,84 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
     }
   }
 
-  String _formatDate(String dateStr) {
-    try {
-      final date = DateTime.parse(dateStr);
-      return '${date.day}/${date.month}/${date.year}';
-    } catch (e) {
-      return dateStr;
-    }
-  }
-
-  Widget _buildInfoChip(IconData icon, String label) {
-    return Chip(
-      avatar: Icon(icon, size: 16, color: trainerPrimary),
-      label: Text(
-        label,
+  Widget _buildDescriptionWithImages(String description) {
+    if (!description.contains('[IMG_BASE64:')) {
+      return Text(
+        description,
         style: GoogleFonts.lato(
-          fontSize: 12,
-          color: trainerPrimary,
-          fontWeight: FontWeight.bold,
+          fontSize: 14,
+          color: AppTheme.secondaryText,
+          height: 1.5,
         ),
-      ),
-      backgroundColor: trainerPrimary.withOpacity(0.05),
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      );
+    }
+
+    final RegExp exp = RegExp(r'\[IMG_BASE64:(.*?)\]');
+    final Iterable<RegExpMatch> matches = exp.allMatches(description);
+
+    int lastEnd = 0;
+    List<Widget> children = [];
+
+    for (final match in matches) {
+      if (match.start > lastEnd) {
+        children.add(Text(
+          description.substring(lastEnd, match.start).trimRight(),
+          style: GoogleFonts.lato(
+            fontSize: 14,
+            color: AppTheme.secondaryText,
+            height: 1.5,
+          ),
+        ));
+      }
+
+      final base64String = match.group(1);
+      if (base64String != null && base64String.isNotEmpty) {
+        try {
+          children.add(
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.memory(
+                  base64Decode(base64String),
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+          );
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      lastEnd = match.end;
+    }
+
+    if (lastEnd < description.length) {
+      children.add(Text(
+        description.substring(lastEnd).trimLeft(),
+        style: GoogleFonts.lato(
+          fontSize: 14,
+          color: AppTheme.secondaryText,
+          height: 1.5,
+        ),
+      ));
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: children,
     );
   }
 
   Widget _buildDaysSection() {
     final days = (_workout!['days'] as List?) ?? [];
+    final hasDescription = _workout!['description'] != null &&
+        _workout!['description'].toString().trim().isNotEmpty;
+
+    if (days.isEmpty && hasDescription) {
+      return const SizedBox.shrink();
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -404,7 +434,7 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
         ),
         const SizedBox(height: 16),
         if (days.isEmpty)
-          _buildEmptyDaysState()
+          (_buildEmptyDaysState())
         else
           ListView.separated(
             shrinkWrap: true,

@@ -653,7 +653,7 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
                 // Nome
                 _buildTextField(
                   controller: _nameController,
-                  label: 'Nome Completo',
+                  label: 'Nome Completo (Obrigatório)',
                   hint: 'João Silva',
                   icon: Icons.person_outline_rounded,
                   inputFormatters: [
@@ -675,7 +675,9 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
                 // Email
                 _buildTextField(
                   controller: _emailController,
-                  label: 'Email',
+                  label: _selectedRole == UserRole.student
+                      ? 'Email'
+                      : 'Email (Obrigatório)',
                   hint: 'usuario@email.com',
                   icon: Icons.email_outlined,
                   keyboardType: TextInputType.emailAddress,
@@ -709,10 +711,9 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
                     LengthLimitingTextInputFormatter(11),
                   ],
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Por favor, insira o telefone';
-                    }
-                    if (value.length < 10) {
+                    if (value != null &&
+                        value.isNotEmpty &&
+                        value.length < 10) {
                       return 'Telefone inválido';
                     }
                     return null;
@@ -783,7 +784,7 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
                       child: DropdownButtonFormField<int>(
                         value: _selectedPaymentDay,
                         decoration: const InputDecoration(
-                          labelText: 'Dia de Vencimento',
+                          labelText: 'Dia de Vencimento (Obrigatório)',
                           border: InputBorder.none,
                           prefixIcon: Icon(Icons.date_range_rounded,
                               color: Color(0xFF1A1A1A)),
@@ -864,7 +865,9 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
                 // Senha
                 _buildTextField(
                   controller: _passwordController,
-                  label: 'Senha',
+                  label: _selectedRole == UserRole.student
+                      ? 'Senha'
+                      : 'Senha (Obrigatório)',
                   hint: '••••••••',
                   icon: Icons.lock_outline_rounded,
                   obscureText: _obscurePassword,
@@ -899,7 +902,9 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
                 // Confirmar Senha
                 _buildTextField(
                   controller: _confirmPasswordController,
-                  label: 'Confirmar Senha',
+                  label: _selectedRole == UserRole.student
+                      ? 'Confirmar Senha'
+                      : 'Confirmar Senha (Obrigatório)',
                   hint: '••••••••',
                   icon: Icons.lock_outline_rounded,
                   obscureText: _obscureConfirmPassword,
@@ -975,7 +980,7 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: QrImageView(
-                            data: _landingUrl,
+                            data: '$_landingUrl?role=${_selectedRole.name}',
                             version: QrVersions.auto,
                             errorCorrectionLevel: QrErrorCorrectLevel.H,
                             size: 250.0,
