@@ -1,5 +1,5 @@
 ﻿{
     "url":  "https://mcmxltjymjqqmshjmwdx.supabase.co/storage/v1/object/public/downloads/Spartan_Desktop.zip",
-    "version":  "2.0.6",
-    "notes":  "V2.0.6 - FIX: Comando de liberaÃ§Ã£o remota via simulaÃ§Ã£o de identificaÃ§Ã£o (Acesso Livre ID 0)."
+    "version":  "2.0.7",
+    "notes":  "V2.0.7 - FIX: Erro 400 no comando de liberaÃ§Ã£o remota. Refinamento do payload JSON para catracas Control iD."
 }

@@ -1,5 +1,5 @@
 # Script de Deploy e Versionamento Spartan Desktop
-$version = "2.0.7"
+$version = "2.0.8"
 $zipName = "Spartan_Desktop.zip"
 $storageUrl = "https://mcmxltjymjqqmshjmwdx.supabase.co/storage/v1/object/public/downloads/$zipName"
 
@@ -34,7 +34,7 @@ if (Test-Path "$folderInsideZip\spartan_app.exe") {
 $versionJson = @{
     version = $version
     url     = $storageUrl
-    notes   = "V2.0.7 - FIX: Erro 400 no comando de liberação remota. Refinamento do payload JSON para catracas Control iD."
+    notes   = "V2.0.8 - FIX: Liberação remota forçada (ignore face) via comandos diretos de hardware (catra/door)."
 } | ConvertTo-Json
 
 # Salva na raiz (para upload no Supabase)
