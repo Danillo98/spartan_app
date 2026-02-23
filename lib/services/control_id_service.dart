@@ -341,22 +341,26 @@ class ControlIdService {
 
       final body = jsonEncode({
         "event": 7, // 7 = Access Granted (Sucesso)
-        "user_id": 0, // ID solicitado: 0 (Acesso Livre)
-        "user_name": "Acesso Livre",
+        "user_id": 1, // ID do Administrador Master
+        "user_name": "ADMINISTRADOR",
         "user_image": false,
         "portal_id": 1,
         "actions": [
           {
             "action": "catra",
-            "parameters": "allow=3" // Ação específica de catraca
+            "parameters": "allow=3" // Liberação de giro nativa
           },
           {
-            "action": "open",
-            "parameters": "door=1" // Ação forçada de relé 1
+            "action": "sec_box",
+            "parameters": "value=1" // Comando de baixo nível para o solenóide
           },
           {
-            "action": "open",
-            "parameters": "door=2" // Ação forçada de relé 2
+            "action": "door",
+            "parameters": "door=1,state=open" // Forçar Relé 1
+          },
+          {
+            "action": "door",
+            "parameters": "door=2,state=open" // Forçar Relé 2
           }
         ]
       });
