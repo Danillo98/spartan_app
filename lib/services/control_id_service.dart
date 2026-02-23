@@ -334,17 +334,26 @@ class ControlIdService {
       String session = await _login(sanitizedIp);
       if (session.isEmpty) throw 'Falha ao autenticar na catraca';
 
-      // Usamos execute_actions para acionamento direto de hardware (Pula a identificação)
+      // Usamos remote_user_authorization para simular um evento de sucesso Master
+      // Isso força a catraca a exibir "Acesso Liberado" e deve destravar físicos
       final urlWithSession = Uri.parse(
-          'http://$sanitizedIp/execute_actions.fcgi?session=$session');
+          'http://$sanitizedIp/remote_user_authorization.fcgi?session=$session');
 
       final body = jsonEncode({
+        "event": 7, // 7 = Access Granted (Sucesso)
+        "user_id": 0, // ID solicitado: 0 (Acesso Livre)
+        "user_name": "Acesso Livre",
+        "user_image": false,
+        "portal_id": 1,
         "actions": [
           {
-            "action": "catra",
-            "parameters": "allow=3" // Libera ambos os sentidos por 1 giro
+            "action": "door",
+            "parameters": "door=1,state=open" // Relé 1 (Geralmente entrada)
           },
-          {"action": "door", "parameters": "door=1,state=open"}
+          {
+            "action": "door",
+            "parameters": "door=2,state=open" // Relé 2 (Geralmente saída)
+          }
         ]
       });
 

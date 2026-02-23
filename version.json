@@ -1,5 +1,5 @@
 ﻿{
     "url":  "https://mcmxltjymjqqmshjmwdx.supabase.co/storage/v1/object/public/downloads/Spartan_Desktop.zip",
-    "version":  "2.0.7",
-    "notes":  "V2.0.7 - FIX: Erro 400 no comando de liberaÃ§Ã£o remota. Refinamento do payload JSON para catracas Control iD."
+    "version":  "2.0.8",
+    "notes":  "V2.0.8 - FIX: LiberaÃ§Ã£o remota forÃ§ada (ignore face) via comandos diretos de hardware (catra/door)."
 }
