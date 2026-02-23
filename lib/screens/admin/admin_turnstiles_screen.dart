@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'dart:async';
 import '../../config/app_theme.dart';
 import '../../config/supabase_config.dart';
 import '../../services/control_id_service.dart';
@@ -54,6 +55,11 @@ class _AdminTurnstilesScreenState extends State<AdminTurnstilesScreen> {
   bool _isFreeAccess = false;
   final _freeAccessNameController = TextEditingController();
 
+  // Multi-Catraca
+  List<String> _savedIps = [];
+  Map<String, bool> _ipStatuses = {};
+  Timer? _statusTimer;
+
   final String _downloadUrl =
       '${SupabaseConfig.supabaseUrl}/storage/v1/object/public/downloads/Spartan_Desktop.zip';
 
@@ -61,14 +67,19 @@ class _AdminTurnstilesScreenState extends State<AdminTurnstilesScreen> {
   void initState() {
     super.initState();
     if (_isWindowsApp) {
-      _loadSavedIp();
+      _loadSavedIps();
       _loadStudents();
+      // Checar status a cada 30 segundos
+      _statusTimer = Timer.periodic(
+          const Duration(seconds: 30), (_) => _checkAllConnections());
     }
   }
 
   @override
   void dispose() {
+    _ipController.dispose();
     _freeAccessNameController.dispose();
+    _statusTimer?.cancel();
     super.dispose();
   }
 
@@ -76,17 +87,58 @@ class _AdminTurnstilesScreenState extends State<AdminTurnstilesScreen> {
     return !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
   }
 
-  Future<void> _loadSavedIp() async {
+  Future<void> _loadSavedIps() async {
     final prefs = await SharedPreferences.getInstance();
-    final savedIp = prefs.getString('control_id_ip');
-    if (savedIp != null) {
-      _ipController.text = savedIp;
+    // Migração: se tinha o antigo 'control_id_ip', adiciona na lista nova
+    final oldIp = prefs.getString('control_id_ip');
+    final savedIps = prefs.getStringList('control_id_ips') ?? [];
+
+    if (oldIp != null && !savedIps.contains(oldIp)) {
+      savedIps.add(oldIp);
+      await prefs.remove('control_id_ip');
+    }
+
+    setState(() {
+      _savedIps = savedIps;
+      if (savedIps.isNotEmpty) {
+        _ipController.text = savedIps.first;
+      }
+    });
+
+    _checkAllConnections();
+  }
+
+  Future<void> _saveIps() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('control_id_ips', _savedIps);
+    // Mantém o primeiro como 'principal' para compatibilidade com o service antigo se necessário
+    if (_savedIps.isNotEmpty) {
+      await prefs.setString('control_id_ip', _savedIps.first);
     }
   }
 
-  Future<void> _saveIp() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('control_id_ip', _ipController.text);
+  Future<void> _checkAllConnections() async {
+    if (!mounted || _savedIps.isEmpty) return;
+
+    for (String ip in _savedIps) {
+      final success = await ControlIdService.testConnection(ip);
+      if (mounted) {
+        setState(() {
+          _ipStatuses[ip] = success;
+          if (ip == _ipController.text) {
+            _isConnected = success;
+          }
+        });
+      }
+    }
+  }
+
+  Future<void> _removeIp(String ip) async {
+    setState(() {
+      _savedIps.remove(ip);
+      _ipStatuses.remove(ip);
+    });
+    await _saveIps();
   }
 
   Future<void> _loadStudents() async {
@@ -99,13 +151,16 @@ class _AdminTurnstilesScreenState extends State<AdminTurnstilesScreen> {
   }
 
   Future<void> _testConnection() async {
+    final ip = _ipController.text.trim();
+    if (ip.isEmpty) return;
+
     setState(() {
       _isLoading = true;
       _statusMessage = 'Testando conexão...';
       _statusColor = Colors.blue;
     });
 
-    final success = await ControlIdService.testConnection(_ipController.text);
+    final success = await ControlIdService.testConnection(ip);
 
     if (mounted) {
       setState(() {
@@ -115,9 +170,14 @@ class _AdminTurnstilesScreenState extends State<AdminTurnstilesScreen> {
             ? 'Conectado com sucesso! Catraca respondendo.'
             : 'Falha ao conectar. Verifique o IP e se estão na mesma rede.';
         _statusColor = success ? Colors.green : Colors.red;
+
+        if (success && !_savedIps.contains(ip)) {
+          _savedIps.add(ip);
+        }
+        _ipStatuses[ip] = success;
       });
 
-      if (success) _saveIp();
+      if (success) _saveIps();
     }
   }
 
@@ -188,15 +248,18 @@ class _AdminTurnstilesScreenState extends State<AdminTurnstilesScreen> {
   Future<void> _syncAll() async {
     setState(() {
       _isLoading = true;
-      _statusMessage = 'Iniciando Sincronização Total...';
+      _statusMessage = 'Iniciando Sincronização...';
       _statusColor = Colors.blue;
     });
 
     try {
-      await ControlIdService.syncAllStudentsSilently();
+      // Sincroniza em todas as catracas salvas
+      for (String ip in _savedIps) {
+        await ControlIdService.syncAllStudents(ip);
+      }
 
       setState(() {
-        _statusMessage = 'Sincronização Total Concluída com Sucesso.';
+        _statusMessage = 'Sincronização Concluída em todas as catracas.';
         _statusColor = Colors.green;
       });
     } catch (e) {
@@ -403,12 +466,12 @@ class _AdminTurnstilesScreenState extends State<AdminTurnstilesScreen> {
                   _buildStepRow(
                     '2',
                     'Abra o Programa',
-                    'Abra o arquivo spartan_app.exe e digite o IP da sua catraca.',
+                    'Abra a pasta Spartan Desktop, execute o arquivo Spartan Desktop.exe e permita a execução no windows.',
                   ),
                   _buildStepRow(
                     '3',
-                    'Mantenha o sistema aberto',
-                    'A tela mostrará o painel de conexão em segundo plano. O Spartan Desktop DEVE ficar aberto (ou minimizado) enquanto a recepção funcionar.',
+                    'Configure sua Catraca',
+                    'Acesse sua conta de administrador no Spartan Desktop e vá em Minhas Catracas na tela inicial. Insira o IP da catraca Control ID e faça os cadastros Faciais. Não esqueça de Sincronizar Manualmente após conectar o IP e realizar um cadastro facial.',
                   ),
                 ],
               ),
@@ -544,7 +607,15 @@ class _AdminTurnstilesScreenState extends State<AdminTurnstilesScreen> {
                                         text: '192168001050',
                                         style: TextStyle(
                                             fontWeight: FontWeight.bold)),
-                                    TextSpan(text: ' aqui no computador.'),
+                                    TextSpan(text: ' aqui no computador.\n\n'),
+                                    TextSpan(
+                                        text: 'DICA: ',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.red)),
+                                    TextSpan(
+                                        text:
+                                            'Certifique-se que a catraca está em modo "OFFLINE" (Comunicação > Servidor > Modo > Offline) para que o sistema funcione perfeitamente.'),
                                   ])),
                             ],
                           ))),
@@ -592,6 +663,70 @@ class _AdminTurnstilesScreenState extends State<AdminTurnstilesScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
+
+                  // Lista de Catracas Salvas (Multi-Catraca)
+                  if (_savedIps.isNotEmpty) ...[
+                    Text('Catracas Configuradas',
+                        style: GoogleFonts.lato(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.secondaryText)),
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: _savedIps.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          final ip = _savedIps[index];
+                          final status = _ipStatuses[ip] ?? false;
+                          return ListTile(
+                            leading: Icon(Icons.memory_rounded,
+                                color: status ? Colors.green : Colors.red),
+                            title: Text(ip,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold)),
+                            subtitle: Text(
+                              status ? 'Conectado' : 'Desconectado',
+                              style: TextStyle(
+                                  color: status ? Colors.green : Colors.red,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold),
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.sync,
+                                      color: Colors.blue, size: 20),
+                                  onPressed: () {
+                                    setState(() => _ipController.text = ip);
+                                    _testConnection();
+                                  },
+                                  tooltip: 'Reconectar',
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline,
+                                      color: Colors.red, size: 20),
+                                  onPressed: () => _removeIp(ip),
+                                  tooltip: 'Remover',
+                                ),
+                              ],
+                            ),
+                            onTap: () =>
+                                setState(() => _ipController.text = ip),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
 
                   // Status da Conexão
                   if (_statusMessage.isNotEmpty)
@@ -789,7 +924,7 @@ class _AdminTurnstilesScreenState extends State<AdminTurnstilesScreen> {
                             onPressed:
                                 (_isLoading || !_isConnected) ? null : _syncAll,
                             icon: const Icon(Icons.sync),
-                            label: const Text('Iniciar Sincronização Completa'),
+                            label: const Text('Sincronizar Manualmente'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.blue,
                               foregroundColor: Colors.white,
