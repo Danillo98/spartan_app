@@ -23,8 +23,26 @@ class UpdateService {
       final remoteVersion = remoteData['version'] as String;
       final remoteUrl = remoteData['url'] as String;
 
-      final packageInfo = await PackageInfo.fromPlatform();
-      final localVersion = packageInfo.version;
+      // Tentar obter a versão local primeiro pelo version.json, senão pelo PackageInfo
+      String localVersion = '';
+      try {
+        final exePath = Platform.resolvedExecutable;
+        final appDir = File(exePath).parent.path;
+        final localVersionFile = File('$appDir\\version.json');
+
+        if (await localVersionFile.exists()) {
+          final localData = jsonDecode(await localVersionFile.readAsString());
+          localVersion = localData['version'] ?? '';
+        }
+      } catch (e) {
+        print(
+            'ℹ️ [UpdateService] version.json local não encontrado ou inválido.');
+      }
+
+      if (localVersion.isEmpty) {
+        final packageInfo = await PackageInfo.fromPlatform();
+        localVersion = packageInfo.version;
+      }
 
       if (_isNewer(remoteVersion, localVersion)) {
         return {

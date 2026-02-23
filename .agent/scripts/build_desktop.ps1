@@ -24,24 +24,27 @@ Copy-Item -Path "$buildPath\*" -Destination "$folderInsideZip" -Recurse
 # Limpeza de arquivos de desenvolvimento/debug
 Remove-Item -Path "$folderInsideZip\spartan_app.exp", "$folderInsideZip\spartan_app.lib", "$folderInsideZip\spartan_app.pdb" -ErrorAction SilentlyContinue
 
-Write-Host "Gerando arquivo ZIP com pasta organizadora..."
-if (Test-Path $zipName) { Remove-Item $zipName }
-# Ao passar a pasta diretamente (sem \*), o PowerShell inclui a pasta no ZIP
-Compress-Archive -Path "$folderInsideZip" -DestinationPath "$zipName"
-
 # Gera o manifesto de versao
 $versionJson = @{
     version = $version
     url     = $storageUrl
-    notes   = "Melhorias na estabilidade da catraca e novo modo Acesso Livre."
+    notes   = "V1.0.8 - Ajuste nos limites de alunos e melhorias no instalador."
 } | ConvertTo-Json
 
+# Salva na raiz (para upload no Supabase)
 $versionJson | Out-File -FilePath "version.json" -Encoding utf8
+
+# TAMBEM COPIA para dentro da pasta que sera zipada (para monitoramento local)
+$versionJson | Out-File -FilePath "$folderInsideZip\version.json" -Encoding utf8
+
+Write-Host "Gerando arquivo ZIP com pasta organizadora e version.json incluso..."
+if (Test-Path $zipName) { Remove-Item $zipName }
+Compress-Archive -Path "$folderInsideZip" -DestinationPath "$zipName"
 
 Write-Host "SUCESSO!"
 Write-Host "Upload manual no Supabase Storage (Pasta: downloads):"
-Write-Host "1. $zipName (Este agora contem a pasta '$folderInsideZip')"
-Write-Host "2. version.json (Use o arquivo da raiz do projeto)"
+Write-Host "1. $zipName (Contem a pasta '$folderInsideZip' e o version.json interno)"
+Write-Host "2. version.json (Manifesto para o servidor)"
 
 # Limpa a pasta temporaria apos zipar
 if (Test-Path $folderInsideZip) { Remove-Item -Recurse -Force $folderInsideZip }
