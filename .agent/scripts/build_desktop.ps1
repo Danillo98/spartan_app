@@ -24,6 +24,12 @@ Copy-Item -Path "$buildPath\*" -Destination "$folderInsideZip" -Recurse
 # Limpeza de arquivos de desenvolvimento/debug
 Remove-Item -Path "$folderInsideZip\spartan_app.exp", "$folderInsideZip\spartan_app.lib", "$folderInsideZip\spartan_app.pdb" -ErrorAction SilentlyContinue
 
+# IMPORTANTE: Remover o executavel duplicado/original para evitar confusao
+# O CMake gera o "Spartan Desktop.exe", mas o Flutter as vezes deixa o "spartan_app.exe"
+if (Test-Path "$folderInsideZip\spartan_app.exe") { 
+    Remove-Item -Path "$folderInsideZip\spartan_app.exe" -Force 
+}
+
 # Gera o manifesto de versao
 $versionJson = @{
     version = $version

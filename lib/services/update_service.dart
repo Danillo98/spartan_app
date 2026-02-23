@@ -58,6 +58,8 @@ class UpdateService {
   }
 
   static bool _isNewer(String remote, String local) {
+    if (remote.trim() == local.trim()) return false;
+
     List<int> remoteParts = remote.split('.').map(int.parse).toList();
     List<int> localParts = local.split('.').map(int.parse).toList();
 
