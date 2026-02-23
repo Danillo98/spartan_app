@@ -334,49 +334,46 @@ class ControlIdService {
       String session = await _login(sanitizedIp);
       if (session.isEmpty) throw 'Falha ao autenticar na catraca';
 
-      // ESTRATÉGIA OVERLOAD ACTION (Saturação de Ações):
-      // Enviamos todos os comandos de abertura física conhecidos em um único pacote.
+      // ESTRATÉGIA PORTAL DIRECT HACK (Simulador de Menu Interno):
+      // Esta versão simula exatamente o comando disparado pelo menu "Abertura de Porta" na tela da iDBlock.
 
+      // 1. HARDWARE PULSE (Muscle): Usa o mapeamento oficial de porta indexada
       final executeUrl = Uri.parse(
           'http://$sanitizedIp/execute_actions.fcgi?session=$session');
 
       final actionsBody = jsonEncode({
         "actions": [
           {
+            "action": "door",
+            "parameters":
+                "index=0,state=open" // Index 0 é o padrão para o primeiro relendo solenóide no firmware Next
+          },
+          {
             "action": "catra",
-            "parameters": "allow=1" // Libera giro (Ambos os sentidos)
-          },
-          {
-            "action": "door",
-            "parameters": "door=1,state=open" // Abre porta/relé 1
-          },
-          {
-            "action": "door",
-            "parameters": "door=2,state=open" // Abre porta/relé 2
-          },
-          {
-            "action": "door",
-            "parameters": "all,state=open" // Comando global de abertura
+            "parameters": "allow=3" // Liberação total de giro
           }
         ]
       });
 
-      // Dispara o acionamento físico
       await http.post(
         executeUrl,
         headers: {'Content-Type': 'application/json'},
         body: actionsBody,
       );
 
-      // Feedback Visual
+      // 2. ROOT AUTHORIZATION (Brain): Colocamos o "allow" na RAIZ do JSON.
+      // Em muitos modelos iDBlock, o solenóide só clica se o "allow" estiver fora do array de ações.
       final visualUrl = Uri.parse(
           'http://$sanitizedIp/remote_user_authorization.fcgi?session=$session');
       final visualBody = jsonEncode({
         "event": 7, // Sucesso
-        "user_id": 1, // Administrador
+        "user_id": 1, // Administrador Master
         "user_name": "ADMINISTRADOR",
         "user_image": false,
-        "portal_id": 1
+        "portal_id": 1,
+        "allow":
+            3, // PARÂMETRO NA RAIZ: O "pulo do gato" para o firmware manual
+        "reason": 1 // Liberação Manual remota
       });
 
       final response = await http.post(

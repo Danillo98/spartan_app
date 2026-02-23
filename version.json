@@ -1,5 +1,5 @@
 ﻿{
     "url":  "https://mcmxltjymjqqmshjmwdx.supabase.co/storage/v1/object/public/downloads/Spartan_Desktop.zip",
-    "version":  "2.1.5",
-    "notes":  "V2.1.5 - Overload Action: SaturaÃ§Ã£o de comandos fÃ­sicos (catra + door 1/2 + all) para forÃ§ar o destravamento do iDBlock."
+    "version":  "2.2.0",
+    "notes":  "V2.2.0 - Cleanup: RemoÃ§Ã£o do botÃ£o de liberaÃ§Ã£o remota devido a incompatibilidade fÃ­sica do hardware local."
 }
