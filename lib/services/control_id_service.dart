@@ -333,12 +333,14 @@ class ControlIdService {
       String session = await _login(sanitizedIp);
       if (session.isEmpty) throw 'Falha ao autenticar na catraca';
 
-      final urlWithSession =
-          Uri.parse('http://$sanitizedIp/access_control.fcgi?session=$session');
+      final urlWithSession = Uri.parse(
+          'http://$sanitizedIp/execute_actions.fcgi?session=$session');
 
+      // No Control iD, o acionamento de relé (porta/catraca) usa execute_actions
       final body = jsonEncode({
-        "action": "open",
-        "parameters": "door=1" // Por padrão a porta/catraca é 1
+        "actions": [
+          {"action": "door", "parameters": "door=1,state=open"}
+        ]
       });
 
       final response = await http.post(
