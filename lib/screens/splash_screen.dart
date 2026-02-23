@@ -60,13 +60,15 @@ class _SplashScreenState extends State<SplashScreen>
   Future<void> _checkLoginStatus() async {
     if (!mounted) return;
 
-    // 1. CHECAR VERSÃO DO APP (Update Enforced)
+    // 1. CHECAR VERSÃO DO APP (Update Enforced) - DESATIVADO TEMPORARIAMENTE
+    /*
     final newVersion = await VersionService.checkForUpdate();
     if (newVersion != null) {
       if (!mounted) return;
       _showUpdateDialog(newVersion);
       return; // Interrompe fluxo de login
     }
+    */
 
     try {
       // Verificar se é uma sessão de password recovery
