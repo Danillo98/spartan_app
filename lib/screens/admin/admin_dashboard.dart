@@ -21,7 +21,6 @@ import '../../widgets/responsive_utils.dart';
 import 'dart:async'; // Timer
 import 'package:supabase_flutter/supabase_flutter.dart'; // Supabase
 import '../../services/control_id_service.dart'; // Sync da Catraca
-import '../../services/update_service.dart'; // Import UpdateService
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -84,7 +83,6 @@ class _AdminDashboardState extends State<AdminDashboard>
     // Sincronizar catraca em background (APENAS NO DESKTOP WINDOWS)
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
       ControlIdService.syncAllStudentsSilently();
-      _checkForUpdates();
       _startRealtimeControlIdSync();
     }
   }
@@ -96,78 +94,6 @@ class _AdminDashboardState extends State<AdminDashboard>
     _financialChannel?.unsubscribe();
     _animationController.dispose();
     super.dispose();
-  }
-
-  Future<void> _checkForUpdates() async {
-    // APENAS NO DESKTOP WINDOWS NATIVO
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.windows) return;
-
-    final update = await UpdateService.checkForUpdates();
-    if (update != null && mounted) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          title: const Text('Nova Atualização Disponível'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                  'Versão ${update['version']} está pronta para ser instalada.'),
-              const SizedBox(height: 8),
-              if (update['notes'] != null && update['notes'].isNotEmpty)
-                Text(update['notes'],
-                    style: const TextStyle(fontSize: 12, color: Colors.grey)),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Depois'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _performUpdate(update['url']);
-              },
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFEBC115)),
-              child: const Text('Atualizar Agora'),
-            ),
-          ],
-        ),
-      );
-    }
-  }
-
-  Future<void> _performUpdate(String url) async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const AlertDialog(
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text(
-                'Baixando e instalando atualização...\nO aplicativo será reiniciado.'),
-          ],
-        ),
-      ),
-    );
-
-    try {
-      await UpdateService.performUpdate(url);
-    } catch (e) {
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro na atualização: $e')),
-        );
-      }
-    }
   }
 
   void _startRealtimeControlIdSync() {

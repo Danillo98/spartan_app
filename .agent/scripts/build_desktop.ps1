@@ -1,5 +1,5 @@
 # Script de Deploy e Versionamento Spartan Desktop
-$version = "1.0.9"
+$version = "2.0.0"
 $zipName = "Spartan_Desktop.zip"
 $storageUrl = "https://mcmxltjymjqqmshjmwdx.supabase.co/storage/v1/object/public/downloads/$zipName"
 
@@ -34,7 +34,7 @@ if (Test-Path "$folderInsideZip\spartan_app.exe") {
 $versionJson = @{
     version = $version
     url     = $storageUrl
-    notes   = "V1.0.9 - Correção de alertas Web e melhoria na detecção de versão."
+    notes   = "V2.0.0 - Lançamento Spartan V2. Estabilidade e Performance."
 } | ConvertTo-Json
 
 # Salva na raiz (para upload no Supabase)
