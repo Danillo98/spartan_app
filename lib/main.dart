@@ -18,6 +18,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:app_links/app_links.dart';
 // REMOVIDO: import 'dart:io' show Platform; // Quebra na Web
 import 'package:flutter/foundation.dart'; // Para kIsWeb e defaultTargetPlatform
+import 'utils/desktop_utils_stub.dart'
+    if (dart.library.io) 'utils/desktop_utils_impl.dart';
 
 // IMPORT CONDICIONAL
 // Se não puder usar dart:io (Web), usa o stub. Se puder (Windows), tenta usar o impl.
@@ -65,6 +67,10 @@ void main(List<String> args) async {
     GoogleFonts.lato(),
     GoogleFonts.cinzel(),
   ]);
+
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+    DesktopUtils.createDesktopShortcut('Spartan Desktop');
+  }
 
   runApp(const SpartanApp());
 }

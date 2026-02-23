@@ -114,13 +114,17 @@
             const isDismissed = sessionStorage.getItem('install_banner_dismissed') === 'true';
             const isLoggedIn = checkAuthState();
 
+            // Detectar se é Mobile (PWA só deve aparecer no Celular para não confundir com Spartan Desktop no PC)
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
             // Regra:
             // 1. Se estiver logado -> Esconde
             // 2. Se for Standalone -> Esconde
             // 3. Se foi dispensado -> Esconde
-            // 4. Caso contrário -> Mostra
+            // 4. Se NÃO for Mobile -> Esconde (PC usa o App Desktop)
+            // 5. Caso contrário -> Mostra
 
-            if (isLoggedIn || isStandalone || isDismissed) {
+            if (isLoggedIn || isStandalone || isDismissed || !isMobile) {
                 if (banner.style.display !== 'none') {
                     banner.style.opacity = '0';
                     setTimeout(() => banner.style.display = 'none', 500);

@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'financial_service.dart';
-import 'user_service.dart';
 
 class ControlIdService {
   static Future<Map<String, dynamic>> addUser({
@@ -188,6 +187,8 @@ class ControlIdService {
     try {
       final sanitizedIp = sanitizeIp(ip);
       String session = await _login(sanitizedIp);
+      if (session.isEmpty) throw 'Falha ao autenticar na catraca';
+
       final urlWithSession = Uri.parse(
           'http://$sanitizedIp/destroy_objects.fcgi?session=$session');
 
@@ -200,16 +201,23 @@ class ControlIdService {
         }
       });
 
-      await http.post(
+      final response = await http.post(
         urlWithSession,
         headers: {'Content-Type': 'application/json'},
         body: body,
       );
 
-      return {
-        'success': true,
-        'message': 'Usuário bloqueado com sucesso (Biometria mantida).'
-      };
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'message': 'Usuário bloqueado com sucesso (Biometria mantida).'
+        };
+      } else {
+        return {
+          'success': false,
+          'message': 'Erro da catraca: ${response.statusCode}'
+        };
+      }
     } catch (e) {
       return {'success': false, 'message': 'Erro de conexão: $e'};
     }
@@ -261,7 +269,7 @@ class ControlIdService {
   /// userUuid: ID do aluno
   /// forcedStatus: Se já tivermos o status calculado (ex: via Realtime payload), passamos aqui para evitar query.
   static Future<void> syncStudentRealtime(String userUuid,
-      {String? forcedStatus}) async {
+      {String? forcedStatus, bool? forcedIsBlocked}) async {
     try {
       if (userUuid.isEmpty) return;
 
@@ -272,34 +280,46 @@ class ControlIdService {
         return; // Módulo Desktop/Catraca não configurado neste dispositivo
       }
 
-      String status = forcedStatus ?? 'unknown';
+      String status = (forcedStatus ?? 'unknown').toLowerCase().trim();
       String name = 'Aluno';
+      bool isBlocked = forcedIsBlocked ?? false;
 
-      // Se não temos o status forçado, buscamos o "Status Master" no banco
-      if (status == 'unknown') {
-        print('🌐 [Control iD] Buscando Status Master para $userUuid...');
-        final student = await UserService.getUserById(userUuid);
-        if (student != null) {
-          status = student['status_financeiro'] ?? 'pending';
-          name = student['name'] ?? 'Aluno';
-        }
-      }
-
-      if (status == 'unknown') {
+      // Se não temos o status ou o bloqueio forçados, buscamos no banco
+      if (status == 'unknown' ||
+          status == 'pending' ||
+          status == 'desconhecido' ||
+          forcedIsBlocked == null) {
         print(
-            '⚠️ [Control iD] Status ainda desconhecido para $userUuid. Abortando.');
-        return;
+            '🔍 [Control iD] Status/Bloqueio incerto. Realizando checagem manual de ledger para $userUuid...');
+        final check = await FinancialService.checkStudentStatus(userUuid);
+        status = (check['status'] ?? 'unknown').toString().toLowerCase();
+        isBlocked = check['is_blocked'] == true;
+        if (check['name'] != null) name = check['name'];
+        print('📊 [Control iD] Status: $status | Bloqueado Manual: $isBlocked');
       }
 
       final int catracaId = generateCatracaId(userUuid);
-      print('📊 [Control iD] Aluno: $userUuid | Status Master: $status');
+      print(
+          '📊 [Control iD] Aluno: $userUuid | Status: $status | ID Catraca: $catracaId');
 
-      if (status == 'paid' || status == 'pending') {
+      // PRIORIDADE 1: Bloqueio Manual
+      if (isBlocked) {
+        final res = await removeUser(ip: savedIp, id: catracaId);
+        print(
+            '🚫 [Control iD] Sinc real-time (BLOQUEIO MANUAL): ${res['message']}');
+        return;
+      }
+
+      // PRIORIDADE 2: Inadimplência
+      if (status == 'paid' || status == 'pending' || status == 'pago') {
         final res = await addUser(ip: savedIp, id: catracaId, name: name);
         print('✅ [Control iD] Sinc real-time (Liberar): ${res['message']}');
-      } else if (status == 'overdue') {
+      } else if (status == 'overdue' ||
+          status == 'vencido' ||
+          status == 'atrasado') {
         final res = await removeUser(ip: savedIp, id: catracaId);
-        print('🚫 [Control iD] Sinc real-time (Bloquear): ${res['message']}');
+        print(
+            '🚫 [Control iD] Sinc real-time (Bloquear Inadimplente): ${res['message']}');
       }
     } catch (e) {
       print('⚠️ [Control iD] Erro na sincronização real-time ($e)');

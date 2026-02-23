@@ -1,7 +1,7 @@
 name: spartan_app
 description: A new Flutter project.
 publish_to: 'none'
-version: 1.0.6+2
+version: 1.0.7+3
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -17,6 +17,7 @@ dependencies:
   flutter_secure_storage: ^9.0.0
   crypto: ^3.0.3
   http: ^1.1.0
+  package_info_plus: ^8.0.0
   intl: any
   mask_text_input_formatter: ^2.9.0
   image_picker: ^1.0.4

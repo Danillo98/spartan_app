@@ -692,6 +692,7 @@ class FinancialService {
       'id': studentId,
       'name': student['name'] ?? student['nome'] ?? 'Aluno',
       'status': status,
+      'is_blocked': student['is_blocked'] == true,
     };
   }
 }

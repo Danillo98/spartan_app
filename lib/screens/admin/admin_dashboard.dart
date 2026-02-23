@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // Import SP
 import '../../services/financial_service.dart'; // Import Service
@@ -20,6 +21,7 @@ import '../../widgets/responsive_utils.dart';
 import 'dart:async'; // Timer
 import 'package:supabase_flutter/supabase_flutter.dart'; // Supabase
 import '../../services/control_id_service.dart'; // Sync da Catraca
+import '../../services/update_service.dart'; // Import UpdateService
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -79,11 +81,17 @@ class _AdminDashboardState extends State<AdminDashboard>
     // Iniciar monitoramento silencioso de assinatura
     _startSubscriptionMonitor();
 
-    // Sincronizar catraca em background
-    ControlIdService.syncAllStudentsSilently();
-
-    // Iniciar ouvinte em tempo real para agir como "PONTE" (PC -> Catraca)
-    _startRealtimeControlIdSync();
+    // Sincronizar catraca em background (APENAS NO DESKTOP WINDOWS)
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+      ControlIdService.syncAllStudentsSilently();
+      _checkForUpdates();
+      _startRealtimeControlIdSync();
+    } else if (kIsWeb) {
+      // Se estiver no navegador, avisa que a catraca exige a versão Desktop
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showBrowserCatracaWarning();
+      });
+    }
   }
 
   @override
@@ -95,7 +103,79 @@ class _AdminDashboardState extends State<AdminDashboard>
     super.dispose();
   }
 
+  Future<void> _checkForUpdates() async {
+    final update = await UpdateService.checkForUpdates();
+    if (update != null && mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: const Text('Nova Atualização Disponível'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                  'Versão ${update['version']} está pronta para ser instalada.'),
+              const SizedBox(height: 8),
+              if (update['notes'] != null && update['notes'].isNotEmpty)
+                Text(update['notes'],
+                    style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Depois'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _performUpdate(update['url']);
+              },
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFEBC115)),
+              child: const Text('Atualizar Agora'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  Future<void> _performUpdate(String url) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text(
+                'Baixando e instalando atualização...\nO aplicativo será reiniciado.'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      await UpdateService.performUpdate(url);
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro na atualização: $e')),
+        );
+      }
+    }
+  }
+
   void _startRealtimeControlIdSync() {
+    // Só inicia se for Windows Nativo
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.windows) return;
+
     _alunosChannel = Supabase.instance.client
         .channel('public:users_alunos:dashboard')
         .onPostgresChanges(
@@ -108,9 +188,11 @@ class _AdminDashboardState extends State<AdminDashboard>
               final newRecord = payload.newRecord;
               if (newRecord.containsKey('id')) {
                 final status = newRecord['status_financeiro'] as String?;
+                final isBlocked = newRecord['is_blocked'] == true;
                 ControlIdService.syncStudentRealtime(
                   newRecord['id'],
                   forcedStatus: status,
+                  forcedIsBlocked: isBlocked,
                 );
               }
             })
@@ -136,6 +218,71 @@ class _AdminDashboardState extends State<AdminDashboard>
               }
             })
         .subscribe();
+  }
+
+  void _showBrowserCatracaWarning() {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.desktop_windows, color: Colors.black),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text(
+                'Versão Web Detectada',
+                style:
+                    TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: RichText(
+          text: const TextSpan(
+            style: TextStyle(color: Colors.black87, fontSize: 16),
+            children: [
+              TextSpan(
+                  text:
+                      'Para utilizar a integração em tempo real com as catracas '),
+              TextSpan(
+                  text: 'Control ID',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              TextSpan(
+                  text:
+                      ', é necessário utilizar a versão Desktop do Spartan instalado neste computador.'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Fechar', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEBC115),
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () {
+              Navigator.pop(context); // close dialog
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AdminTurnstilesScreen(),
+                ),
+              );
+            },
+            child: const Text('Baixar Spartan Desktop',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadUserData() async {
