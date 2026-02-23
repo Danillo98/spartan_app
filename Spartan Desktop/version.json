@@ -1,5 +1,5 @@
 ﻿{
-    "url":  "https://mcmxltjymjqqmshjmwdx.supabase.co/storage/v1/object/public/downloads/Spartan_Desktop.zip",
-    "version":  "2.2.3",
-    "notes":  "V2.2.3 - Refined Assessment & RBAC: Finalização das melhorias de privacidade para Nutricionistas/Personais, suporte a Data de Vencimento e remoção do botão de catraca."
+    "url": "https://mcmxltjymjqqmshjmwdx.supabase.co/storage/v1/object/public/downloads/Spartan_Desktop.zip",
+    "version": "2.2.4",
+    "notes": "V2.2.4 - Estabilidade e RBAC: Refinamento final das políticas de privacidade e melhorias na geração de relatórios físicos."
 }
