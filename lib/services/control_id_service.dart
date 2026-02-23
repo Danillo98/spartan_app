@@ -340,14 +340,13 @@ class ControlIdService {
           'http://$sanitizedIp/remote_user_authorization.fcgi?session=$session');
 
       final body = jsonEncode({
-        "event": 7, // 7 = Access Granted (Acesso Autorizado)
-        "user_id": 0, // ID 0 para Acesso Livre / Master
+        "event": 7, // 7 = Access Granted
+        "user_id": 1, // ID 1 (Mais aceito que ID 0 em alguns firmwares)
         "user_name": "Acesso Livre",
+        "user_image": false,
+        "portal_id": 1,
         "actions": [
-          {
-            "action": "catra",
-            "parameters": "allow=3" // Libera ambos os sentidos por 1 giro
-          }
+          {"action": "catra", "parameters": "allow=3"}
         ]
       });
 
