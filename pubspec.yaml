@@ -1,7 +1,7 @@
 name: spartan_app
 description: A new Flutter project.
 publish_to: 'none'
-version: 2.2.1+1
+version: 2.2.2+1
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -50,4 +50,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/
-    # V2.2.1 - Portal Direct Hack: Simulação do comando de menu manual 'Abrir Porta' via root allow + index hardware pulse.
+    # V2.2.2 - Pure Relay Pulse: Remoção de hacks experimentais para eliminar erro 400 e simular pulso elétrico manual da tela.

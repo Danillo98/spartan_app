@@ -334,46 +334,59 @@ class ControlIdService {
       String session = await _login(sanitizedIp);
       if (session.isEmpty) throw 'Falha ao autenticar na catraca';
 
-      // ESTRATÉGIA PORTAL DIRECT HACK (Simulador de Menu Interno):
-      // Esta versão simula exatamente o comando disparado pelo menu "Abertura de Porta" na tela da iDBlock.
+      // ESTRATÉGIA PURE RELAY PULSE (V2.2.2):
+      // Foco total em evitar o erro 400 e simular o comando elétrico do menu "Abertura de Porta".
 
-      // 1. HARDWARE PULSE (Muscle): Usa o mapeamento oficial de porta indexada
+      // 1. HARDWARE PULSE (Muscle): Comando minimalista aceito por 100% dos modelos Control iD.
+      // Disparamos o Relé 1 e Relé 2 em sequência com a sintaxe padrão de fábrica.
       final executeUrl = Uri.parse(
           'http://$sanitizedIp/execute_actions.fcgi?session=$session');
 
-      final actionsBody = jsonEncode({
-        "actions": [
-          {
-            "action": "door",
-            "parameters":
-                "index=0,state=open" // Index 0 é o padrão para o primeiro relendo solenóide no firmware Next
-          },
-          {
-            "action": "catra",
-            "parameters": "allow=3" // Liberação total de giro
-          }
-        ]
-      });
-
+      // Tentativa 1: Relé 1 (Porta 1)
       await http.post(
         executeUrl,
         headers: {'Content-Type': 'application/json'},
-        body: actionsBody,
+        body: jsonEncode({
+          "actions": [
+            {"action": "door", "parameters": "door=1"}
+          ]
+        }),
       );
 
-      // 2. ROOT AUTHORIZATION (Brain): Colocamos o "allow" na RAIZ do JSON.
-      // Em muitos modelos iDBlock, o solenóide só clica se o "allow" estiver fora do array de ações.
+      // Tentativa 2: Relé 2 (Porta 2 - Comum em iDBlock com solenóide invertido)
+      await http.post(
+        executeUrl,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          "actions": [
+            {"action": "door", "parameters": "door=2"}
+          ]
+        }),
+      );
+
+      // Tentativa 3: Giro (Catra)
+      await http.post(
+        executeUrl,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          "actions": [
+            {"action": "catra", "parameters": "allow=3"}
+          ]
+        }),
+      );
+
+      // 2. VISUAL AUTHORIZATION (Brain): Apenas para feedback no visor, sem campos extras.
       final visualUrl = Uri.parse(
           'http://$sanitizedIp/remote_user_authorization.fcgi?session=$session');
       final visualBody = jsonEncode({
         "event": 7, // Sucesso
-        "user_id": 1, // Administrador Master
+        "user_id": 1, // Administrador
         "user_name": "ADMINISTRADOR",
         "user_image": false,
         "portal_id": 1,
-        "allow":
-            3, // PARÂMETRO NA RAIZ: O "pulo do gato" para o firmware manual
-        "reason": 1 // Liberação Manual remota
+        "actions": [
+          {"action": "door", "parameters": "door=1"}
+        ]
       });
 
       final response = await http.post(
