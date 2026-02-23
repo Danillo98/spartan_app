@@ -327,20 +327,27 @@ class ControlIdService {
   }
 
   /// Libera a catraca imediatamente (Abre a porta)
+  /// Simula a identificação de um usuário com acesso livre (ID 0)
   static Future<Map<String, dynamic>> release(String ip) async {
     try {
       final sanitizedIp = sanitizeIp(ip);
       String session = await _login(sanitizedIp);
       if (session.isEmpty) throw 'Falha ao autenticar na catraca';
 
+      // Usamos remote_user_authorization para simular um evento de sucesso
+      // Isso força a catraca a exibir "Acesso Liberado" e acionar o hardware
       final urlWithSession = Uri.parse(
-          'http://$sanitizedIp/execute_actions.fcgi?session=$session');
+          'http://$sanitizedIp/remote_user_authorization.fcgi?session=$session');
 
-      // No Control iD, o acionamento para CATRACAS usa a ação "catra"
-      // allow=1 (entrada), allow=2 (saída), allow=3 (ambos)
       final body = jsonEncode({
+        "event": 7, // 7 = Access Granted (Acesso Autorizado)
+        "user_id": 0, // ID 0 para Acesso Livre / Master
+        "user_name": "Acesso Livre",
         "actions": [
-          {"action": "catra", "parameters": "allow=3"}
+          {
+            "action": "catra",
+            "parameters": "allow=3" // Libera ambos os sentidos por 1 giro
+          }
         ]
       });
 
@@ -351,7 +358,7 @@ class ControlIdService {
       );
 
       if (response.statusCode == 200) {
-        return {'success': true, 'message': 'Catraca liberada com sucesso!'};
+        return {'success': true, 'message': 'Comando de liberação enviado!'};
       } else {
         return {
           'success': false,
