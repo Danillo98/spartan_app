@@ -86,11 +86,6 @@ class _AdminDashboardState extends State<AdminDashboard>
       ControlIdService.syncAllStudentsSilently();
       _checkForUpdates();
       _startRealtimeControlIdSync();
-    } else if (kIsWeb) {
-      // Se estiver no navegador, avisa que a catraca exige a versão Desktop
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _showBrowserCatracaWarning();
-      });
     }
   }
 
@@ -221,71 +216,6 @@ class _AdminDashboardState extends State<AdminDashboard>
               }
             })
         .subscribe();
-  }
-
-  void _showBrowserCatracaWarning() {
-    if (!mounted) return;
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            const Icon(Icons.desktop_windows, color: Colors.black),
-            const SizedBox(width: 10),
-            const Expanded(
-              child: Text(
-                'Versão Web Detectada',
-                style:
-                    TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
-        ),
-        content: RichText(
-          text: const TextSpan(
-            style: TextStyle(color: Colors.black87, fontSize: 16),
-            children: [
-              TextSpan(
-                  text:
-                      'Para utilizar a integração em tempo real com as catracas '),
-              TextSpan(
-                  text: 'Control ID',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-              TextSpan(
-                  text:
-                      ', é necessário utilizar a versão Desktop do Spartan instalado neste computador.'),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Fechar', style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFEBC115),
-              foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
-            ),
-            onPressed: () {
-              Navigator.pop(context); // close dialog
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const AdminTurnstilesScreen(),
-                ),
-              );
-            },
-            child: const Text('Baixar Spartan Desktop',
-                style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<void> _loadUserData() async {

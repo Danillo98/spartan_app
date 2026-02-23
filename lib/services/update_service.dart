@@ -58,15 +58,26 @@ class UpdateService {
   }
 
   static bool _isNewer(String remote, String local) {
-    if (remote.trim() == local.trim()) return false;
+    // Limpar versões de build (+4, etc) para comparação semântica
+    String remoteClean = remote.split('+').first.trim();
+    String localClean = local.split('+').first.trim();
 
-    List<int> remoteParts = remote.split('.').map(int.parse).toList();
-    List<int> localParts = local.split('.').map(int.parse).toList();
+    if (remoteClean == localClean) return false;
 
-    for (var i = 0; i < remoteParts.length; i++) {
-      if (i >= localParts.length) return true;
-      if (remoteParts[i] > localParts[i]) return true;
-      if (remoteParts[i] < localParts[i]) return false;
+    try {
+      List<int> remoteParts = remoteClean.split('.').map(int.parse).toList();
+      List<int> localParts = localClean.split('.').map(int.parse).toList();
+
+      for (var i = 0; i < remoteParts.length; i++) {
+        if (i >= localParts.length) return true;
+        if (remoteParts[i] > localParts[i]) return true;
+        if (remoteParts[i] < localParts[i]) return false;
+      }
+    } catch (e) {
+      print(
+          '⚠️ [UpdateService] Erro ao comparar versões ($remote vs $local): $e');
+      return remoteClean !=
+          localClean; // Fallback para comparação básica de string
     }
     return false;
   }
