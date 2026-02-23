@@ -1,5 +1,5 @@
 ﻿{
     "url":  "https://mcmxltjymjqqmshjmwdx.supabase.co/storage/v1/object/public/downloads/Spartan_Desktop.zip",
-    "version":  "2.0.3",
-    "notes":  "V2.0.3 - Filtro de perfil inteligente (QR Code), LiberaÃ§Ã£o remota de catraca e melhorias de zoom na ficha de treino."
+    "version":  "2.0.5",
+    "notes":  "V2.0.5 - FIX: Comando de liberaÃ§Ã£o de catraca (catra action) com trava automÃ¡tica apÃ³s giro completo."
 }

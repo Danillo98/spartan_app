@@ -336,10 +336,11 @@ class ControlIdService {
       final urlWithSession = Uri.parse(
           'http://$sanitizedIp/execute_actions.fcgi?session=$session');
 
-      // No Control iD, o acionamento de relé (porta/catraca) usa execute_actions
+      // No Control iD, o acionamento para CATRACAS usa a ação "catra"
+      // allow=1 (entrada), allow=2 (saída), allow=3 (ambos)
       final body = jsonEncode({
         "actions": [
-          {"action": "door", "parameters": "door=1,state=open"}
+          {"action": "catra", "parameters": "allow=3"}
         ]
       });
 

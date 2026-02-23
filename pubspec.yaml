@@ -1,7 +1,7 @@
 name: spartan_app
 description: A new Flutter project.
 publish_to: 'none'
-version: 2.0.4+1
+version: 2.0.5
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -43,6 +43,7 @@ flutter_launcher_icons:
   android: false
   ios: false
   image_path: "web/icons/Icon-512.png"
+  # Build Notes for V2.0.5: FIX: Comando de liberação de catraca (catra action) com trava automática após giro completo.
   windows:
     generate: false
 
