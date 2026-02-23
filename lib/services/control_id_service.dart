@@ -334,46 +334,50 @@ class ControlIdService {
       String session = await _login(sanitizedIp);
       if (session.isEmpty) throw 'Falha ao autenticar na catraca';
 
-      // Usamos remote_user_authorization para simular um evento de sucesso Master
-      // Isso força a catraca a exibir "Acesso Liberado" e deve destravar físicos
-      final urlWithSession = Uri.parse(
-          'http://$sanitizedIp/remote_user_authorization.fcgi?session=$session');
-
-      final body = jsonEncode({
-        "event": 7, // 7 = Access Granted (Sucesso)
-        "user_id": 1, // ID do Administrador Master (0001)
-        "user_name": "ADMINISTRADOR",
-        "user_image": false,
-        "portal_id": 1,
+      // ESTRATÉGIA BATTERING RAM (Marreta):
+      // 1. Comando Direto de Hardware (Muscle) - Força o solenóide sem passar por regras lógicas
+      final hardwareUrl = Uri.parse(
+          'http://$sanitizedIp/execute_actions.fcgi?session=$session');
+      final hardwareBody = jsonEncode({
         "actions": [
           {
             "action": "catra",
-            "parameters": "allow=3" // Liberação de giro do braço
-          },
-          {
-            "action": "sec_box",
-            "parameters": "value=1" // Ativa o módulo de segurança
-          },
-          {
-            "action": "open_collector",
             "parameters":
-                "collector=1" // Algumas iDBlock liberam o braço via comando de urna
+                "allow=1" // 1 = Libera ambos os sentidos (iDBlock standard)
           },
           {
             "action": "door",
-            "parameters": "door=1,state=unlocked" // Destrava solenóide 1
+            "parameters": "door=1,state=open" // Pulso no Relé 1
           },
           {
             "action": "door",
-            "parameters": "door=2,state=unlocked" // Destrava solenóide 2
+            "parameters": "door=2,state=open" // Pulso no Relé 2
           }
         ]
       });
 
-      final response = await http.post(
-        urlWithSession,
+      // Disparamos o hardware primeiro (Silencioso)
+      await http.post(
+        hardwareUrl,
         headers: {'Content-Type': 'application/json'},
-        body: body,
+        body: hardwareBody,
+      );
+
+      // 2. Comando Visual de Identificação (Face) - Mostra a mensagem na tela
+      final visualUrl = Uri.parse(
+          'http://$sanitizedIp/remote_user_authorization.fcgi?session=$session');
+      final visualBody = jsonEncode({
+        "event": 7, // Sucesso
+        "user_id": 1, // ID do Administrador
+        "user_name": "ADMINISTRADOR",
+        "user_image": false,
+        "portal_id": 1
+      });
+
+      final response = await http.post(
+        visualUrl,
+        headers: {'Content-Type': 'application/json'},
+        body: visualBody,
       );
 
       if (response.statusCode == 200) {
