@@ -12,7 +12,6 @@ import 'trainer/trainer_dashboard.dart';
 import 'admin_register_screen.dart';
 import '../services/version_service.dart';
 import '../models/user_role.dart';
-import 'role_login_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -467,18 +466,11 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (roleParam != null) {
       if (roleParam == 'student') {
-        targetScreen = const RoleLoginScreen(
-            role: UserRole.student, roleTitle: 'Aluno', isLocked: true);
+        targetScreen = const LoginScreen(roleFilter: UserRole.student);
       } else if (roleParam == 'nutritionist') {
-        targetScreen = const RoleLoginScreen(
-            role: UserRole.nutritionist,
-            roleTitle: 'Nutricionista',
-            isLocked: true);
+        targetScreen = const LoginScreen(roleFilter: UserRole.nutritionist);
       } else if (roleParam == 'trainer') {
-        targetScreen = const RoleLoginScreen(
-            role: UserRole.trainer,
-            roleTitle: 'Personal Trainer',
-            isLocked: true);
+        targetScreen = const LoginScreen(roleFilter: UserRole.trainer);
       }
     }
 

@@ -6,7 +6,9 @@ import 'role_login_screen.dart';
 import '../config/app_version.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final UserRole? roleFilter;
+
+  const LoginScreen({super.key, this.roleFilter});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -52,7 +54,11 @@ class _LoginScreenState extends State<LoginScreen>
       context,
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
-            RoleLoginScreen(role: role, roleTitle: roleTitle),
+            RoleLoginScreen(
+          role: role,
+          roleTitle: roleTitle,
+          isLocked: widget.roleFilter != null,
+        ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return SlideTransition(
             position: Tween<Offset>(
@@ -88,52 +94,69 @@ class _LoginScreenState extends State<LoginScreen>
 
                       const SizedBox(height: 20),
 
-                      // Cards de perfis
-                      _buildRoleCard(
-                        context,
-                        'Administrador',
-                        'Gerencie sua academia',
-                        Icons.admin_panel_settings_rounded,
-                        const Color(0xFF1A1A1A),
-                        UserRole.admin,
-                        0,
-                      ),
+                      // Cards de perfis (Filtrados se houver roleFilter)
+                      if (widget.roleFilter == null ||
+                          widget.roleFilter == UserRole.admin)
+                        _buildRoleCard(
+                          context,
+                          'Administrador',
+                          'Gerencie sua academia',
+                          Icons.admin_panel_settings_rounded,
+                          const Color(0xFF1A1A1A),
+                          UserRole.admin,
+                          0,
+                        ),
 
-                      const SizedBox(height: 20),
+                      if (widget.roleFilter == null &&
+                          (widget.roleFilter == null ||
+                              widget.roleFilter == UserRole.admin))
+                        const SizedBox(height: 20),
 
-                      _buildRoleCard(
-                        context,
-                        'Nutricionista',
-                        'Crie dietas personalizadas',
-                        Icons.restaurant_menu_rounded,
-                        const Color(0xFF2A9D8F), // Verde mais sóbrio
-                        UserRole.nutritionist,
-                        100,
-                      ),
+                      if (widget.roleFilter == null ||
+                          widget.roleFilter == UserRole.nutritionist)
+                        _buildRoleCard(
+                          context,
+                          'Nutricionista',
+                          'Crie dietas personalizadas',
+                          Icons.restaurant_menu_rounded,
+                          const Color(0xFF2A9D8F),
+                          UserRole.nutritionist,
+                          100,
+                        ),
 
-                      const SizedBox(height: 20),
+                      if (widget.roleFilter == null &&
+                          (widget.roleFilter == null ||
+                              widget.roleFilter == UserRole.nutritionist))
+                        const SizedBox(height: 20),
 
-                      _buildRoleCard(
-                        context,
-                        'Personal Trainer',
-                        'Monte treinos eficientes',
-                        Icons.fitness_center_rounded,
-                        AppTheme.primaryRed,
-                        UserRole.trainer,
-                        200,
-                      ),
+                      if (widget.roleFilter == null ||
+                          widget.roleFilter == UserRole.trainer)
+                        _buildRoleCard(
+                          context,
+                          'Personal Trainer',
+                          'Monte treinos eficientes',
+                          Icons.fitness_center_rounded,
+                          AppTheme.primaryRed,
+                          UserRole.trainer,
+                          200,
+                        ),
 
-                      const SizedBox(height: 20),
+                      if (widget.roleFilter == null &&
+                          (widget.roleFilter == null ||
+                              widget.roleFilter == UserRole.trainer))
+                        const SizedBox(height: 20),
 
-                      _buildRoleCard(
-                        context,
-                        'Aluno',
-                        'Acompanhe seu progresso',
-                        Icons.person_rounded,
-                        const Color(0xFF457B9D), // Azul mais sóbrio
-                        UserRole.student,
-                        300,
-                      ),
+                      if (widget.roleFilter == null ||
+                          widget.roleFilter == UserRole.student)
+                        _buildRoleCard(
+                          context,
+                          'Aluno',
+                          'Acompanhe seu progresso',
+                          Icons.person_rounded,
+                          const Color(0xFF457B9D),
+                          UserRole.student,
+                          300,
+                        ),
 
                       const SizedBox(height: 20),
 
@@ -170,7 +193,9 @@ class _LoginScreenState extends State<LoginScreen>
         const SizedBox(height: 1),
 
         Text(
-          'Escolha seu perfil',
+          widget.roleFilter != null
+              ? 'Perfil Identificado'
+              : 'Escolha seu perfil',
           style: GoogleFonts.lato(
             fontSize: 16,
             color: AppTheme.secondaryText,

@@ -652,9 +652,13 @@ class _WorkoutDetailsStudentScreenState
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: Image.memory(
-                  base64Decode(base64String),
-                  fit: BoxFit.cover,
+                child: InteractiveViewer(
+                  minScale: 1.0,
+                  maxScale: 4.0,
+                  child: Image.memory(
+                    base64Decode(base64String),
+                    fit: BoxFit.cover,
+                  ),
                 ),
               ),
             ),

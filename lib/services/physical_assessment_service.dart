@@ -274,6 +274,9 @@ class PhysicalAssessmentService {
     double? skinfoldSuprailiac,
     double? skinfoldMidaxillary,
     String? workoutFocus,
+    double? bodyFat3,
+    double? bodyFat7,
+    String? gender,
   }) async {
     final user = _client.auth.currentUser;
     if (user == null) throw Exception('Usuário não autenticado');
@@ -312,6 +315,9 @@ class PhysicalAssessmentService {
       'skinfold_suprailiac': skinfoldSuprailiac,
       'skinfold_midaxillary': skinfoldMidaxillary,
       'workout_focus': workoutFocus,
+      'body_fat_3_folds': bodyFat3,
+      'body_fat_7_folds': bodyFat7,
+      'gender': gender,
     });
   }
 
@@ -345,6 +351,9 @@ class PhysicalAssessmentService {
     double? skinfoldSuprailiac,
     double? skinfoldMidaxillary,
     String? workoutFocus,
+    double? bodyFat3,
+    double? bodyFat7,
+    String? gender,
   }) async {
     final Map<String, dynamic> updates = {};
     if (date != null) updates['assessment_date'] = date.toIso8601String();
@@ -374,6 +383,9 @@ class PhysicalAssessmentService {
     updates['skinfold_suprailiac'] = skinfoldSuprailiac;
     updates['skinfold_midaxillary'] = skinfoldMidaxillary;
     if (workoutFocus != null) updates['workout_focus'] = workoutFocus;
+    updates['body_fat_3_folds'] = bodyFat3;
+    updates['body_fat_7_folds'] = bodyFat7;
+    if (gender != null) updates['gender'] = gender;
 
     await _client.from('physical_assessments').update(updates).eq('id', id);
   }

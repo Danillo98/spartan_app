@@ -208,12 +208,11 @@
             <img src="icons/Icon-192.png" alt="Spartan App Logo">
         </div>
 
-        <div class="admin-badge">🏛️ Acesso Administrador</div>
-
-        <h1>SPARTAN APP</h1>
-        <p class="subtitle">
+        <div id="roleBadge" class="admin-badge">🏛️ Acesso Spartan</div>
+        <h1 id="roleTitle">SPARTAN APP</h1>
+        <p id="roleSubtitle" class="subtitle">
             Bem-vindo ao sistema completo de gerenciamento de academia!<br>
-            Gerencie nutricionistas, personal trainers e alunos em um só lugar.
+            Acompanhe seus treinos, dietas e evolução em um só lugar.
         </p>
 
         <div class="features">
@@ -362,6 +361,33 @@
         const progressBar = document.getElementById('installProgress');
         const statusText = document.getElementById('installStatus');
         const modal = document.getElementById('postInstallModal');
+
+        // Detecção de Role
+        const urlParams = new URLSearchParams(window.location.search);
+        const role = urlParams.get('role');
+        const roleBadge = document.getElementById('roleBadge');
+        const roleTitle = document.getElementById('roleTitle');
+        const roleSubtitle = document.getElementById('roleSubtitle');
+
+        if (role === 'student') {
+            roleBadge.innerHTML = '🎓 Perfil: Aluno';
+            roleBadge.style.background = 'linear-gradient(135deg, #457B9D 0%, #a8dadc 100%)';
+            roleBadge.style.color = 'white';
+            roleTitle.innerText = 'SPARTAN ALUNO';
+            roleSubtitle.innerHTML = 'Bem-vindo, Espartano!<br>Prepare-se para transformar seu corpo e mente.';
+        } else if (role === 'trainer') {
+            roleBadge.innerHTML = '💪 Perfil: Personal Trainer';
+            roleBadge.style.background = 'linear-gradient(135deg, #E63946 0%, #f1faee 100%)';
+            roleBadge.style.color = 'white';
+            roleTitle.innerText = 'SPARTAN TREINADOR';
+            roleSubtitle.innerHTML = 'Bem-vindo, Mestre!<br>Pronto para guiar seus alunos à vitória?';
+        } else if (role === 'nutritionist') {
+            roleBadge.innerHTML = '🍎 Perfil: Nutricionista';
+            roleBadge.style.background = 'linear-gradient(135deg, #2A9D8F 0%, #e9c46a 100%)';
+            roleBadge.style.color = 'white';
+            roleTitle.innerText = 'SPARTAN NUTRI';
+            roleSubtitle.innerHTML = 'Bem-vindo, Doutor(a)!<br>Alimentando a força dos nossos guerreiros.';
+        }
 
         // Captura evento PWA
         window.addEventListener('beforeinstallprompt', (e) => {

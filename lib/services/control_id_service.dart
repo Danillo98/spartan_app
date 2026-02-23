@@ -326,6 +326,40 @@ class ControlIdService {
     }
   }
 
+  /// Libera a catraca imediatamente (Abre a porta)
+  static Future<Map<String, dynamic>> release(String ip) async {
+    try {
+      final sanitizedIp = sanitizeIp(ip);
+      String session = await _login(sanitizedIp);
+      if (session.isEmpty) throw 'Falha ao autenticar na catraca';
+
+      final urlWithSession =
+          Uri.parse('http://$sanitizedIp/access_control.fcgi?session=$session');
+
+      final body = jsonEncode({
+        "action": "open",
+        "parameters": "door=1" // Por padrão a porta/catraca é 1
+      });
+
+      final response = await http.post(
+        urlWithSession,
+        headers: {'Content-Type': 'application/json'},
+        body: body,
+      );
+
+      if (response.statusCode == 200) {
+        return {'success': true, 'message': 'Catraca liberada com sucesso!'};
+      } else {
+        return {
+          'success': false,
+          'message': 'Erro da catraca: ${response.statusCode}'
+        };
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Erro de conexão: $e'};
+    }
+  }
+
   /// Sincroniza todos os alunos sem exibir popups ou mensagens
   /// Chamado automaticamente ao iniciar o dashboard pelo Admin
   static Future<void> syncAllStudentsSilently() async {

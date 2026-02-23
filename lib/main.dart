@@ -13,7 +13,6 @@ import 'services/cache_manager.dart';
 import 'services/notification_service.dart';
 import 'config/app_theme.dart';
 import 'models/user_role.dart';
-import 'screens/role_login_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:app_links/app_links.dart';
 // REMOVIDO: import 'dart:io' show Platform; // Quebra na Web
@@ -164,18 +163,11 @@ class _SpartanAppState extends State<SpartanApp> {
 
         Widget targetScreen = const LoginScreen();
         if (role == 'student') {
-          targetScreen = const RoleLoginScreen(
-              role: UserRole.student, roleTitle: 'Aluno', isLocked: true);
+          targetScreen = const LoginScreen(roleFilter: UserRole.student);
         } else if (role == 'nutritionist') {
-          targetScreen = const RoleLoginScreen(
-              role: UserRole.nutritionist,
-              roleTitle: 'Nutricionista',
-              isLocked: true);
+          targetScreen = const LoginScreen(roleFilter: UserRole.nutritionist);
         } else if (role == 'trainer') {
-          targetScreen = const RoleLoginScreen(
-              role: UserRole.trainer,
-              roleTitle: 'Personal Trainer',
-              isLocked: true);
+          targetScreen = const LoginScreen(roleFilter: UserRole.trainer);
         }
 
         _navigatorKey.currentState?.pushAndRemoveUntil(
@@ -430,18 +422,11 @@ class _SpartanAppState extends State<SpartanApp> {
 
           Widget targetScreen = const LoginScreen();
           if (role == 'student') {
-            targetScreen = const RoleLoginScreen(
-                role: UserRole.student, roleTitle: 'Aluno', isLocked: true);
+            targetScreen = const LoginScreen(roleFilter: UserRole.student);
           } else if (role == 'nutritionist') {
-            targetScreen = const RoleLoginScreen(
-                role: UserRole.nutritionist,
-                roleTitle: 'Nutricionista',
-                isLocked: true);
+            targetScreen = const LoginScreen(roleFilter: UserRole.nutritionist);
           } else if (role == 'trainer') {
-            targetScreen = const RoleLoginScreen(
-                role: UserRole.trainer,
-                roleTitle: 'Personal Trainer',
-                isLocked: true);
+            targetScreen = const LoginScreen(roleFilter: UserRole.trainer);
           }
           return MaterialPageRoute(builder: (context) => targetScreen);
         }

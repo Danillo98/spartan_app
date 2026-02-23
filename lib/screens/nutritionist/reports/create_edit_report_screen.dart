@@ -62,7 +62,10 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
   final _skinfoldSuprailiacController = TextEditingController();
   final _skinfoldMidaxillaryController = TextEditingController();
   final _workoutFocusController = TextEditingController();
+  final _bodyFat3Controller = TextEditingController();
+  final _bodyFat7Controller = TextEditingController();
 
+  String _gender = 'M'; // 'M' ou 'F'
   DateTime _assessmentDate = DateTime.now();
   DateTime? _studentBirthDate;
 
@@ -111,6 +114,9 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
     _skinfoldMidaxillaryController.text =
         report['skinfold_midaxillary']?.toString() ?? '';
     _workoutFocusController.text = report['workout_focus'] ?? '';
+    _bodyFat3Controller.text = report['body_fat_3_folds']?.toString() ?? '';
+    _bodyFat7Controller.text = report['body_fat_7_folds']?.toString() ?? '';
+    _gender = report['gender'] ?? 'M';
   }
 
   Future<void> _loadStudents() async {
@@ -167,6 +173,8 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
     _skinfoldSuprailiacController.dispose();
     _skinfoldMidaxillaryController.dispose();
     _workoutFocusController.dispose();
+    _bodyFat3Controller.dispose();
+    _bodyFat7Controller.dispose();
     super.dispose();
   }
 
@@ -233,6 +241,9 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
           skinfoldMidaxillary:
               double.tryParse(_skinfoldMidaxillaryController.text),
           workoutFocus: _workoutFocusController.text,
+          bodyFat3: double.tryParse(_bodyFat3Controller.text),
+          bodyFat7: double.tryParse(_bodyFat7Controller.text),
+          gender: _gender,
         );
       } else {
         // Update
@@ -577,8 +588,12 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
                         Row(
                           children: [
                             Expanded(
-                                child: _buildNumberField(
-                                    _heightController, 'Estatura')),
+                              child: _buildNumberField(
+                                _heightController,
+                                'Estatura',
+                                formatters: [HeightInputFormatter()],
+                              ),
+                            ),
                             const SizedBox(width: 16),
                             Expanded(
                                 child: _buildNumberField(
@@ -740,8 +755,24 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
                         Row(
                           children: [
                             Expanded(
-                                child: _buildNumberField(
-                                    _bodyFatController, '%G =')),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Gênero para Cálculos:',
+                                      style: GoogleFonts.lato(
+                                          fontSize: 12,
+                                          color: AppTheme.secondaryText)),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      _genderButton('M', Icons.male),
+                                      const SizedBox(width: 8),
+                                      _genderButton('F', Icons.female),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
                             const SizedBox(width: 16),
                             Expanded(
                               child: TextFormField(
@@ -749,6 +780,18 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
                                 decoration: _inputDecoration('Foco do Treino'),
                               ),
                             ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                                child: _buildNumberField(
+                                    _bodyFat3Controller, '3 dobras %G=')),
+                            const SizedBox(width: 16),
+                            Expanded(
+                                child: _buildNumberField(
+                                    _bodyFat7Controller, '7 dobras %G=')),
                           ],
                         ),
 
@@ -804,18 +847,133 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
   }
 
   Widget _buildNumberField(TextEditingController controller, String label,
-      {bool required = false}) {
+      {bool required = false, List<TextInputFormatter>? formatters}) {
     return TextFormField(
       controller: controller,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       inputFormatters: [
-        FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+        if (formatters == null)
+          FilteringTextInputFormatter.allow(RegExp(r'^\d+[\.,]?\d{0,2}')),
+        if (formatters != null) ...formatters,
       ],
       decoration: _inputDecoration(label),
+      onChanged: (_) => _calculateBodyFat(),
       validator: required
           ? (val) => (val == null || val.isEmpty) ? 'Obrigatório' : null
           : null,
     );
+  }
+
+  Widget _genderButton(String value, IconData icon) {
+    bool isSelected = _gender == value;
+    return GestureDetector(
+      onTap: () => setState(() {
+        _gender = value;
+        _calculateBodyFat();
+      }),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF2A9D8F) : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF2A9D8F) : Colors.grey.shade300,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon,
+                size: 16, color: isSelected ? Colors.white : Colors.grey),
+            const SizedBox(width: 4),
+            Text(
+              value == 'M' ? 'Masc.' : 'Fem.',
+              style: TextStyle(
+                color: isSelected ? Colors.white : Colors.grey.shade700,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _calculateBodyFat() {
+    final age = _calculateAge(_studentBirthDate);
+    final gender = _gender;
+
+    // Sum of skinfolds for 3 folds
+    double sum3 = 0;
+    if (gender == 'M') {
+      sum3 = (double.tryParse(_skinfoldChestController.text) ?? 0) +
+          (double.tryParse(_skinfoldAbdomenController.text) ?? 0) +
+          (double.tryParse(_skinfoldThighController.text) ?? 0);
+    } else {
+      sum3 = (double.tryParse(_skinfoldTricepsController.text) ?? 0) +
+          (double.tryParse(_skinfoldSuprailiacController.text) ?? 0) +
+          (double.tryParse(_skinfoldThighController.text) ?? 0);
+    }
+
+    // DC (Density) calculation (Pollock 3)
+    double dc3 = 0;
+    if (gender == 'M') {
+      dc3 = 1.10938 -
+          (0.0008267 * sum3) +
+          (0.0000016 * sum3 * sum3) -
+          (0.0002574 * age);
+    } else {
+      dc3 = 1.0994921 -
+          (0.0009929 * sum3) +
+          (0.0000023 * sum3 * sum3) -
+          (0.0001392 * age);
+    }
+
+    if (sum3 > 0) {
+      final bf3 = ((4.95 / dc3) - 4.5) * 100;
+      _bodyFat3Controller.text = bf3.toStringAsFixed(2);
+    } else {
+      _bodyFat3Controller.text = '';
+    }
+
+    // 7 Folds
+    final sum7 = (double.tryParse(_skinfoldChestController.text) ?? 0) +
+        (double.tryParse(_skinfoldMidaxillaryController.text) ?? 0) +
+        (double.tryParse(_skinfoldTricepsController.text) ?? 0) +
+        (double.tryParse(_skinfoldSubscapularController.text) ?? 0) +
+        (double.tryParse(_skinfoldAbdomenController.text) ?? 0) +
+        (double.tryParse(_skinfoldSuprailiacController.text) ?? 0) +
+        (double.tryParse(_skinfoldThighController.text) ?? 0);
+
+    double dc7 = 0;
+    if (gender == 'M') {
+      dc7 = 1.112 -
+          (0.00043499 * sum7) +
+          (0.00000055 * sum7 * sum7) -
+          (0.00028826 * age);
+    } else {
+      dc7 = 1.097 -
+          (0.00046971 * sum7) +
+          (0.00000056 * sum7 * sum7) -
+          (0.00012828 * age);
+    }
+
+    if (sum7 > 0) {
+      final bf7 = ((4.95 / dc7) - 4.5) * 100;
+      _bodyFat7Controller.text = bf7.toStringAsFixed(2);
+    } else {
+      _bodyFat7Controller.text = '';
+    }
+  }
+
+  int _calculateAge(DateTime? birthDate) {
+    if (birthDate == null) return 25;
+    final today = DateTime.now();
+    int age = today.year - birthDate.year;
+    if (today.month < birthDate.month ||
+        (today.month == birthDate.month && today.day < birthDate.day)) {
+      age--;
+    }
+    return age;
   }
 
   InputDecoration _inputDecoration(String label) {
@@ -835,5 +993,30 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
         color: const Color(0xFF2A9D8F),
       ),
     );
+  }
+}
+
+class HeightInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    String text = newValue.text;
+    if (text.isEmpty) return newValue;
+
+    // Se o primeiro número é digitado e não tem vírgula
+    if (text.length == 1 && !text.contains(',')) {
+      return TextEditingValue(
+        text: '$text,',
+        selection: const TextSelection.collapsed(offset: 2),
+      );
+    }
+
+    // Permitir apenas uma vírgula
+    if (text.split(',').length > 2) return oldValue;
+
+    // Permitir apenas números e vírgula
+    if (!RegExp(r'^[\d,]*$').hasMatch(text)) return oldValue;
+
+    return newValue;
   }
 }

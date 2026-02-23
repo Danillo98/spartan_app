@@ -272,6 +272,37 @@ class _AdminTurnstilesScreenState extends State<AdminTurnstilesScreen> {
     }
   }
 
+  Future<void> _releaseTurnstile() async {
+    final ip = _ipController.text.trim();
+    if (ip.isEmpty || !_isConnected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Conecte-se à catraca antes de liberar.')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _statusMessage = 'Enviando comando de liberação...';
+      _statusColor = Colors.blue;
+    });
+
+    try {
+      final result = await ControlIdService.release(ip);
+      setState(() {
+        _statusMessage = result['message'];
+        _statusColor = result['success'] ? Colors.green : Colors.red;
+      });
+    } catch (e) {
+      setState(() {
+        _statusMessage = 'Erro ao liberar: $e';
+        _statusColor = Colors.red;
+      });
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
   Future<void> _launchDownloadLink() async {
     final Uri url = Uri.parse(_downloadUrl);
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
@@ -466,7 +497,7 @@ class _AdminTurnstilesScreenState extends State<AdminTurnstilesScreen> {
                   _buildStepRow(
                     '2',
                     'Abra o Programa',
-                    'Abra a pasta Spartan Desktop, execute o arquivo Spartan Desktop.exe e permita a execução no windows.',
+                    'Abra a pasta Spartan Desktop, execute o arquivo Spartan Desktop.exe e permita a execução no windows (Se abrir a tela do windows e não tiver opção de executar, clique em "Mais Informações" e depois em "Executar assim mesmo").',
                   ),
                   _buildStepRow(
                     '3',
@@ -615,7 +646,7 @@ class _AdminTurnstilesScreenState extends State<AdminTurnstilesScreen> {
                                             color: Colors.red)),
                                     TextSpan(
                                         text:
-                                            'Certifique-se que a catraca está em modo "OFFLINE" (Comunicação > Servidor > Modo > Offline) para que o sistema funcione perfeitamente.'),
+                                            'Para o melhor funcionamento, configure sua catraca Control ID em modo Standalone no menu físico: (Menu > Acesso > Modo de Operação > Modo Standalone)'),
                                   ])),
                             ],
                           ))),
@@ -743,6 +774,61 @@ class _AdminTurnstilesScreenState extends State<AdminTurnstilesScreen> {
                         textAlign: TextAlign.center,
                       ),
                     ),
+
+                  const SizedBox(height: 32),
+
+                  // Liberação Imediata (Destaque)
+                  Card(
+                    elevation: 0,
+                    color: const Color(0xFFE8F5E9), // Verde suave
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(color: Colors.green.shade200)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.meeting_room_rounded,
+                              color: Colors.green, size: 40),
+                          const SizedBox(width: 20),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('LIBERAR CATRACA AGORA',
+                                    style: GoogleFonts.lato(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                        color: const Color(0xFF2E7D32))),
+                                const Text(
+                                    'Clique no botão ao lado para abrir a catraca remotamente agora.',
+                                    style: TextStyle(
+                                        color: Colors.black54, fontSize: 13)),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          ElevatedButton.icon(
+                            onPressed: (_isLoading || !_isConnected)
+                                ? null
+                                : _releaseTurnstile,
+                            icon: const Icon(Icons.lock_open_rounded),
+                            label: const Text('ABRIR PORTA'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green[700],
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 24, vertical: 20),
+                              textStyle: const TextStyle(
+                                  fontSize: 16, fontWeight: FontWeight.bold),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
 
                   const SizedBox(height: 32),
 

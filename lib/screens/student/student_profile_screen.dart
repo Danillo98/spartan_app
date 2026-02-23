@@ -156,24 +156,33 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                       children: [
                         Stack(
                           children: [
-                            GestureDetector(
-                              onTap: _pickAndUploadImage,
-                              child: CircleAvatar(
-                                radius: 50,
-                                backgroundColor:
-                                    studentPrimary.withOpacity(0.1),
-                                backgroundImage: _profileData?['photo_url'] !=
-                                        null
-                                    ? NetworkImage(_profileData!['photo_url'])
-                                    : null,
-                                child: _profileData?['photo_url'] == null
-                                    ? (_isUploading
-                                        ? const CircularProgressIndicator()
-                                        : Icon(Icons.person,
-                                            size: 50, color: studentPrimary))
-                                    : (_isUploading
-                                        ? const CircularProgressIndicator()
-                                        : null),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(50),
+                              child: InteractiveViewer(
+                                minScale: 1.0,
+                                maxScale: 4.0,
+                                child: GestureDetector(
+                                  onTap: _pickAndUploadImage,
+                                  child: CircleAvatar(
+                                    radius: 50,
+                                    backgroundColor:
+                                        studentPrimary.withOpacity(0.1),
+                                    backgroundImage:
+                                        _profileData?['photo_url'] != null
+                                            ? NetworkImage(
+                                                _profileData!['photo_url'])
+                                            : null,
+                                    child: _profileData?['photo_url'] == null
+                                        ? (_isUploading
+                                            ? const CircularProgressIndicator()
+                                            : Icon(Icons.person,
+                                                size: 50,
+                                                color: studentPrimary))
+                                        : (_isUploading
+                                            ? const CircularProgressIndicator()
+                                            : null),
+                                  ),
+                                ),
                               ),
                             ),
                             Positioned(
