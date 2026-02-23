@@ -1,5 +1,5 @@
 ﻿{
     "url":  "https://mcmxltjymjqqmshjmwdx.supabase.co/storage/v1/object/public/downloads/Spartan_Desktop.zip",
-    "version":  "2.1.2",
-    "notes":  "V2.1.2 - Deep Unlock: SimulaÃ§Ã£o Admin ID 1 com comando open_collector e estado unlocked para destravar braÃ§os iDBlock."
+    "version":  "2.1.3",
+    "notes":  "V2.1.3 - Battering Ram: SeparaÃ§Ã£o de comando fÃ­sico (execute_actions) e visual (authorization) para forÃ§ar abertura no iDBlock."
 }
