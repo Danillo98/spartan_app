@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
+import 'auth_service.dart';
 
 /*
   SQL REQUIRED FOR THIS SERVICE:
@@ -18,64 +19,38 @@ import 'supabase_service.dart';
   add column skinfold_subscapular numeric,
   add column skinfold_suprailiac numeric,
   add column skinfold_midaxillary numeric,
-  add column workout_focus text;
+  add column workout_focus text,
+  add column next_assessment_date date, -- Data de Vencimento
+  add column id_academia uuid references public.users_adm(id);
 
-  -- Previous table definition:
-  create table public.physical_assessments (
-    id uuid default gen_random_uuid() primary key,
-    created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-    cnpj_academia text not null,
-    nutritionist_id uuid not null references public.users_nutricionista(id),
-    student_id uuid not null references public.users_alunos(id),
-    assessment_date timestamp with time zone not null,
-    weight numeric, -- Peso (kg)
-    height numeric, -- Estatura (cm)
-    neck numeric,   -- Pescoço
-    chest numeric,  -- Tórax
-    waist numeric,  -- Cintura
-    abdomen numeric, -- Abdômen
-    hips numeric,   -- Quadril
-    right_arm numeric, -- Mesoumeral Dir.
-    left_arm numeric,  -- Mesoumeral Esq.
-    right_thigh numeric, -- Mesofemural Dir.
-    left_thigh numeric,  -- Mesofemural Esq.
-    right_calf numeric,  -- Perna Dir.
-    left_calf numeric,   -- Perna Esq.
-    body_fat numeric,    -- % Gordura
-    muscle_mass numeric, -- % Massa Muscular
-    notes text,
-    -- New fields
-    shoulder numeric,
-    right_forearm numeric,
-    left_forearm numeric,
-    skinfold_chest numeric,
-    skinfold_abdomen numeric,
-    skinfold_thigh numeric,
-    skinfold_calf numeric,
-    skinfold_triceps numeric,
-    skinfold_biceps numeric,
-    skinfold_subscapular numeric,
-    skinfold_suprailiac numeric,
-    skinfold_midaxillary numeric,
-    workout_focus text
-  );
-
-  -- RLS Policies
+  -- RLS Policies (UPDATED)
   alter table public.physical_assessments enable row level security;
 
-  create policy "Nutritionists can view their academy assessments"
+  -- 1. Admin vê tudo da academia
+  create policy "Admins can view all academy assessments"
   on public.physical_assessments for select
-  using (cnpj_academia = (select cnpj_academia from public.users_nutricionista where id = auth.uid()));
+  using (id_academia = auth.uid());
 
-  create policy "Nutritionists can insert assessments"
+  -- 2. Staff vê apenas o que criou (para privacidade entre profs e admin)
+  create policy "Staff can view their own assessments"
+  on public.physical_assessments for select
+  using (nutritionist_id = auth.uid());
+
+  -- 3. Alunos veem suas próprias avaliações (Correção da visibilidade do aluno)
+  create policy "Students can view their own assessments"
+  on public.physical_assessments for select
+  using (student_id = auth.uid());
+
+  -- Policies para Inserção/Update/Delete (Apenas quem criou ou admin)
+  create policy "Staff can insert their own assessments"
   on public.physical_assessments for insert
   with check (auth.uid() = nutritionist_id);
 
-  create policy "Nutritionists can update assessments"
+  create policy "Owners can update assessments"
   on public.physical_assessments for update
   using (auth.uid() = nutritionist_id);
 
-  create policy "Nutritionists can delete assessments"
+  create policy "Owners can delete assessments"
   on public.physical_assessments for delete
   using (auth.uid() = nutritionist_id);
 */
@@ -122,12 +97,21 @@ class PhysicalAssessmentService {
     try {
       final academyId = await _getAcademyId();
 
-      final response = await _client
+      final userData = await AuthService.getCurrentUserData();
+      final role = userData?['role'] ?? 'nutritionist';
+      final userId = _client.auth.currentUser!.id;
+
+      var query = _client
           .from('physical_assessments')
           .select('*, users_alunos(id, nome, email)')
-          .eq('id_academia', academyId)
-          .order('assessment_date', ascending: false);
+          .eq('id_academia', academyId);
 
+      // RBAC: Se não for admin, vê apenas as que criou
+      if (role != 'admin') {
+        query = query.eq('nutritionist_id', userId);
+      }
+
+      final response = await query.order('assessment_date', ascending: false);
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
       print('Erro ao buscar avaliações: $e');
@@ -177,7 +161,7 @@ class PhysicalAssessmentService {
           n['id']: {
             'id': n['id'],
             'nome': n['nome'],
-            'name': n['nome'], // Adicionado
+            'name': n['nome'],
             'email': n['email'],
           }
       });
@@ -208,7 +192,7 @@ class PhysicalAssessmentService {
       if (stillMissing.isNotEmpty) {
         final adms = await _client
             .from('users_adm')
-            .select('id, nome') // Adm as vezes não tem email público
+            .select('id, nome')
             .inFilter('id', stillMissing);
 
         nutrisMap.addAll({
@@ -228,7 +212,6 @@ class PhysicalAssessmentService {
       final nid = a['nutritionist_id'].toString();
       final existingUserObj = a['users_nutricionista'] ?? {};
 
-      // Pega do mapa manual OU do objeto que veio do join (se existir) OU 'Nutricionista'
       final resolvedUser =
           nutrisMap[nid] ?? (existingUserObj is Map ? existingUserObj : {});
       final resolvedName =
@@ -277,6 +260,7 @@ class PhysicalAssessmentService {
     double? bodyFat3,
     double? bodyFat7,
     String? gender,
+    DateTime? nextAssessmentDate, // Nova data de vencimento
   }) async {
     final user = _client.auth.currentUser;
     if (user == null) throw Exception('Usuário não autenticado');
@@ -284,8 +268,7 @@ class PhysicalAssessmentService {
     final idAcademia = await _getAcademyId();
 
     await _client.from('physical_assessments').insert({
-      'id_academia': idAcademia, // Use id_academia
-      // 'cnpj_academia': cnpj, // REMOVIDO
+      'id_academia': idAcademia,
       'nutritionist_id': user.id,
       'student_id': studentId,
       'assessment_date': date.toIso8601String(),
@@ -318,6 +301,7 @@ class PhysicalAssessmentService {
       'body_fat_3_folds': bodyFat3,
       'body_fat_7_folds': bodyFat7,
       'gender': gender,
+      'next_assessment_date': nextAssessmentDate?.toIso8601String(),
     });
   }
 
@@ -354,9 +338,12 @@ class PhysicalAssessmentService {
     double? bodyFat3,
     double? bodyFat7,
     String? gender,
+    DateTime? nextAssessmentDate, // Nova data de vencimento
   }) async {
     final Map<String, dynamic> updates = {};
     if (date != null) updates['assessment_date'] = date.toIso8601String();
+    if (nextAssessmentDate != null)
+      updates['next_assessment_date'] = nextAssessmentDate.toIso8601String();
     updates['weight'] = weight;
     updates['height'] = height;
     updates['chest'] = chest;

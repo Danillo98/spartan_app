@@ -211,11 +211,25 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
                                         ),
                                       ),
                                       const SizedBox(height: 4),
-                                      Text(
-                                        'Data: ${DateFormat('dd/MM/yyyy').format(date)}',
-                                        style: TextStyle(
-                                            color: Colors.grey[600],
-                                            fontSize: 13),
+                                      Wrap(
+                                        spacing: 12,
+                                        children: [
+                                          Text(
+                                            'Avaliado: ${DateFormat('dd/MM/yyyy').format(date)}',
+                                            style: TextStyle(
+                                                color: Colors.grey[600],
+                                                fontSize: 12),
+                                          ),
+                                          if (report['next_assessment_date'] !=
+                                              null)
+                                            Text(
+                                              'Vencimento: ${DateFormat('dd/MM/yyyy').format(DateTime.parse(report['next_assessment_date']))}',
+                                              style: TextStyle(
+                                                  color: Colors.orange[800],
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 12),
+                                            ),
+                                        ],
                                       ),
                                     ],
                                   ),

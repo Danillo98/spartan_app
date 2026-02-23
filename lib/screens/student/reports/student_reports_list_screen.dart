@@ -165,13 +165,35 @@ class _StudentReportsListScreenState extends State<StudentReportsListScreen> {
                           color: AppTheme.primaryText,
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        DateFormat('dd/MM/yyyy').format(date),
-                        style: GoogleFonts.lato(
-                          fontSize: 14,
-                          color: AppTheme.secondaryText,
-                        ),
+                      Row(
+                        children: [
+                          Text(
+                            DateFormat('dd/MM/yyyy').format(date),
+                            style: GoogleFonts.lato(
+                              fontSize: 14,
+                              color: AppTheme.secondaryText,
+                            ),
+                          ),
+                          if (report['next_assessment_date'] != null) ...[
+                            const SizedBox(width: 12),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                'Vence em: ${DateFormat('dd/MM/yyyy').format(DateTime.parse(report['next_assessment_date']))}',
+                                style: GoogleFonts.lato(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.orange[800],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       const SizedBox(height: 8),
                       Row(

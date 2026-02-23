@@ -67,6 +67,7 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
 
   String _gender = 'M'; // 'M' ou 'F'
   DateTime _assessmentDate = DateTime.now();
+  DateTime? _nextAssessmentDate; // Data de Vencimento
   DateTime? _studentBirthDate;
 
   @override
@@ -117,6 +118,9 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
     _bodyFat3Controller.text = report['body_fat_3_folds']?.toString() ?? '';
     _bodyFat7Controller.text = report['body_fat_7_folds']?.toString() ?? '';
     _gender = report['gender'] ?? 'M';
+    if (report['next_assessment_date'] != null) {
+      _nextAssessmentDate = DateTime.tryParse(report['next_assessment_date']);
+    }
   }
 
   Future<void> _loadStudents() async {
@@ -244,6 +248,7 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
           bodyFat3: double.tryParse(_bodyFat3Controller.text),
           bodyFat7: double.tryParse(_bodyFat7Controller.text),
           gender: _gender,
+          nextAssessmentDate: _nextAssessmentDate,
         );
       } else {
         // Update
@@ -279,6 +284,7 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
           skinfoldMidaxillary:
               double.tryParse(_skinfoldMidaxillaryController.text),
           workoutFocus: _workoutFocusController.text,
+          nextAssessmentDate: _nextAssessmentDate,
         );
       }
 
@@ -378,7 +384,15 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
       final blob = html.Blob([jsonData], 'application/json');
       final url = html.Url.createObjectUrlFromBlob(blob);
 
-      final baseUrl = html.window.location.origin;
+      String baseUrl =
+          'https://spartan-app.vercel.app'; // Fallback to production URL
+      try {
+        baseUrl = html.window.location.origin;
+        if (baseUrl.contains('file://') || baseUrl.isEmpty) {
+          baseUrl = 'https://spartan-app.vercel.app';
+        }
+      } catch (_) {}
+
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final printUrl =
           '$baseUrl/print-evolution.html?v=$timestamp&dataUrl=$url';
@@ -482,12 +496,7 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Text(
-                                    _students.firstWhere(
-                                          (s) => s['id'] == _selectedStudentId,
-                                          orElse: () =>
-                                              {'nome': 'Carregando...'},
-                                        )['nome'] ??
-                                        'Aluno não encontrado',
+                                    _getStudentName(),
                                     style: GoogleFonts.lato(
                                       fontSize: 16,
                                       color: Colors.grey.shade700,
@@ -500,40 +509,86 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
                         ],
 
                         const SizedBox(height: 16),
-                        // Date Picker
-                        InkWell(
-                          onTap: () async {
-                            final date = await showDatePicker(
-                              context: context,
-                              initialDate: _assessmentDate,
-                              firstDate: DateTime(2000),
-                              lastDate: DateTime(2100),
-                              builder: (context, child) {
-                                return Theme(
-                                  data: ThemeData.light().copyWith(
-                                    colorScheme: const ColorScheme.light(
-                                      primary: Color(0xFF2A9D8F),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: InkWell(
+                                onTap: () async {
+                                  final date = await showDatePicker(
+                                    context: context,
+                                    initialDate: _assessmentDate,
+                                    firstDate: DateTime(2000),
+                                    lastDate: DateTime(2100),
+                                    builder: (context, child) => Theme(
+                                      data: ThemeData.light().copyWith(
+                                        colorScheme: const ColorScheme.light(
+                                          primary: Color(0xFF2A9D8F),
+                                        ),
+                                      ),
+                                      child: child!,
                                     ),
+                                  );
+                                  if (date != null) {
+                                    setState(() => _assessmentDate = date);
+                                  }
+                                },
+                                child: InputDecorator(
+                                  decoration:
+                                      _inputDecoration('Data da Avaliação'),
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(DateFormat('dd/MM/yyyy')
+                                          .format(_assessmentDate)),
+                                      const Icon(Icons.calendar_today,
+                                          size: 18),
+                                    ],
                                   ),
-                                  child: child!,
-                                );
-                              },
-                            );
-                            if (date != null) {
-                              setState(() => _assessmentDate = date);
-                            }
-                          },
-                          child: InputDecorator(
-                            decoration: _inputDecoration('Data da Avaliação'),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(DateFormat('dd/MM/yyyy')
-                                    .format(_assessmentDate)),
-                                const Icon(Icons.calendar_today, size: 18),
-                              ],
+                                ),
+                              ),
                             ),
-                          ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: InkWell(
+                                onTap: () async {
+                                  final date = await showDatePicker(
+                                    context: context,
+                                    initialDate:
+                                        _nextAssessmentDate ?? DateTime.now(),
+                                    firstDate: DateTime.now(),
+                                    lastDate: DateTime(2100),
+                                    builder: (context, child) => Theme(
+                                      data: ThemeData.light().copyWith(
+                                        colorScheme: const ColorScheme.light(
+                                          primary: Color(0xFFE76F51),
+                                        ),
+                                      ),
+                                      child: child!,
+                                    ),
+                                  );
+                                  if (date != null) {
+                                    setState(() => _nextAssessmentDate = date);
+                                  }
+                                },
+                                child: InputDecorator(
+                                  decoration:
+                                      _inputDecoration('Vencimento / Próxima'),
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(_nextAssessmentDate != null
+                                          ? DateFormat('dd/MM/yyyy')
+                                              .format(_nextAssessmentDate!)
+                                          : 'Não definida'),
+                                      const Icon(Icons.event_repeat, size: 18),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
 
                         // Renderizar data de nascimento do aluno selecionado
@@ -963,6 +1018,30 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
     } else {
       _bodyFat7Controller.text = '';
     }
+  }
+
+  String _getStudentName() {
+    if (_selectedStudentId == null) return 'Nenhum aluno selecionado';
+
+    // 1. Check local list
+    final st = _students.firstWhere((s) => s['id'] == _selectedStudentId,
+        orElse: () => {});
+    if (st.isNotEmpty && (st['nome'] != null || st['name'] != null)) {
+      return st['nome'] ?? st['name'];
+    }
+
+    // 2. Fallback to report object
+    if (widget.reportToEdit != null) {
+      final student = widget.reportToEdit?['users_alunos'] ??
+          widget.reportToEdit?['student'] ??
+          {};
+      if (student is Map &&
+          (student['nome'] != null || student['name'] != null)) {
+        return student['nome'] ?? student['name'] ?? 'Aluno';
+      }
+    }
+
+    return _isLoading ? 'Carregando...' : 'Aluno não encontrado';
   }
 
   int _calculateAge(DateTime? birthDate) {
