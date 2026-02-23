@@ -347,12 +347,16 @@ class ControlIdService {
         "portal_id": 1,
         "actions": [
           {
-            "action": "door",
-            "parameters": "door=1,state=open" // Relé 1 (Geralmente entrada)
+            "action": "catra",
+            "parameters": "allow=3" // Ação específica de catraca
           },
           {
-            "action": "door",
-            "parameters": "door=2,state=open" // Relé 2 (Geralmente saída)
+            "action": "open",
+            "parameters": "door=1" // Ação forçada de relé 1
+          },
+          {
+            "action": "open",
+            "parameters": "door=2" // Ação forçada de relé 2
           }
         ]
       });
