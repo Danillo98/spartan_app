@@ -1,5 +1,5 @@
 # Script de Deploy e Versionamento Spartan Desktop
-$version = "1.0.7"
+$version = "1.0.8"
 $zipName = "Spartan_Desktop.zip"
 $storageUrl = "https://mcmxltjymjqqmshjmwdx.supabase.co/storage/v1/object/public/downloads/$zipName"
 
@@ -12,19 +12,24 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $buildPath = "build\windows\x64\runner\Release"
-$tempPath = "SpartanDesktop"
+# Nome da pasta que aparecera dentro do ZIP
+$folderInsideZip = "Spartan Desktop"
 
 Write-Host "Preparando pasta de distribuicao..."
-if (Test-Path $tempPath) { Remove-Item -Recurse -Force $tempPath }
-New-Item -ItemType Directory -Path $tempPath
+if (Test-Path $folderInsideZip) { Remove-Item -Recurse -Force $folderInsideZip }
+New-Item -ItemType Directory -Path $folderInsideZip
 
-Copy-Item -Path "$buildPath\*" -Destination "$tempPath" -Recurse
-Remove-Item -Path "$tempPath\spartan_app.exp", "$tempPath\spartan_app.lib", "$tempPath\spartan_app.pdb" -ErrorAction SilentlyContinue
+# Copia os arquivos do build para a pasta organizadora
+Copy-Item -Path "$buildPath\*" -Destination "$folderInsideZip" -Recurse
+# Limpeza de arquivos de desenvolvimento/debug
+Remove-Item -Path "$folderInsideZip\spartan_app.exp", "$folderInsideZip\spartan_app.lib", "$folderInsideZip\spartan_app.pdb" -ErrorAction SilentlyContinue
 
-Write-Host "Gerando arquivo ZIP..."
+Write-Host "Gerando arquivo ZIP com pasta organizadora..."
 if (Test-Path $zipName) { Remove-Item $zipName }
-Compress-Archive -Path "$tempPath\*" -DestinationPath $zipName
+# Ao passar a pasta diretamente (sem \*), o PowerShell inclui a pasta no ZIP
+Compress-Archive -Path "$folderInsideZip" -DestinationPath "$zipName"
 
+# Gera o manifesto de versao
 $versionJson = @{
     version = $version
     url     = $storageUrl
@@ -35,7 +40,8 @@ $versionJson | Out-File -FilePath "version.json" -Encoding utf8
 
 Write-Host "SUCESSO!"
 Write-Host "Upload manual no Supabase Storage (Pasta: downloads):"
-Write-Host "1. $zipName"
-Write-Host "2. version.json"
+Write-Host "1. $zipName (Este agora contem a pasta '$folderInsideZip')"
+Write-Host "2. version.json (Use o arquivo da raiz do projeto)"
 
-if (Test-Path $tempPath) { Remove-Item -Recurse -Force $tempPath }
+# Limpa a pasta temporaria apos zipar
+if (Test-Path $folderInsideZip) { Remove-Item -Recurse -Force $folderInsideZip }

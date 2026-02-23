@@ -104,6 +104,9 @@ class _AdminDashboardState extends State<AdminDashboard>
   }
 
   Future<void> _checkForUpdates() async {
+    // APENAS NO DESKTOP WINDOWS NATIVO
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.windows) return;
+
     final update = await UpdateService.checkForUpdates();
     if (update != null && mounted) {
       showDialog(

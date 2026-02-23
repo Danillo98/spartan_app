@@ -623,7 +623,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
                                 'Módulos: Administrador, Nutricionista, Personal Trainer e Aluno.',
                                 'Dietas, Relatórios Físicos e Treinos.',
                                 'Monitoramento de Mensalidades, Controle Financeiro, Fluxo de Caixa e Relatórios Mensais e Anuais em PDF.',
-                                'Suporta até 200 alunos.',
+                                'Suporta até 300 alunos.',
                               ],
                             ),
                             const SizedBox(width: 24),
@@ -642,7 +642,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
                                 'Módulos: Administrador, Nutricionista, Personal Trainer e Aluno.',
                                 'Dietas, Relatórios Físicos e Treinos Integrados.',
                                 'Monitoramento de Mensalidades, Controle Financeiro, Fluxo de Caixa e Relatórios Mensais e Anuais em PDF.',
-                                'Suporta até 500 alunos.',
+                                'Suporta até 600 alunos.',
                                 'Estrutura para crescimento forte.'
                               ],
                             ),
@@ -662,7 +662,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
                                 'Módulos: Administrador, Nutricionista, Personal Trainer e Aluno.',
                                 'Dietas, Relatórios Físicos e Treinos Integrados.',
                                 'Monitoramento de Mensalidades, Controle Financeiro, Fluxo de Caixa e Relatórios Mensais e Anuais em PDF.',
-                                'Suporta até 800 alunos.',
+                                'Suporta até 900 alunos.',
                                 'Maior margem de lucro por aluno.',
                                 'Estrutura para grandes empreendimentos.'
                               ],

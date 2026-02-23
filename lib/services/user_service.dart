@@ -549,9 +549,9 @@ class UserService {
       final plan = adminDetails['plano_mensal']?.toString() ?? 'Prata';
 
       // Definir limites
-      int limit = 200; // Prata default
-      if (plan.toLowerCase() == 'ouro') limit = 500;
-      if (plan.toLowerCase() == 'platina') limit = 800;
+      int limit = 300; // Prata default
+      if (plan.toLowerCase() == 'ouro') limit = 600;
+      if (plan.toLowerCase() == 'platina') limit = 900;
       if (plan.toLowerCase() == 'diamante') limit = 999999;
 
       final count = await _client
@@ -569,7 +569,7 @@ class UserService {
       };
     } catch (e) {
       print('Erro ao verificar limite: $e');
-      return {'count': 0, 'limit': 200, 'isAtLimit': false, 'plan': 'Prata'};
+      return {'count': 0, 'limit': 300, 'isAtLimit': false, 'plan': 'Prata'};
     }
   }
 
