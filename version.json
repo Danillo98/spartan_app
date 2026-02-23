@@ -1,5 +1,5 @@
 ﻿{
     "url":  "https://mcmxltjymjqqmshjmwdx.supabase.co/storage/v1/object/public/downloads/Spartan_Desktop.zip",
-    "version":  "2.1.3",
-    "notes":  "V2.1.3 - Battering Ram: SeparaÃ§Ã£o de comando fÃ­sico (execute_actions) e visual (authorization) para forÃ§ar abertura no iDBlock."
+    "version":  "2.1.4",
+    "notes":  "V2.1.4 - F10 Legacy Override: ForÃ§a a abertura alterando o modo de operaÃ§Ã£o para Liberado e restaurando apÃ³s 5s."
 }

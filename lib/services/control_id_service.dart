@@ -334,30 +334,47 @@ class ControlIdService {
       String session = await _login(sanitizedIp);
       if (session.isEmpty) throw 'Falha ao autenticar na catraca';
 
-      // ESTRATÉGIA F10 LEGACY OVERRIDE (Override de Configuração):
-      // Esta estratégia não pede permissão; ela altera o estado físico da máquina (F10).
+      // ESTRATÉGIA OVERLOAD ACTION (Saturação de Ações):
+      // Enviamos todos os comandos de abertura física conhecidos em um único pacote.
 
-      // 1. NUCLEAR COMMAND: Força o modo de operação para "Liberado" (catra_operating_mode = 1)
-      final configUrl = Uri.parse(
-          'http://$sanitizedIp/set_configuration.fcgi?session=$session');
+      final executeUrl = Uri.parse(
+          'http://$sanitizedIp/execute_actions.fcgi?session=$session');
 
+      final actionsBody = jsonEncode({
+        "actions": [
+          {
+            "action": "catra",
+            "parameters": "allow=1" // Libera giro (Ambos os sentidos)
+          },
+          {
+            "action": "door",
+            "parameters": "door=1,state=open" // Abre porta/relé 1
+          },
+          {
+            "action": "door",
+            "parameters": "door=2,state=open" // Abre porta/relé 2
+          },
+          {
+            "action": "door",
+            "parameters": "all,state=open" // Comando global de abertura
+          }
+        ]
+      });
+
+      // Dispara o acionamento físico
       await http.post(
-        configUrl,
+        executeUrl,
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          "sec_box": {
-            "catra_operating_mode": "1"
-          } // 1 = Ambos os giros liberados
-        }),
+        body: actionsBody,
       );
 
-      // 2. VISUAL FEEDBACK: Mostra "Acesso Liberado - Administrador"
+      // Feedback Visual
       final visualUrl = Uri.parse(
           'http://$sanitizedIp/remote_user_authorization.fcgi?session=$session');
       final visualBody = jsonEncode({
         "event": 7, // Sucesso
         "user_id": 1, // Administrador
-        "user_name": "ADMINISTRADOR (F10)",
+        "user_name": "ADMINISTRADOR",
         "user_image": false,
         "portal_id": 1
       });
@@ -367,20 +384,6 @@ class ControlIdService {
         headers: {'Content-Type': 'application/json'},
         body: visualBody,
       );
-
-      // 3. AUTO-RELOCK (Pulse): Após 5 segundos, volta a catraca para o modo "Controlado"
-      // Isso é disparado de forma assíncrona para não travar a UI
-      Future.delayed(const Duration(seconds: 5), () async {
-        try {
-          await http.post(
-            configUrl,
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              "sec_box": {"catra_operating_mode": "0"} // 0 = Modo controlado
-            }),
-          );
-        } catch (_) {}
-      });
 
       if (response.statusCode == 200) {
         return {'success': true, 'message': 'Comando de liberação enviado!'};

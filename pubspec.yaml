@@ -1,7 +1,7 @@
 name: spartan_app
 description: A new Flutter project.
 publish_to: 'none'
-version: 2.1.4+1
+version: 2.1.5+1
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -50,3 +50,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/
+    # V2.1.5 - Overload Action: Saturação de comandos físicos (catra + door 1/2 + all) para forçar o destravamento do iDBlock.
