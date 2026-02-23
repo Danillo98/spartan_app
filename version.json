@@ -1,5 +1,5 @@
 ﻿{
     "url":  "https://mcmxltjymjqqmshjmwdx.supabase.co/storage/v1/object/public/downloads/Spartan_Desktop.zip",
-    "version":  "2.1.4",
-    "notes":  "V2.1.4 - F10 Legacy Override: ForÃ§a a abertura alterando o modo de operaÃ§Ã£o para Liberado e restaurando apÃ³s 5s."
+    "version":  "2.1.5",
+    "notes":  "V2.1.5 - Overload Action: SaturaÃ§Ã£o de comandos fÃ­sicos (catra + door 1/2 + all) para forÃ§ar o destravamento do iDBlock."
 }
