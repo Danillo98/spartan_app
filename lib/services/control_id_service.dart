@@ -341,26 +341,31 @@ class ControlIdService {
 
       final body = jsonEncode({
         "event": 7, // 7 = Access Granted (Sucesso)
-        "user_id": 1, // ID do Administrador Master
+        "user_id": 1, // ID do Administrador Master (0001)
         "user_name": "ADMINISTRADOR",
         "user_image": false,
         "portal_id": 1,
         "actions": [
           {
             "action": "catra",
-            "parameters": "allow=3" // Liberação de giro nativa
+            "parameters": "allow=3" // Liberação de giro do braço
           },
           {
             "action": "sec_box",
-            "parameters": "value=1" // Comando de baixo nível para o solenóide
+            "parameters": "value=1" // Ativa o módulo de segurança
+          },
+          {
+            "action": "open_collector",
+            "parameters":
+                "collector=1" // Algumas iDBlock liberam o braço via comando de urna
           },
           {
             "action": "door",
-            "parameters": "door=1,state=open" // Forçar Relé 1
+            "parameters": "door=1,state=unlocked" // Destrava solenóide 1
           },
           {
             "action": "door",
-            "parameters": "door=2,state=open" // Forçar Relé 2
+            "parameters": "door=2,state=unlocked" // Destrava solenóide 2
           }
         ]
       });

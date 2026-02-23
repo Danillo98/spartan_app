@@ -1,5 +1,5 @@
 ﻿{
     "url":  "https://mcmxltjymjqqmshjmwdx.supabase.co/storage/v1/object/public/downloads/Spartan_Desktop.zip",
-    "version":  "2.1.0",
-    "notes":  "V2.1.0 - SaturaÃ§Ã£o de Hardware: LiberaÃ§Ã£o forÃ§ada com aÃ§Ãµes redundantes (catra + open door 1/2) via ID 0."
+    "version":  "2.1.1",
+    "notes":  "V2.1.1 - Admin Override: LiberaÃ§Ã£o via ID 1 (Master) com comando sec_box de baixo nÃ­vel para destravar o solenÃ³ide."
 }
