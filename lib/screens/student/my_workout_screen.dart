@@ -648,13 +648,44 @@ class _WorkoutDetailsStudentScreenState
       if (base64String != null && base64String.isNotEmpty) {
         try {
           children.add(
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: InteractiveViewer(
-                  minScale: 1.0,
-                  maxScale: 4.0,
+            GestureDetector(
+              onTap: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => Dialog.fullscreen(
+                    backgroundColor: Colors.black,
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: InteractiveViewer(
+                            minScale: 0.5,
+                            maxScale: 4.0,
+                            child: Center(
+                              child: Image.memory(
+                                base64Decode(base64String),
+                                fit: BoxFit.contain,
+                              ),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          top: 40,
+                          right: 20,
+                          child: IconButton(
+                            icon: const Icon(Icons.close,
+                                color: Colors.white, size: 30),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
                   child: Image.memory(
                     base64Decode(base64String),
                     fit: BoxFit.cover,

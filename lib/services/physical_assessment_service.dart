@@ -125,7 +125,7 @@ class PhysicalAssessmentService {
     try {
       final response = await _client
           .from('physical_assessments')
-          .select('*, users_nutricionista(nome), users_alunos(nome)')
+          .select()
           .eq('student_id', studentId)
           .order('assessment_date', ascending: false);
 
@@ -260,6 +260,7 @@ class PhysicalAssessmentService {
     double? bodyFat3,
     double? bodyFat7,
     String? gender,
+    DateTime? studentBirthDate,
     DateTime? nextAssessmentDate, // Nova data de vencimento
   }) async {
     final user = _client.auth.currentUser;
@@ -301,6 +302,7 @@ class PhysicalAssessmentService {
       'body_fat_3_folds': bodyFat3,
       'body_fat_7_folds': bodyFat7,
       'gender': gender,
+      'student_birth_date': studentBirthDate?.toIso8601String(),
       'next_assessment_date': nextAssessmentDate?.toIso8601String(),
     });
   }
@@ -338,6 +340,7 @@ class PhysicalAssessmentService {
     double? bodyFat3,
     double? bodyFat7,
     String? gender,
+    DateTime? studentBirthDate,
     DateTime? nextAssessmentDate, // Nova data de vencimento
   }) async {
     final Map<String, dynamic> updates = {};
@@ -373,6 +376,8 @@ class PhysicalAssessmentService {
     updates['body_fat_3_folds'] = bodyFat3;
     updates['body_fat_7_folds'] = bodyFat7;
     if (gender != null) updates['gender'] = gender;
+    if (studentBirthDate != null)
+      updates['student_birth_date'] = studentBirthDate.toIso8601String();
 
     await _client.from('physical_assessments').update(updates).eq('id', id);
   }

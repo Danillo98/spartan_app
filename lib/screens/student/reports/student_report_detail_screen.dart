@@ -43,14 +43,32 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
       // mas podem ser de administradores ou personais também.
       // O join 'users_nutricionista' no PhysicalAssessmentService já tenta resolver isso.
 
+      final weight = widget.report['weight']?.toDouble() ?? 0.0;
+      double bf = 0.0;
+      if (widget.report['body_fat_7_folds'] != null &&
+          widget.report['body_fat_7_folds'] != 0) {
+        bf = widget.report['body_fat_7_folds'].toDouble();
+      } else if (widget.report['body_fat_3_folds'] != null &&
+          widget.report['body_fat_3_folds'] != 0) {
+        bf = widget.report['body_fat_3_folds'].toDouble();
+      } else {
+        bf = widget.report['body_fat']?.toDouble() ?? 0.0;
+      }
+
+      double muscleMass = 0.0;
+      if (weight > 0 && bf > 0) {
+        muscleMass = weight * (1 - (bf / 100));
+      }
+
       final printData = {
         'student_name': studentName,
         'professional_name': professionalName,
         'professional_label': professionalLabel,
         'assessment_date': widget.report['assessment_date'],
-        'weight': widget.report['weight'],
+        'weight': weight,
         'height': widget.report['height'],
-        'body_fat': widget.report['body_fat'],
+        'body_fat': bf,
+        'muscle_mass': muscleMass,
         'chest': widget.report['chest'],
         'waist': widget.report['waist'],
         'abdomen': widget.report['abdomen'],
@@ -73,7 +91,10 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
         'skinfold_subscapular': widget.report['skinfold_subscapular'],
         'skinfold_suprailiac': widget.report['skinfold_suprailiac'],
         'skinfold_midaxillary': widget.report['skinfold_midaxillary'],
-        'workout_focus': widget.report['workout_focus'],
+        'body_fat_3_folds': widget.report['body_fat_3_folds'],
+        'body_fat_7_folds': widget.report['body_fat_7_folds'],
+        'gender': widget.report['gender'],
+        'student_birth_date': widget.report['student_birth_date'],
       };
 
       final jsonData = jsonEncode(printData);
@@ -105,7 +126,6 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final report = widget.report;
-    final allReports = widget.allReports;
 
     final date = DateTime.parse(report['assessment_date']);
     final nutritionist =
@@ -113,8 +133,23 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
 
     // Prepare data directly
     final weight = report['weight']?.toDouble() ?? 0.0;
-    final bodyFat = report['body_fat']?.toDouble() ?? 0.0;
-    final muscleMass = report['muscle_mass']?.toDouble() ?? 0.0;
+
+    // Lógica para priorizar dobras (Dobras 7 > Dobras 3 > Manual)
+    double bodyFat = 0.0;
+    if (report['body_fat_7_folds'] != null && report['body_fat_7_folds'] != 0) {
+      bodyFat = report['body_fat_7_folds'].toDouble();
+    } else if (report['body_fat_3_folds'] != null &&
+        report['body_fat_3_folds'] != 0) {
+      bodyFat = report['body_fat_3_folds'].toDouble();
+    } else {
+      bodyFat = report['body_fat']?.toDouble() ?? 0.0;
+    }
+
+    // Calcular Massa Muscular (Massa Magra em kg)
+    double muscleMass = 0.0;
+    if (weight > 0 && bodyFat > 0) {
+      muscleMass = weight * (1 - (bodyFat / 100));
+    }
 
     return Scaffold(
       backgroundColor: AppTheme.lightGrey,
@@ -177,7 +212,7 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
                     Expanded(
                       child: _buildMetricCard(
                         title: '% Gordura',
-                        value: '$bodyFat%',
+                        value: '${bodyFat.toStringAsFixed(1)}%',
                         icon: Icons.opacity_rounded,
                         color: AppTheme.primaryRed,
                       ),
@@ -186,31 +221,15 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: _buildMetricCard(
-                          title: 'Massa Musc.',
-                          value: '$muscleMass%',
+                          title: 'Massa Musc. (kg)',
+                          value: muscleMass.toStringAsFixed(1),
                           icon: Icons.fitness_center_rounded,
                           color: const Color(0xFF2A9D8F),
                         ),
                       ),
-                    ] else
-                      const Spacer(), // Mantém proporção de 2 colunas se não tiver massa
+                    ],
                   ],
                 ),
-
-                // Charts Section
-                if (allReports.length > 1) ...[
-                  const SizedBox(height: 32),
-                  Text(
-                    'Sua Evolução',
-                    style: GoogleFonts.lato(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.primaryText,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildChartSection(allReports),
-                ],
 
                 const SizedBox(height: 32),
                 Text(
@@ -343,7 +362,8 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
     required Color color,
   }) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      height: 140, // Altura fixa para igualar todos os cards (UX solicitada)
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -356,75 +376,27 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
         ],
       ),
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: color, size: 32),
-          const SizedBox(height: 12),
+          Icon(icon, color: color, size: 28),
+          const SizedBox(height: 8),
           Text(
             value,
             style: GoogleFonts.lato(
-              fontSize: 24,
+              fontSize: 22,
               fontWeight: FontWeight.w900,
               color: color,
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            title,
-            style: GoogleFonts.lato(
-              fontSize: 12,
-              color: AppTheme.secondaryText,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildChartSection(List<Map<String, dynamic>> allReports) {
-    // Extract history sorted by date ascending
-    final history = List<Map<String, dynamic>>.from(allReports);
-    history.sort((a, b) => DateTime.parse(a['assessment_date'])
-        .compareTo(DateTime.parse(b['assessment_date'])));
-
-    // Prepare data points for weight
-    final points = history
-        .map((h) {
-          final date = DateTime.parse(h['assessment_date']);
-          final val = h['weight']?.toDouble() ?? 0.0;
-          return ChartPoint(date: date, value: val);
-        })
-        .where((p) => p.value > 0)
-        .toList();
-
-    if (points.length < 2) return const SizedBox.shrink();
-
-    return Container(
-      height: 250,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: AppTheme.cardShadow,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Histórico de Peso',
-            style: GoogleFonts.lato(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: AppTheme.secondaryText,
-            ),
-          ),
-          const SizedBox(height: 20),
-          Expanded(
-            child: CustomPaint(
-              size: Size.infinite,
-              painter: SimpleLineChartPainter(
-                points: points,
-                lineColor: const Color(0xFF457B9D),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              title,
+              style: GoogleFonts.lato(
+                fontSize: 12,
+                color: AppTheme.secondaryText,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ),
@@ -462,12 +434,24 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
             const Divider(height: 24),
             _buildMeasureTextRow('Foco do Treino', report['workout_focus']),
           ],
+          if (report['body_fat_3_folds'] != null ||
+              report['body_fat_7_folds'] != null) ...[
+            const Divider(height: 24),
+            if (report['body_fat_3_folds'] != null)
+              _buildMeasureRow(
+                  '%G Pollock 3 Dobras', report['body_fat_3_folds'],
+                  unit: '%'),
+            if (report['body_fat_7_folds'] != null)
+              _buildMeasureRow(
+                  '%G Pollock 7 Dobras', report['body_fat_7_folds'],
+                  unit: '%'),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildMeasureRow(String label, dynamic value) {
+  Widget _buildMeasureRow(String label, dynamic value, {String? unit}) {
     if (value == null) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -482,7 +466,7 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
             ),
           ),
           Text(
-            '${value.toString()} cm',
+            '${value.toString()} ${unit ?? 'cm'}',
             style: GoogleFonts.lato(
               fontSize: 15,
               fontWeight: FontWeight.bold,

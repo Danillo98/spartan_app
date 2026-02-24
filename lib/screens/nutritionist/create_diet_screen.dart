@@ -4,6 +4,7 @@ import '../../services/diet_service.dart';
 import '../../services/user_service.dart';
 import '../../services/auth_service.dart';
 import '../../config/app_theme.dart';
+import 'diet_details_screen.dart';
 import '../../widgets/searchable_selection.dart';
 
 class CreateDietScreen extends StatefulWidget {
@@ -163,13 +164,15 @@ class _CreateDietScreenState extends State<CreateDietScreen> {
 
       if (mounted) {
         if (result['success']) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result['message']),
-              backgroundColor: nutritionistPrimary,
-            ),
-          );
-          Navigator.pop(context, true);
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) =>
+                    DietDetailsScreen(dietId: result['diet']['id']),
+              ),
+            );
+          }
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(

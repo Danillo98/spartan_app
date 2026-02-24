@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:async';
+import 'package:universal_html/html.dart' as html;
 import '../config/app_theme.dart';
 import 'login_screen.dart';
 import '../services/auth_service.dart';
@@ -432,32 +434,35 @@ class _SplashScreenState extends State<SplashScreen>
   Future<void> _navigateToLogin() async {
     if (!mounted) return;
 
-    final uri = Uri.base;
-    var roleParam = uri.queryParameters['role'];
-    if (roleParam == null && uri.fragment.contains('role=')) {
-      try {
-        final fragUri = Uri.parse(uri.fragment.contains('?')
-            ? uri.fragment
-            : '?${uri.fragment.split('?').last}');
-        roleParam = fragUri.queryParameters['role'];
-      } catch (e) {
-        print('Error parsing fragment role: $e');
+    // Lógica para salvar "eternamente" a escolha da role (UX solicitada)
+    String? roleParam;
+
+    if (kIsWeb) {
+      final storage = html.window.localStorage;
+      final uri = Uri.base;
+      roleParam = uri.queryParameters['role'];
+
+      if (roleParam == 'clear' || roleParam == 'admin') {
+        storage.remove('saved_login_role');
+        roleParam = null;
+      } else if (roleParam != null) {
+        storage['saved_login_role'] = roleParam;
+      } else {
+        roleParam = storage['saved_login_role'];
       }
-    }
-
-    // Lógica para salvar "eternamente" a escolha da role
-    final prefs = await SharedPreferences.getInstance();
-
-    // Se passar 'clear' na URL, o usuário zera as preferências
-    if (roleParam == 'clear' || roleParam == 'admin') {
-      await prefs.remove('saved_login_role');
-      roleParam = null;
-    } else if (roleParam != null) {
-      // Salva a preferência
-      await prefs.setString('saved_login_role', roleParam);
     } else {
-      // Tenta carregar do disco (salvo anteriormente em algum link de PWA/Web)
-      roleParam = prefs.getString('saved_login_role');
+      final prefs = await SharedPreferences.getInstance();
+      final uri = Uri.base;
+      roleParam = uri.queryParameters['role'];
+
+      if (roleParam == 'clear' || roleParam == 'admin') {
+        await prefs.remove('saved_login_role');
+        roleParam = null;
+      } else if (roleParam != null) {
+        await prefs.setString('saved_login_role', roleParam);
+      } else {
+        roleParam = prefs.getString('saved_login_role');
+      }
     }
 
     if (!mounted) return;

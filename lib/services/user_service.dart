@@ -470,7 +470,7 @@ class UserService {
           'name': student['nome'] ?? 'Sem Nome',
           'email': student['email'] ?? '',
           'phone': student['telefone'] ?? '',
-          'birth_date': student['dt_nascimento'],
+          'birth_date': student['data_nascimento'],
           'role': 'student',
         };
       }).toList();

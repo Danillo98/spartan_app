@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:universal_html/html.dart' as html;
 import '../models/user_role.dart';
 import '../config/app_theme.dart';
 import 'role_login_screen.dart';
@@ -20,9 +22,30 @@ class _LoginScreenState extends State<LoginScreen>
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
 
+  UserRole? _effectiveRole;
+
   @override
   void initState() {
     super.initState();
+
+    _effectiveRole = widget.roleFilter;
+
+    // Fallback para Web: Tenta capturar Role da URL se for null
+    if (_effectiveRole == null && kIsWeb) {
+      try {
+        final uri = Uri.parse(html.window.location.href.replaceAll('#/', ''));
+        final roleParam = uri.queryParameters['role'];
+        if (roleParam != null) {
+          final found = UserRole.values.where((r) => r.name == roleParam);
+          if (found.isNotEmpty) {
+            _effectiveRole = found.first;
+          }
+        }
+      } catch (e) {
+        debugPrint('Erro ao capturar role da URL: $e');
+      }
+    }
+
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 1200),
       vsync: this,
@@ -41,6 +64,34 @@ class _LoginScreenState extends State<LoginScreen>
     );
 
     _animationController.forward();
+
+    // Se houver um filtro de role (vindo de QR Code), navegar automaticamente após animação
+    if (_effectiveRole != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Future.delayed(const Duration(milliseconds: 1000), () {
+          if (mounted) {
+            String roleTitle = 'Acesso';
+            switch (_effectiveRole!) {
+              case UserRole.admin:
+                roleTitle = 'Administrador';
+                break;
+              case UserRole.student:
+                roleTitle = 'Aluno';
+                break;
+              case UserRole.trainer:
+                roleTitle = 'Personal Trainer';
+                break;
+              case UserRole.nutritionist:
+                roleTitle = 'Nutricionista';
+                break;
+              default:
+                break;
+            }
+            _navigateToLogin(context, _effectiveRole!, roleTitle);
+          }
+        });
+      });
+    }
   }
 
   @override
@@ -57,7 +108,7 @@ class _LoginScreenState extends State<LoginScreen>
             RoleLoginScreen(
           role: role,
           roleTitle: roleTitle,
-          isLocked: widget.roleFilter != null,
+          isLocked: _effectiveRole != null,
         ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return SlideTransition(
@@ -94,9 +145,8 @@ class _LoginScreenState extends State<LoginScreen>
 
                       const SizedBox(height: 20),
 
-                      // Cards de perfis (Filtrados se houver roleFilter)
-                      if (widget.roleFilter == null ||
-                          widget.roleFilter == UserRole.admin)
+                      if (_effectiveRole == null ||
+                          _effectiveRole == UserRole.admin)
                         _buildRoleCard(
                           context,
                           'Administrador',
@@ -107,13 +157,10 @@ class _LoginScreenState extends State<LoginScreen>
                           0,
                         ),
 
-                      if (widget.roleFilter == null &&
-                          (widget.roleFilter == null ||
-                              widget.roleFilter == UserRole.admin))
-                        const SizedBox(height: 20),
+                      if (_effectiveRole == null) const SizedBox(height: 20),
 
-                      if (widget.roleFilter == null ||
-                          widget.roleFilter == UserRole.nutritionist)
+                      if (_effectiveRole == null ||
+                          _effectiveRole == UserRole.nutritionist)
                         _buildRoleCard(
                           context,
                           'Nutricionista',
@@ -124,13 +171,10 @@ class _LoginScreenState extends State<LoginScreen>
                           100,
                         ),
 
-                      if (widget.roleFilter == null &&
-                          (widget.roleFilter == null ||
-                              widget.roleFilter == UserRole.nutritionist))
-                        const SizedBox(height: 20),
+                      if (_effectiveRole == null) const SizedBox(height: 20),
 
-                      if (widget.roleFilter == null ||
-                          widget.roleFilter == UserRole.trainer)
+                      if (_effectiveRole == null ||
+                          _effectiveRole == UserRole.trainer)
                         _buildRoleCard(
                           context,
                           'Personal Trainer',
@@ -141,13 +185,10 @@ class _LoginScreenState extends State<LoginScreen>
                           200,
                         ),
 
-                      if (widget.roleFilter == null &&
-                          (widget.roleFilter == null ||
-                              widget.roleFilter == UserRole.trainer))
-                        const SizedBox(height: 20),
+                      if (_effectiveRole == null) const SizedBox(height: 20),
 
-                      if (widget.roleFilter == null ||
-                          widget.roleFilter == UserRole.student)
+                      if (_effectiveRole == null ||
+                          _effectiveRole == UserRole.student)
                         _buildRoleCard(
                           context,
                           'Aluno',
@@ -193,9 +234,7 @@ class _LoginScreenState extends State<LoginScreen>
         const SizedBox(height: 1),
 
         Text(
-          widget.roleFilter != null
-              ? 'Perfil Identificado'
-              : 'Escolha seu perfil',
+          _effectiveRole != null ? 'Perfil Identificado' : 'Escolha seu perfil',
           style: GoogleFonts.lato(
             fontSize: 16,
             color: AppTheme.secondaryText,

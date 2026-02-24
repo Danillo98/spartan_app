@@ -108,16 +108,18 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
         report['skinfold_triceps']?.toString() ?? '';
     _skinfoldBicepsController.text =
         report['skinfold_biceps']?.toString() ?? '';
-    _skinfoldSubscapularController.text =
-        report['skinfold_subscapular']?.toString() ?? '';
-    _skinfoldSuprailiacController.text =
-        report['skinfold_suprailiac']?.toString() ?? '';
     _skinfoldMidaxillaryController.text =
         report['skinfold_midaxillary']?.toString() ?? '';
     _workoutFocusController.text = report['workout_focus'] ?? '';
     _bodyFat3Controller.text = report['body_fat_3_folds']?.toString() ?? '';
     _bodyFat7Controller.text = report['body_fat_7_folds']?.toString() ?? '';
     _gender = report['gender'] ?? 'M';
+
+    // Puxar data de nascimento do relatório se existir
+    if (report['student_birth_date'] != null) {
+      _studentBirthDate = DateTime.tryParse(report['student_birth_date']);
+    }
+
     if (report['next_assessment_date'] != null) {
       _nextAssessmentDate = DateTime.tryParse(report['next_assessment_date']);
     }
@@ -216,38 +218,58 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
         await PhysicalAssessmentService.createAssessment(
           studentId: _selectedStudentId!,
           date: _assessmentDate,
-          weight: double.tryParse(_weightController.text),
-          height: double.tryParse(_heightController.text),
-          chest: double.tryParse(_chestController.text),
-          waist: double.tryParse(_waistController.text),
-          abdomen: double.tryParse(_abdomenController.text),
-          hips: double.tryParse(_hipsController.text),
-          rightArm: double.tryParse(_rightArmController.text),
-          leftArm: double.tryParse(_leftArmController.text),
-          rightThigh: double.tryParse(_rightThighController.text),
-          leftThigh: double.tryParse(_leftThighController.text),
-          rightCalf: double.tryParse(_rightCalfController.text),
-          leftCalf: double.tryParse(_leftCalfController.text),
-          bodyFat: double.tryParse(_bodyFatController.text),
-          shoulder: double.tryParse(_shoulderController.text),
-          rightForearm: double.tryParse(_rightForearmController.text),
-          leftForearm: double.tryParse(_leftForearmController.text),
-          skinfoldChest: double.tryParse(_skinfoldChestController.text),
-          skinfoldAbdomen: double.tryParse(_skinfoldAbdomenController.text),
-          skinfoldThigh: double.tryParse(_skinfoldThighController.text),
-          skinfoldCalf: double.tryParse(_skinfoldCalfController.text),
-          skinfoldTriceps: double.tryParse(_skinfoldTricepsController.text),
-          skinfoldBiceps: double.tryParse(_skinfoldBicepsController.text),
-          skinfoldSubscapular:
-              double.tryParse(_skinfoldSubscapularController.text),
-          skinfoldSuprailiac:
-              double.tryParse(_skinfoldSuprailiacController.text),
-          skinfoldMidaxillary:
-              double.tryParse(_skinfoldMidaxillaryController.text),
+          weight: double.tryParse(_weightController.text.replaceAll(',', '.')),
+          height: double.tryParse(_heightController.text.replaceAll(',', '.')),
+          chest: double.tryParse(_chestController.text.replaceAll(',', '.')),
+          waist: double.tryParse(_waistController.text.replaceAll(',', '.')),
+          abdomen:
+              double.tryParse(_abdomenController.text.replaceAll(',', '.')),
+          hips: double.tryParse(_hipsController.text.replaceAll(',', '.')),
+          rightArm:
+              double.tryParse(_rightArmController.text.replaceAll(',', '.')),
+          leftArm:
+              double.tryParse(_leftArmController.text.replaceAll(',', '.')),
+          rightThigh:
+              double.tryParse(_rightThighController.text.replaceAll(',', '.')),
+          leftThigh:
+              double.tryParse(_leftThighController.text.replaceAll(',', '.')),
+          rightCalf:
+              double.tryParse(_rightCalfController.text.replaceAll(',', '.')),
+          leftCalf:
+              double.tryParse(_leftCalfController.text.replaceAll(',', '.')),
+          bodyFat:
+              double.tryParse(_bodyFatController.text.replaceAll(',', '.')),
+          shoulder:
+              double.tryParse(_shoulderController.text.replaceAll(',', '.')),
+          rightForearm: double.tryParse(
+              _rightForearmController.text.replaceAll(',', '.')),
+          leftForearm:
+              double.tryParse(_leftForearmController.text.replaceAll(',', '.')),
+          skinfoldChest: double.tryParse(
+              _skinfoldChestController.text.replaceAll(',', '.')),
+          skinfoldAbdomen: double.tryParse(
+              _skinfoldAbdomenController.text.replaceAll(',', '.')),
+          skinfoldThigh: double.tryParse(
+              _skinfoldThighController.text.replaceAll(',', '.')),
+          skinfoldCalf: double.tryParse(
+              _skinfoldCalfController.text.replaceAll(',', '.')),
+          skinfoldTriceps: double.tryParse(
+              _skinfoldTricepsController.text.replaceAll(',', '.')),
+          skinfoldBiceps: double.tryParse(
+              _skinfoldBicepsController.text.replaceAll(',', '.')),
+          skinfoldSubscapular: double.tryParse(
+              _skinfoldSubscapularController.text.replaceAll(',', '.')),
+          skinfoldSuprailiac: double.tryParse(
+              _skinfoldSuprailiacController.text.replaceAll(',', '.')),
+          skinfoldMidaxillary: double.tryParse(
+              _skinfoldMidaxillaryController.text.replaceAll(',', '.')),
           workoutFocus: _workoutFocusController.text,
-          bodyFat3: double.tryParse(_bodyFat3Controller.text),
-          bodyFat7: double.tryParse(_bodyFat7Controller.text),
+          bodyFat3:
+              double.tryParse(_bodyFat3Controller.text.replaceAll(',', '.')),
+          bodyFat7:
+              double.tryParse(_bodyFat7Controller.text.replaceAll(',', '.')),
           gender: _gender,
+          studentBirthDate: _studentBirthDate,
           nextAssessmentDate: _nextAssessmentDate,
         );
       } else {
@@ -255,35 +277,58 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
         await PhysicalAssessmentService.updateAssessment(
           id: widget.reportToEdit!['id'],
           date: _assessmentDate,
-          weight: double.tryParse(_weightController.text),
-          height: double.tryParse(_heightController.text),
-          chest: double.tryParse(_chestController.text),
-          waist: double.tryParse(_waistController.text),
-          abdomen: double.tryParse(_abdomenController.text),
-          hips: double.tryParse(_hipsController.text),
-          rightArm: double.tryParse(_rightArmController.text),
-          leftArm: double.tryParse(_leftArmController.text),
-          rightThigh: double.tryParse(_rightThighController.text),
-          leftThigh: double.tryParse(_leftThighController.text),
-          rightCalf: double.tryParse(_rightCalfController.text),
-          leftCalf: double.tryParse(_leftCalfController.text),
-          bodyFat: double.tryParse(_bodyFatController.text),
-          shoulder: double.tryParse(_shoulderController.text),
-          rightForearm: double.tryParse(_rightForearmController.text),
-          leftForearm: double.tryParse(_leftForearmController.text),
-          skinfoldChest: double.tryParse(_skinfoldChestController.text),
-          skinfoldAbdomen: double.tryParse(_skinfoldAbdomenController.text),
-          skinfoldThigh: double.tryParse(_skinfoldThighController.text),
-          skinfoldCalf: double.tryParse(_skinfoldCalfController.text),
-          skinfoldTriceps: double.tryParse(_skinfoldTricepsController.text),
-          skinfoldBiceps: double.tryParse(_skinfoldBicepsController.text),
-          skinfoldSubscapular:
-              double.tryParse(_skinfoldSubscapularController.text),
-          skinfoldSuprailiac:
-              double.tryParse(_skinfoldSuprailiacController.text),
-          skinfoldMidaxillary:
-              double.tryParse(_skinfoldMidaxillaryController.text),
+          weight: double.tryParse(_weightController.text.replaceAll(',', '.')),
+          height: double.tryParse(_heightController.text.replaceAll(',', '.')),
+          chest: double.tryParse(_chestController.text.replaceAll(',', '.')),
+          waist: double.tryParse(_waistController.text.replaceAll(',', '.')),
+          abdomen:
+              double.tryParse(_abdomenController.text.replaceAll(',', '.')),
+          hips: double.tryParse(_hipsController.text.replaceAll(',', '.')),
+          rightArm:
+              double.tryParse(_rightArmController.text.replaceAll(',', '.')),
+          leftArm:
+              double.tryParse(_leftArmController.text.replaceAll(',', '.')),
+          rightThigh:
+              double.tryParse(_rightThighController.text.replaceAll(',', '.')),
+          leftThigh:
+              double.tryParse(_leftThighController.text.replaceAll(',', '.')),
+          rightCalf:
+              double.tryParse(_rightCalfController.text.replaceAll(',', '.')),
+          leftCalf:
+              double.tryParse(_leftCalfController.text.replaceAll(',', '.')),
+          bodyFat:
+              double.tryParse(_bodyFatController.text.replaceAll(',', '.')),
+          shoulder:
+              double.tryParse(_shoulderController.text.replaceAll(',', '.')),
+          rightForearm: double.tryParse(
+              _rightForearmController.text.replaceAll(',', '.')),
+          leftForearm:
+              double.tryParse(_leftForearmController.text.replaceAll(',', '.')),
+          skinfoldChest: double.tryParse(
+              _skinfoldChestController.text.replaceAll(',', '.')),
+          skinfoldAbdomen: double.tryParse(
+              _skinfoldAbdomenController.text.replaceAll(',', '.')),
+          skinfoldThigh: double.tryParse(
+              _skinfoldThighController.text.replaceAll(',', '.')),
+          skinfoldCalf: double.tryParse(
+              _skinfoldCalfController.text.replaceAll(',', '.')),
+          skinfoldTriceps: double.tryParse(
+              _skinfoldTricepsController.text.replaceAll(',', '.')),
+          skinfoldBiceps: double.tryParse(
+              _skinfoldBicepsController.text.replaceAll(',', '.')),
+          skinfoldSubscapular: double.tryParse(
+              _skinfoldSubscapularController.text.replaceAll(',', '.')),
+          skinfoldSuprailiac: double.tryParse(
+              _skinfoldSuprailiacController.text.replaceAll(',', '.')),
+          skinfoldMidaxillary: double.tryParse(
+              _skinfoldMidaxillaryController.text.replaceAll(',', '.')),
           workoutFocus: _workoutFocusController.text,
+          bodyFat3:
+              double.tryParse(_bodyFat3Controller.text.replaceAll(',', '.')),
+          bodyFat7:
+              double.tryParse(_bodyFat7Controller.text.replaceAll(',', '.')),
+          gender: _gender,
+          studentBirthDate: _studentBirthDate,
           nextAssessmentDate: _nextAssessmentDate,
         );
       }
@@ -378,6 +423,10 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
         'skinfold_suprailiac': widget.reportToEdit!['skinfold_suprailiac'],
         'skinfold_midaxillary': widget.reportToEdit!['skinfold_midaxillary'],
         'workout_focus': widget.reportToEdit!['workout_focus'],
+        'body_fat_3_folds': widget.reportToEdit!['body_fat_3_folds'],
+        'body_fat_7_folds': widget.reportToEdit!['body_fat_7_folds'],
+        'gender': widget.reportToEdit!['gender'],
+        'student_birth_date': widget.reportToEdit!['student_birth_date'],
       };
 
       final jsonData = jsonEncode(printData);
@@ -387,9 +436,11 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
       String baseUrl =
           'https://spartan-app.vercel.app'; // Fallback to production URL
       try {
-        baseUrl = html.window.location.origin;
-        if (baseUrl.contains('file://') || baseUrl.isEmpty) {
-          baseUrl = 'https://spartan-app.vercel.app';
+        final origin = html.window.location.origin;
+        if (origin != null &&
+            origin.isNotEmpty &&
+            !origin.contains('file://')) {
+          baseUrl = origin;
         }
       } catch (_) {}
 
@@ -1080,6 +1131,12 @@ class HeightInputFormatter extends TextInputFormatter {
   TextEditingValue formatEditUpdate(
       TextEditingValue oldValue, TextEditingValue newValue) {
     String text = newValue.text;
+
+    // Se o usuário está apagando, permite apagar livremente
+    if (newValue.selection.baseOffset < oldValue.selection.baseOffset) {
+      return newValue;
+    }
+
     if (text.isEmpty) return newValue;
 
     // Se o primeiro número é digitado e não tem vírgula

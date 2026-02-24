@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/auth_service.dart';
 import '../../config/app_theme.dart';
 import '../login_screen.dart';
@@ -96,6 +97,13 @@ class _TrainerDashboardState extends State<TrainerDashboard>
           _userData = data;
           _isLoading = false;
         });
+
+        // Gravar role para persistência de login (UX solicitada)
+        if (data != null && data['role'] != null) {
+          SharedPreferences.getInstance().then((prefs) {
+            prefs.setString('saved_login_role', data['role']);
+          });
+        }
       }
     } catch (e) {
       if (mounted) {

@@ -154,6 +154,13 @@ class _AdminDashboardState extends State<AdminDashboard>
           _isLoading = false;
         });
 
+        // Gravar role para persistência de login (UX solicitada)
+        if (data != null && data['role'] != null) {
+          SharedPreferences.getInstance().then((prefs) {
+            prefs.setString('saved_login_role', data['role']);
+          });
+        }
+
         // Após carregar usuário, checar notificações diárias
         _checkDailyNotifications();
       }

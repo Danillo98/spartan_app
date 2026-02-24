@@ -222,11 +222,21 @@
                 <div class="grid">
                     <div>
                         <div class="data-item"><span class="label">Estatura</span> <span class="value">${data.height || '-'} cm</span></div>
-                        <div class="data-item"><span class="label">Resultado %G</span> <span class="value">${data.body_fat || '-'} %</span></div>
                         <div class="data-item"><span class="label">Peso</span> <span class="value">${data.weight || '-'} kg</span></div>
+                        <div class="data-item"><span class="label">Nascimento</span> <span class="value">${formatDate(data.student_birth_date) || '-'}</span></div>
                     </div>
                      <div>
                         <div class="data-item"><span class="label">Foco do Treino</span> <span class="value">${data.workout_focus || '-'}</span></div>
+                        <div class="data-item">
+                            <span class="label">Composição Corporal</span>
+                            <div class="value" style="text-align: right;">
+                                ${data.body_fat_7_folds ? `<div>7 Dobras: ${parseFloat(data.body_fat_7_folds).toFixed(1)}%</div>` : ''}
+                                ${data.body_fat_3_folds ? `<div>3 Dobras: ${parseFloat(data.body_fat_3_folds).toFixed(1)}%</div>` : ''}
+                                ${!data.body_fat_3_folds && !data.body_fat_7_folds && data.body_fat ? `<div>Geral: ${parseFloat(data.body_fat).toFixed(1)}%</div>` : ''}
+                                ${data.muscle_mass ? `<div style="color: #2A9D8F; margin-top: 4px;">Massa Muscular: ${parseFloat(data.muscle_mass).toFixed(1)} kg</div>` : ''}
+                                ${!data.body_fat_3_folds && !data.body_fat_7_folds && !data.body_fat ? '-' : ''}
+                            </div>
+                        </div>
                     </div>
                 </div>
 
