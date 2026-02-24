@@ -1,4 +1,4 @@
-project_id = "waczgosbsrorcibwfavv"
+project_id = "waczgosbsrorcibwfayv"
 
 [functions.check-payment-status]
 verify_jwt = false
