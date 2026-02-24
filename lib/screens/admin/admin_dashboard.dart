@@ -21,6 +21,8 @@ import '../../widgets/responsive_utils.dart';
 import 'dart:async'; // Timer
 import 'package:supabase_flutter/supabase_flutter.dart'; // Supabase
 import '../../services/control_id_service.dart'; // Sync da Catraca
+import 'package:url_launcher/url_launcher.dart'; // Import para o botão de update
+import '../../config/app_version.dart'; // Versão
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -42,6 +44,10 @@ class _AdminDashboardState extends State<AdminDashboard>
 
   RealtimeChannel? _alunosChannel;
   RealtimeChannel? _financialChannel;
+
+  // Controle de Versão (Desktop)
+  bool _needsUpdate = false;
+  Timer? _versionCheckTimer;
 
   final Color _adminColor = const Color(0xFF1A1A1A); // Admin Black theme
 
@@ -84,12 +90,14 @@ class _AdminDashboardState extends State<AdminDashboard>
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
       ControlIdService.syncAllStudentsSilently();
       _startRealtimeControlIdSync();
+      _startVersionMonitor();
     }
   }
 
   @override
   void dispose() {
     _subscriptionTimer?.cancel(); // Cancelar Timer ao sair
+    _versionCheckTimer?.cancel();
     _alunosChannel?.unsubscribe();
     _financialChannel?.unsubscribe();
     _animationController.dispose();
@@ -142,6 +150,43 @@ class _AdminDashboardState extends State<AdminDashboard>
               }
             })
         .subscribe();
+  }
+
+  void _startVersionMonitor() {
+    _checkRemoteVersion();
+    _versionCheckTimer = Timer.periodic(const Duration(minutes: 5), (_) {
+      _checkRemoteVersion();
+    });
+  }
+
+  Future<void> _checkRemoteVersion() async {
+    if (kIsWeb) return;
+    try {
+      // Usando a tabela app_versao que já existe no seu banco de dados
+      final response = await Supabase.instance.client
+          .from('app_versao')
+          .select('versao_atual')
+          .eq('id', 1)
+          .maybeSingle();
+
+      if (response != null && response['versao_atual'] != null) {
+        final serverVer = response['versao_atual'].toString();
+        final currentVerNum = AppVersion.parseVersion(AppVersion.current);
+        final serverVerNum = AppVersion.parseVersion(serverVer);
+
+        if (mounted) {
+          setState(() {
+            _needsUpdate = serverVerNum > currentVerNum;
+          });
+          if (_needsUpdate) {
+            print(
+                '🔔 NOVA VERSÃO DISPONÍVEL NO SERVIDOR: $serverVer (Atual: ${AppVersion.current})');
+          }
+        }
+      }
+    } catch (e) {
+      print('Erro ao checar versão remota: $e');
+    }
   }
 
   Future<void> _loadUserData() async {
@@ -412,6 +457,29 @@ class _AdminDashboardState extends State<AdminDashboard>
           ),
           iconTheme: const IconThemeData(color: AppTheme.secondaryText),
           actions: [
+            if (_needsUpdate && !kIsWeb)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    launchUrl(
+                      Uri.parse(
+                          'https://spartanapp.com.br/download/Spartan_Desktop.zip'),
+                      mode: LaunchMode.externalApplication,
+                    );
+                  },
+                  icon: const Icon(Icons.system_update_alt_rounded, size: 18),
+                  label: const Text('Atualizar Spartan Desktop'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red[700],
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ),
             IconButton(
               icon: const Icon(Icons.logout),
               onPressed: _logout,
