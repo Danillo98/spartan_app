@@ -122,6 +122,32 @@ class WorkoutCard extends StatelessWidget {
                             ),
                           ],
                         ),
+                        // Profissional Responsável (Novo)
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.badge_outlined,
+                              size: 14,
+                              color: AppTheme.secondaryText.withOpacity(0.7),
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                workout['personal']?['name'] ??
+                                    'Administração da Academia',
+                                style: GoogleFonts.lato(
+                                  fontSize: 12,
+                                  color:
+                                      AppTheme.secondaryText.withOpacity(0.7),
+                                  fontStyle: FontStyle.italic,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   ),

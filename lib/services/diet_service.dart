@@ -78,19 +78,6 @@ class DietService {
       final month = startDateTime.month;
       final year = startDateTime.year;
 
-      // --- RESOLVER DUPLICIDADE (Mês/Ano) ---
-      // Se já existe uma dieta para este aluno neste mês/ano, desativamos ela
-      try {
-        await _client
-            .from('diets')
-            .update({'status': 'inactive'})
-            .eq('student_id', studentId)
-            .eq('nutritionist_id', nutritionistId)
-            .eq('month', month)
-            .eq('year', year);
-      } catch (e) {
-        print('Check duplicidade (não crítico): $e');
-      }
       // --------------------------------------
 
       final dietData = await _client

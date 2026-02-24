@@ -112,7 +112,7 @@ class PhysicalAssessmentService {
       }
 
       final response = await query.order('assessment_date', ascending: false);
-      return List<Map<String, dynamic>>.from(response);
+      return await _populateUsers(response);
     } catch (e) {
       print('Erro ao buscar avaliações: $e');
       return [];

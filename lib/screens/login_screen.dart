@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:universal_html/html.dart' as html;
 import '../models/user_role.dart';
 import '../config/app_theme.dart';
@@ -30,20 +31,61 @@ class _LoginScreenState extends State<LoginScreen>
 
     _effectiveRole = widget.roleFilter;
 
-    // Fallback para Web: Tenta capturar Role da URL se for null
+    // Fallback para Web: Tenta capturar Role da URL ou LocalStorage se for null
     if (_effectiveRole == null && kIsWeb) {
       try {
         final uri = Uri.parse(html.window.location.href.replaceAll('#/', ''));
-        final roleParam = uri.queryParameters['role'];
+        String? roleParam = uri.queryParameters['role'];
+
+        // Se não tiver na URL, tenta LocalStorage
+        if (roleParam == null) {
+          roleParam = html.window.localStorage['saved_login_role'];
+        }
+
         if (roleParam != null) {
-          final found = UserRole.values.where((r) => r.name == roleParam);
-          if (found.isNotEmpty) {
-            _effectiveRole = found.first;
+          final normalized = roleParam.toLowerCase().trim();
+          if (normalized == 'student' || normalized == 'aluno') {
+            _effectiveRole = UserRole.student;
+          } else if (normalized == 'nutritionist' ||
+              normalized == 'nutricionista') {
+            _effectiveRole = UserRole.nutritionist;
+          } else if (normalized == 'trainer' ||
+              normalized == 'personal trainer' ||
+              normalized.contains('trainer')) {
+            _effectiveRole = UserRole.trainer;
+          } else if (normalized == 'admin') {
+            _effectiveRole = UserRole.admin;
           }
         }
       } catch (e) {
-        debugPrint('Erro ao capturar role da URL: $e');
+        debugPrint('Erro ao capturar role (Web): $e');
       }
+    }
+
+    // Fallback para Mobile: SharedPreferences
+    if (_effectiveRole == null && !kIsWeb) {
+      SharedPreferences.getInstance().then((prefs) {
+        final savedRole = prefs.getString('saved_login_role');
+        if (savedRole != null && mounted) {
+          setState(() {
+            final normalized = savedRole.toLowerCase().trim();
+            if (normalized == 'student' || normalized == 'aluno') {
+              _effectiveRole = UserRole.student;
+            } else if (normalized == 'nutritionist' ||
+                normalized == 'nutricionista') {
+              _effectiveRole = UserRole.nutritionist;
+            } else if (normalized == 'trainer' ||
+                normalized == 'personal trainer' ||
+                normalized.contains('trainer')) {
+              _effectiveRole = UserRole.trainer;
+            } else if (normalized == 'admin') {
+              _effectiveRole = UserRole.admin;
+            }
+          });
+          // Se recuperou do storage, dispara a navegação automática se necessário
+          // (O postFrameCallback já está configurado abaixo e usará o _effectiveRole atualizado)
+        }
+      });
     }
 
     _animationController = AnimationController(

@@ -220,6 +220,13 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
                                                 color: Colors.grey[600],
                                                 fontSize: 12),
                                           ),
+                                          Text(
+                                            'Por: ${report['users_nutricionista']?['nome'] ?? 'Administração'}',
+                                            style: TextStyle(
+                                                color: Colors.grey[600],
+                                                fontStyle: FontStyle.italic,
+                                                fontSize: 12),
+                                          ),
                                           if (report['next_assessment_date'] !=
                                               null)
                                             Text(
