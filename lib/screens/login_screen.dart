@@ -146,15 +146,15 @@ class _LoginScreenState extends State<LoginScreen>
                       const SizedBox(height: 20),
 
                       if (_effectiveRole == null ||
-                          _effectiveRole == UserRole.admin)
+                          _effectiveRole == UserRole.student)
                         _buildRoleCard(
                           context,
-                          'Administrador',
-                          'Gerencie sua academia',
-                          Icons.admin_panel_settings_rounded,
-                          const Color(0xFF1A1A1A),
-                          UserRole.admin,
-                          0,
+                          'Aluno',
+                          'Acompanhe seu progresso',
+                          Icons.person_rounded,
+                          const Color(0xFF457B9D),
+                          UserRole.student,
+                          300,
                         ),
 
                       if (_effectiveRole == null) const SizedBox(height: 20),
@@ -188,15 +188,15 @@ class _LoginScreenState extends State<LoginScreen>
                       if (_effectiveRole == null) const SizedBox(height: 20),
 
                       if (_effectiveRole == null ||
-                          _effectiveRole == UserRole.student)
+                          _effectiveRole == UserRole.admin)
                         _buildRoleCard(
                           context,
-                          'Aluno',
-                          'Acompanhe seu progresso',
-                          Icons.person_rounded,
-                          const Color(0xFF457B9D),
-                          UserRole.student,
-                          300,
+                          'Administrador',
+                          'Gerencie sua academia',
+                          Icons.admin_panel_settings_rounded,
+                          const Color(0xFF1A1A1A),
+                          UserRole.admin,
+                          0,
                         ),
 
                       const SizedBox(height: 20),
