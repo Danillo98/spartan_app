@@ -437,10 +437,26 @@ class _SplashScreenState extends State<SplashScreen>
     // Lógica para salvar "eternamente" a escolha da role (UX solicitada)
     String? roleParam;
 
+    // Tentar pegar da URL (tanto query quanto fragmento para PWA)
+    final uri = Uri.base;
+    roleParam = uri.queryParameters['role'];
+
+    // Se no hash (comum em SPAs/PWAs)
+    if (roleParam == null && uri.fragment.contains('role=')) {
+      try {
+        final frag = uri.fragment;
+        final parts = frag.split('?');
+        if (parts.length > 1) {
+          final query = Uri.splitQueryString(parts.last);
+          roleParam = query['role'];
+        }
+      } catch (e) {
+        print('Erro ao parsear role do hash: $e');
+      }
+    }
+
     if (kIsWeb) {
       final storage = html.window.localStorage;
-      final uri = Uri.base;
-      roleParam = uri.queryParameters['role'];
 
       if (roleParam == 'clear' || roleParam == 'admin') {
         storage.remove('saved_login_role');
@@ -452,8 +468,6 @@ class _SplashScreenState extends State<SplashScreen>
       }
     } else {
       final prefs = await SharedPreferences.getInstance();
-      final uri = Uri.base;
-      roleParam = uri.queryParameters['role'];
 
       if (roleParam == 'clear' || roleParam == 'admin') {
         await prefs.remove('saved_login_role');
@@ -470,11 +484,17 @@ class _SplashScreenState extends State<SplashScreen>
     Widget targetScreen = const LoginScreen();
 
     if (roleParam != null) {
-      if (roleParam == 'student') {
+      // Normalização para aceitar termos em Português ou Inglês (limpeza de URL)
+      final normalizedRole = roleParam.toLowerCase().trim();
+
+      if (normalizedRole == 'student' || normalizedRole == 'aluno') {
         targetScreen = const LoginScreen(roleFilter: UserRole.student);
-      } else if (roleParam == 'nutritionist') {
+      } else if (normalizedRole == 'nutritionist' ||
+          normalizedRole == 'nutricionista') {
         targetScreen = const LoginScreen(roleFilter: UserRole.nutritionist);
-      } else if (roleParam == 'trainer') {
+      } else if (normalizedRole == 'trainer' ||
+          normalizedRole == 'personal trainer' ||
+          normalizedRole.contains('trainer')) {
         targetScreen = const LoginScreen(roleFilter: UserRole.trainer);
       }
     }

@@ -369,19 +369,25 @@
         const roleTitle = document.getElementById('roleTitle');
         const roleSubtitle = document.getElementById('roleSubtitle');
 
-        if (role === 'student') {
+        // Salvamento Preventivo (Opção A)
+        if (role) {
+            localStorage.setItem('saved_login_role', role);
+            console.log("Role salva para o PWA:", role);
+        }
+
+        if (role === 'student' || role === 'Aluno') {
             roleBadge.innerHTML = '🎓 Perfil: Aluno';
             roleBadge.style.background = 'linear-gradient(135deg, #457B9D 0%, #a8dadc 100%)';
             roleBadge.style.color = 'white';
             roleTitle.innerText = 'SPARTAN ALUNO';
             roleSubtitle.innerHTML = 'Bem-vindo, Espartano!<br>Prepare-se para transformar seu corpo e mente.';
-        } else if (role === 'trainer') {
+        } else if (role === 'trainer' || role === 'Personal Trainer') {
             roleBadge.innerHTML = '💪 Perfil: Personal Trainer';
             roleBadge.style.background = 'linear-gradient(135deg, #E63946 0%, #f1faee 100%)';
             roleBadge.style.color = 'white';
             roleTitle.innerText = 'SPARTAN TREINADOR';
             roleSubtitle.innerHTML = 'Bem-vindo, Mestre!<br>Pronto para guiar seus alunos à vitória?';
-        } else if (role === 'nutritionist') {
+        } else if (role === 'nutritionist' || role === 'Nutricionista') {
             roleBadge.innerHTML = '🍎 Perfil: Nutricionista';
             roleBadge.style.background = 'linear-gradient(135deg, #2A9D8F 0%, #e9c46a 100%)';
             roleBadge.style.color = 'white';
@@ -422,20 +428,21 @@
 
         // Ação do Botão Principal
         document.getElementById('accessSystemBtn').addEventListener('click', async () => {
+            // Se tiver role, garante que está salva antes de qualquer ação
+            if (role) {
+                localStorage.setItem('saved_login_role', role);
+            }
+
             // 1. Tentar Prompt PWA (Se disponível)
             if (deferredPrompt) {
                 deferredPrompt.prompt();
                 const { outcome } = await deferredPrompt.userChoice;
                 deferredPrompt = null;
 
-                // Em ambos os casos (aceitou ou ignorou), mostra o modal de verificação
-                // O usuário pode ter ignorado por engano ou o browser pode ter bloqueado
                 simulateProgress(() => {
                     modal.style.display = 'flex';
                 });
             } else {
-                // Se não suporta PWA ou já instalado (ou PC Desktop sem suporte PWA direto via botão)
-                // Apenas simula a instalação (Fluxo Desktop EXE)
                 simulateProgress(() => {
                     modal.style.display = 'flex';
                 });
@@ -444,19 +451,22 @@
 
         // Funções do Modal
         function openDesktopApp() {
-            // Tenta abrir protocolo customizado (se existir)
             const urlParams = new URLSearchParams(window.location.search);
-            const role = urlParams.get('role');
-            const suffix = role ? "?role=" + role : "";
-            const webSuffix = role ? "/#/?role=" + role : "/";
+            const role = urlParams.get('role') || localStorage.getItem('saved_login_role');
 
+            // Suffixos para Deep Link (Desktop) e Web/PWA
+            const suffix = role ? "?role=" + encodeURIComponent(role) : "";
+            const webSuffix = role ? "index.html#/?role=" + encodeURIComponent(role) : "/";
+
+            // 1. Tenta Deep Link (para Spartan Desktop)
             window.location.href = "spartan://open" + suffix;
 
-            // Fallback visual
+            // 2. Redirecionamento PWA Inteligente (Opção C)
+            // Se o PWA estiver instalado, o browser tentará abrir a URL no app
             setTimeout(() => {
-                // Se o deep link falhar, vai para a home do PWA com formato hash
+                console.log("Redirecionando para PWA:", webSuffix);
                 window.location.href = webSuffix;
-            }, 500);
+            }, 800);
         }
 
         function openInBrowser() {
