@@ -31,6 +31,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
   String? _selectedPlan; // Para controlar qual card está selecionado
   bool _isLoading = true;
   DateTime? _expiresAt;
+  String _oldPlan = ''; // Baseline para comparação pós-pagamento
+  DateTime? _oldExpiresAt; // Baseline para comparação pós-pagamento
   bool _wentToStripe = false; // Flag para saber se foi para o Stripe
   StreamSubscription? _focusSubscription;
   UserRole? _userRole; // Armazenar role do usuário
@@ -153,11 +155,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
 
       if (subStatus['success'] == true) {
         final status = subStatus['status'];
-        final expiradaStr = subStatus['expirada'];
-        bool isDateValid = false;
-
-        if (expiradaStr != null) {
-          final expDate = DateTime.tryParse(expiradaStr);
+        DateTime? expDate;
+        bool isDateValid = false; // Initialize here
+        if (subStatus['expirada'] != null) {
+          expDate = DateTime.tryParse(subStatus['expirada']);
           if (expDate != null &&
               expDate.isAfter(DateTime.now().add(const Duration(hours: 1)))) {
             // Data futura (margem 1h)
@@ -165,24 +166,34 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
           }
         }
 
-        // CRITÉRIO DE SUCESSO: Status ATIVO/TRIALING ou Data Válida (e não suspenso)
-        if (status == 'active' ||
-            status == 'trialing' ||
-            (isDateValid &&
-                status != 'suspended' &&
-                status != 'canceled' &&
-                status != 'past_due')) {
+        // CRITÉRIO DE SUCESSO:
+        // 1. Se era visitante (novo registro) e virou admin ou tem status ativo
+        // 2. Se já era admin, o status deve ser ativo E (plano mudou OU data de vencimento aumentou)
+        bool isNewAdmin = _userRole == UserRole.visitor &&
+            (status == 'active' || status == 'trialing');
+        bool planChanged = status == 'active' &&
+            (_oldPlan.toLowerCase() !=
+                subStatus['plan']?.toString().toLowerCase());
+        bool dateExtended = false;
+        if (expDate != null && _oldExpiresAt != null) {
+          // Se a nova data é pelo menos 20 dias após a antiga (margem de erro para fuso)
+          dateExtended =
+              expDate.isAfter(_oldExpiresAt!.add(const Duration(days: 20)));
+        } else if (expDate != null && _oldExpiresAt == null) {
+          // Se não tinha data e agora tem uma válida
+          dateExtended = isDateValid;
+        }
+
+        if (isNewAdmin || planChanged || dateExtended) {
           success = true;
           break;
         }
       }
 
-      // Se for visitante, verificar se virou admin (criação de conta)
+      // Se for visitante, verificar se virou admin (criação de conta) via role
       if (_userRole == UserRole.visitor) {
         final currentRole = await AuthService.getCurrentUserRole();
         if (currentRole == UserRole.admin) {
-          // Se virou admin, assume sucesso (para casos novos)
-          // Mas idealmente o status também estaria ok. Vamos aceitar creation como sucesso.
           success = true;
           break;
         }
@@ -306,7 +317,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
     }
 
     final bool isMyPlan = _currentPlan.toLowerCase() == newPlan.toLowerCase();
-    final String actionText = isMyPlan ? 'RENOVAR' : 'TROCAR PARA';
 
     final bool? confirmed = await showDialog<bool>(
       context: context,
@@ -380,7 +390,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
                     const Text('• Seu plano atual será cancelado imediatamente',
                         style: TextStyle(fontSize: 13)),
                     Text(
-                      '• Novo vencimento será: ${_formatDate(DateTime.now().add(const Duration(days: 30)))} (30 dias)',
+                      '• Novo vencimento será: ${_formatDate(DateTime(DateTime.now().year, DateTime.now().month + 1, DateTime.now().day))} (1 mês)',
                       style: const TextStyle(fontSize: 13),
                     ),
                     if (!isMyPlan)
@@ -405,7 +415,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8)),
               ),
-              child: Text('$actionText e Pagar'),
+              child: const Text('Confirmar'),
             ),
           ],
         );
@@ -420,10 +430,28 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
   // Iniciar checkout do Stripe
   Future<void> _initiateCheckout(String planName) async {
     try {
-      setState(() => _isLoading = true);
+      setState(() {
+        _isLoading = true;
+        _oldPlan = _currentPlan;
+        _oldExpiresAt = _expiresAt;
+      });
 
       final user = AuthService.getCurrentUser();
       if (user == null) throw Exception('Usuário não autenticado');
+
+      // GARANTIA DE BASELINE: Se os dados não foram carregados, carrega agora
+      if (_currentPlan.isEmpty ||
+          _expiresAt == null && _userRole != UserRole.visitor) {
+        await _loadSubscriptionData();
+      }
+
+      setState(() {
+        _isLoading = true;
+        _oldPlan = _currentPlan;
+        _oldExpiresAt = _expiresAt;
+        print(
+            '📝 BASELINE SALVO - Plano: $_oldPlan, Vencimento: $_oldExpiresAt');
+      });
 
       final priceId = PaymentService.getPriceIdByName(planName);
 
