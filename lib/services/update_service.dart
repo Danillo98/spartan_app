@@ -1,149 +1,84 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:package_info_plus/package_info_plus.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../config/supabase_config.dart';
 
 class UpdateService {
-  static const String _versionFileName = 'version.json';
-  static final String _remoteVersionUrl =
-      '${SupabaseConfig.supabaseUrl}/storage/v1/object/public/downloads/$_versionFileName';
+  static const String _zipUrl =
+      'https://spartanapp.com.br/download/Spartan_Desktop.zip';
 
-  /// Verifica se há uma nova versão disponível
-  static Future<Map<String, dynamic>?> checkForUpdates() async {
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.windows) return null;
+  /// Realiza o download e inicia o script de atualização relay
+  static Future<void> performUpdate(Function(double) onProgress) async {
+    if (kIsWeb || !Platform.isWindows) return;
 
-    try {
-      final response = await http.get(Uri.parse(_remoteVersionUrl));
-      if (response.statusCode != 200) return null;
-
-      final remoteData = jsonDecode(response.body);
-      final remoteVersion = remoteData['version'] as String;
-      final remoteUrl = remoteData['url'] as String;
-
-      // Tentar obter a versão local primeiro pelo version.json, senão pelo PackageInfo
-      String localVersion = '';
-      try {
-        final exePath = Platform.resolvedExecutable;
-        final appDir = File(exePath).parent.path;
-        final localVersionFile = File('$appDir\\version.json');
-
-        if (await localVersionFile.exists()) {
-          final localData = jsonDecode(await localVersionFile.readAsString());
-          localVersion = localData['version'] ?? '';
-        }
-      } catch (e) {
-        print(
-            'ℹ️ [UpdateService] version.json local não encontrado ou inválido.');
-      }
-
-      if (localVersion.isEmpty) {
-        final packageInfo = await PackageInfo.fromPlatform();
-        localVersion = packageInfo.version;
-      }
-
-      if (_isNewer(remoteVersion, localVersion)) {
-        return {
-          'version': remoteVersion,
-          'url': remoteUrl,
-          'notes': remoteData['notes'] ?? '',
-        };
-      }
-    } catch (e) {
-      print('⚠️ [UpdateService] Erro ao verificar atualizações: $e');
-    }
-    return null;
-  }
-
-  static bool _isNewer(String remote, String local) {
-    // Limpar versões de build (+4, etc) para comparação semântica
-    String remoteClean = remote.split('+').first.trim();
-    String localClean = local.split('+').first.trim();
-
-    if (remoteClean == localClean) return false;
-
-    try {
-      List<int> remoteParts = remoteClean.split('.').map(int.parse).toList();
-      List<int> localParts = localClean.split('.').map(int.parse).toList();
-
-      for (var i = 0; i < remoteParts.length; i++) {
-        if (i >= localParts.length) return true;
-        if (remoteParts[i] > localParts[i]) return true;
-        if (remoteParts[i] < localParts[i]) return false;
-      }
-    } catch (e) {
-      print(
-          '⚠️ [UpdateService] Erro ao comparar versões ($remote vs $local): $e');
-      return remoteClean !=
-          localClean; // Fallback para comparação básica de string
-    }
-    return false;
-  }
-
-  /// Inicia o processo de atualização
-  static Future<void> performUpdate(String downloadUrl) async {
     try {
       final tempDir = Directory.systemTemp.path;
-      final zipPath = '$tempDir\\spartan_update.zip';
-      final scriptPath = '$tempDir\\spartan_updater.ps1';
+      final zipPath = '$tempDir\\Spartan_Update.zip';
+      final exePath = Platform.resolvedExecutable;
+      final appDir = File(exePath).parent.path;
+
+      print('🚀 Iniciando download da atualização...');
 
       // 1. Download do ZIP
-      print('📂 [UpdateService] Baixando atualização...');
-      final response = await http.get(Uri.parse(downloadUrl));
-      if (response.statusCode != 200) throw 'Falha no download da atualização';
-      await File(zipPath).writeAsBytes(response.bodyBytes);
+      final client = http.Client();
+      final request = http.Request('GET', Uri.parse(_zipUrl));
+      final response = await client.send(request);
 
-      // 2. Criar script PowerShell de atualização
-      final appPath = Platform.resolvedExecutable;
-      final appDir = File(appPath).parent.path;
-      final exeName = appPath.split('\\').last;
+      final contentLength = response.contentLength ?? 0;
+      int downloadedBytes = 0;
 
-      // Usando r''' para evitar interpolação do Dart e manter os $ literais para o PowerShell
-      // Exceto onde precisamos interpolar variáveis do Dart, usamos a concatenação ou string normal.
-      final psScript = '''
-# Script de Atualização Spartan Desktop
-Start-Sleep -Seconds 2
-Write-Host "Iniciando atualização do Spartan Desktop..." -ForegroundColor Cyan
+      final file = File(zipPath);
+      final sink = file.openWrite();
 
-\$zipFile = "$zipPath"
-\$destDir = "$appDir"
-\$exeName = "$exeName"
+      await for (var chunk in response.stream) {
+        sink.add(chunk);
+        downloadedBytes += chunk.length;
+        if (contentLength > 0) {
+          onProgress(downloadedBytes / contentLength);
+        }
+      }
 
-# Aguarda o processo fechar totalmente
-while (Get-Process | Where-Object { \$_.Path -eq "\$destDir\\\$exeName" }) {
-    Write-Host "Aguardando encerramento do app..."
-    Start-Sleep -Seconds 1
-}
+      await sink.close();
+      client.close();
 
-# Extrai e substitui
-try {
-    Write-Host "Extraindo arquivos para \$destDir..." -ForegroundColor Yellow
-    Expand-Archive -Path \$zipFile -DestinationPath "\$destDir" -Force
-    Write-Host "Sucesso! Reiniciando aplicativo..." -ForegroundColor Green
-    Start-Process -FilePath "\$destDir\\\$exeName"
-} catch {
-    Write-Error "Falha ao extrair atualização: \$_"
-    Read-Host "Pressione Enter para fechar"
-}
+      print('📦 Download concluído. Gerando script de relay...');
+
+      // 2. Gerar Script BAT de Atualização
+      // O script espera o app fechar, extrai, move os arquivos e reinicia o app.
+      final batchPath = '$tempDir\\spartan_updater.bat';
+
+      // Estrutura do ZIP: Spartan_Desktop/ (pasta raiz)
+      // Extraímos para uma subpasta temporária e movemos o conteúdo de dentro de 'Spartan_Desktop' para a pasta do app.
+      final batchContent = '''
+@echo off
+title Atualizando Spartan Desktop
+echo Aguardando fechamento do aplicativo...
+timeout /t 2 /nobreak > nul
+
+echo Extraindo novos arquivos...
+if exist "$tempDir\\Spartan_Extraction" rd /s /q "$tempDir\\Spartan_Extraction"
+powershell -Command "Expand-Archive -Path '$zipPath' -DestinationPath '$tempDir\\Spartan_Extraction' -Force"
+
+echo Substituindo arquivos (Cirurgico)...
+xcopy /s /e /y "$tempDir\\Spartan_Extraction\\Spartan_Desktop\\*" "$appDir"
+
+echo Limpando temporarios...
+rd /s /q "$tempDir\\Spartan_Extraction"
+del "$zipPath"
+
+echo Reiniciando Spartan Desktop...
+start "" "$exePath"
+exit
 ''';
 
-      await File(scriptPath).writeAsString(psScript);
+      await File(batchPath).writeAsString(batchContent);
 
-      // 3. Executar o script em uma nova janela (Powershell)
-      print('🚀 [UpdateService] Disparando script de atualização...');
-      await Process.start(
-        'powershell.exe',
-        ['-ExecutionPolicy', 'Bypass', '-File', scriptPath],
-        runInShell: true,
-        mode: ProcessStartMode.detached,
-      );
-
-      // 4. Fechar o App atual
+      // 3. Executar o BAT e encerrar o App imediatamente
+      print('⚡ Executando script e reiniciando...');
+      await Process.start('cmd', ['/c', 'start', '/min', '', batchPath],
+          runInShell: true);
       exit(0);
     } catch (e) {
-      print('❌ [UpdateService] Erro crítico na atualização: $e');
+      print('❌ Erro no UpdateService: $e');
       rethrow;
     }
   }

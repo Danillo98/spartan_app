@@ -21,7 +21,7 @@ import '../../widgets/responsive_utils.dart';
 import 'dart:async'; // Timer
 import 'package:supabase_flutter/supabase_flutter.dart'; // Supabase
 import '../../services/control_id_service.dart'; // Sync da Catraca
-import 'package:url_launcher/url_launcher.dart'; // Import para o botão de update
+import '../../services/update_service.dart'; // Auto-Update
 import '../../config/app_version.dart'; // Versão
 
 class AdminDashboard extends StatefulWidget {
@@ -48,6 +48,8 @@ class _AdminDashboardState extends State<AdminDashboard>
   // Controle de Versão (Desktop)
   bool _needsUpdate = false;
   Timer? _versionCheckTimer;
+  double _updateProgress = 0;
+  bool _isUpdating = false;
 
   final Color _adminColor = const Color(0xFF1A1A1A); // Admin Black theme
 
@@ -186,6 +188,31 @@ class _AdminDashboardState extends State<AdminDashboard>
       }
     } catch (e) {
       print('Erro ao checar versão remota: $e');
+    }
+  }
+
+  Future<void> _handleUpdate() async {
+    setState(() {
+      _isUpdating = true;
+      _updateProgress = 0;
+    });
+
+    try {
+      await UpdateService.performUpdate((progress) {
+        if (mounted) {
+          setState(() => _updateProgress = progress);
+        }
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isUpdating = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao atualizar: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -460,25 +487,44 @@ class _AdminDashboardState extends State<AdminDashboard>
             if (_needsUpdate && !kIsWeb)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    launchUrl(
-                      Uri.parse(
-                          'https://spartanapp.com.br/download/Spartan_Desktop.zip'),
-                      mode: LaunchMode.externalApplication,
-                    );
-                  },
-                  icon: const Icon(Icons.system_update_alt_rounded, size: 18),
-                  label: const Text('Atualizar Spartan Desktop'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red[700],
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
+                child: _isUpdating
+                    ? Container(
+                        width: 180,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            LinearProgressIndicator(
+                              value: _updateProgress,
+                              color: Colors.red,
+                              backgroundColor: Colors.red.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Baixando: ${(_updateProgress * 100).toStringAsFixed(0)}%',
+                              style: const TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.red,
+                                  fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ElevatedButton.icon(
+                        onPressed: _handleUpdate,
+                        icon: const Icon(Icons.system_update_alt_rounded,
+                            size: 18),
+                        label: const Text('Atualizar Spartan Desktop'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red[700],
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
               ),
             IconButton(
               icon: const Icon(Icons.logout),
