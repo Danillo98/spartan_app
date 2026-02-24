@@ -1,7 +1,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import Stripe from 'https://esm.sh/stripe@12.0.0?target=deno'
 
-console.log("Create Checkout Session Function Initialized - v3 FORCE DEPLOY")
+console.log("Create Checkout Session Function Initialized - v2.2.9 DEPLOY")
 
 serve(async (req) => {
   // 1. CORS Headers (Essencial para o Flutter conseguir chamar)
