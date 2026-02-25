@@ -578,7 +578,6 @@ class _NoticeFormModalState extends State<_NoticeFormModal> {
                   selectedItems: _availableUsers
                       .where((u) => _selectedUserIds.contains(u['id']))
                       .toList(),
-                  idBuilder: (u) => u['id'].toString(),
                   labelBuilder: (u) => u['name'] ?? u['nome'] ?? 'Usuário',
                   onChanged: (selectedList) {
                     setState(() {

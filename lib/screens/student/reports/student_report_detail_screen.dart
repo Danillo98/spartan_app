@@ -1,7 +1,5 @@
-import 'dart:convert';
-// ignore: avoid_web_libraries_in_flutter
-import 'package:universal_html/html.dart' as html;
 import 'package:flutter/material.dart';
+import '../../../services/print_service.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../config/app_theme.dart';
@@ -97,22 +95,13 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
         'student_birth_date': widget.report['student_birth_date'],
       };
 
-      final jsonData = jsonEncode(printData);
-      final blob = html.Blob([jsonData], 'application/json');
-      final url = html.Url.createObjectUrlFromBlob(blob);
-
-      final baseUrl = html.window.location.origin;
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final printUrl =
-          '$baseUrl/print-evolution.html?v=$timestamp&dataUrl=$url';
+      await PrintService.printReport(
+        data: printData,
+        templateName: 'print-evolution.html',
+        localStorageKey: 'spartan_evolution_print',
+      );
 
       if (mounted) setState(() => _isPrinting = false);
-
-      html.window.open(printUrl, '_blank');
-
-      Future.delayed(const Duration(seconds: 20), () {
-        html.Url.revokeObjectUrl(url);
-      });
     } catch (e) {
       if (mounted) {
         setState(() => _isPrinting = false);
@@ -151,151 +140,161 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
       muscleMass = weight * (1 - (bodyFat / 100));
     }
 
-    return Scaffold(
-      backgroundColor: AppTheme.lightGrey,
-      appBar: AppBar(
-        title: Text(
-          'Avaliação Física',
-          style: GoogleFonts.cinzel(
-            color: AppTheme.primaryText,
-            fontWeight: FontWeight.bold,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (Navigator.canPop(context)) {
+          Navigator.pop(context);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppTheme.lightGrey,
+        appBar: AppBar(
+          title: Text(
+            'Avaliação Física',
+            style: GoogleFonts.cinzel(
+              color: AppTheme.primaryText,
+              fontWeight: FontWeight.bold,
+            ),
           ),
-        ),
-        centerTitle: true,
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded,
-              color: AppTheme.secondaryText),
-          onPressed: () => Navigator.pop(context),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.print_rounded, color: AppTheme.primaryText),
-            onPressed: (_isLoading || _isPrinting) ? null : _openPrintPage,
-            tooltip: 'Imprimir Avaliação',
+          centerTitle: true,
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_rounded,
+                color: AppTheme.secondaryText),
+            onPressed: () => Navigator.pop(context),
           ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: Stack(
-        children: [
-          SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header Info
-                _buildHeaderCard(date, nutritionist),
-                const SizedBox(height: 24),
+          actions: [
+            IconButton(
+              icon:
+                  const Icon(Icons.print_rounded, color: AppTheme.primaryText),
+              onPressed: (_isLoading || _isPrinting) ? null : _openPrintPage,
+              tooltip: 'Imprimir Avaliação',
+            ),
+            const SizedBox(width: 8),
+          ],
+        ),
+        body: Stack(
+          children: [
+            SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header Info
+                  _buildHeaderCard(date, nutritionist),
+                  const SizedBox(height: 24),
 
-                Text(
-                  'Resumo Principal',
-                  style: GoogleFonts.lato(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.primaryText,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildMetricCard(
-                        title: 'Peso (kg)',
-                        value: weight.toStringAsFixed(1),
-                        icon: Icons.monitor_weight_outlined,
-                        color: const Color(0xFF457B9D),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildMetricCard(
-                        title: '% Gordura',
-                        value: '${bodyFat.toStringAsFixed(1)}%',
-                        icon: Icons.opacity_rounded,
-                        color: AppTheme.primaryRed,
-                      ),
-                    ),
-                    if (muscleMass > 0) ...[
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildMetricCard(
-                          title: 'Massa Musc. (kg)',
-                          value: muscleMass.toStringAsFixed(1),
-                          icon: Icons.fitness_center_rounded,
-                          color: const Color(0xFF2A9D8F),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-
-                const SizedBox(height: 32),
-                Text(
-                  'Medidas Detalhadas',
-                  style: GoogleFonts.lato(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.primaryText,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _buildMeasurementsGrid(report),
-
-                if (report['notes'] != null &&
-                    report['notes'].toString().isNotEmpty) ...[
-                  const SizedBox(height: 32),
                   Text(
-                    'Observações',
+                    'Resumo Principal',
                     style: GoogleFonts.lato(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                       color: AppTheme.primaryText,
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppTheme.borderGrey),
-                    ),
-                    child: Text(
-                      report['notes'],
-                      style: GoogleFonts.lato(
-                          fontSize: 15,
-                          color: AppTheme.secondaryText,
-                          height: 1.5),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildMetricCard(
+                          title: 'Peso (kg)',
+                          value: weight.toStringAsFixed(1),
+                          icon: Icons.monitor_weight_outlined,
+                          color: const Color(0xFF457B9D),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildMetricCard(
+                          title: '% Gordura',
+                          value: '${bodyFat.toStringAsFixed(1)}%',
+                          icon: Icons.opacity_rounded,
+                          color: AppTheme.primaryRed,
+                        ),
+                      ),
+                      if (muscleMass > 0) ...[
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildMetricCard(
+                            title: 'Massa Musc. (kg)',
+                            value: muscleMass.toStringAsFixed(1),
+                            icon: Icons.fitness_center_rounded,
+                            color: const Color(0xFF2A9D8F),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+
+                  const SizedBox(height: 32),
+                  Text(
+                    'Medidas Detalhadas',
+                    style: GoogleFonts.lato(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.primaryText,
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  _buildMeasurementsGrid(report),
+
+                  if (report['notes'] != null &&
+                      report['notes'].toString().isNotEmpty) ...[
+                    const SizedBox(height: 32),
+                    Text(
+                      'Observações',
+                      style: GoogleFonts.lato(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.primaryText,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppTheme.borderGrey),
+                      ),
+                      child: Text(
+                        report['notes'],
+                        style: GoogleFonts.lato(
+                            fontSize: 15,
+                            color: AppTheme.secondaryText,
+                            height: 1.5),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 40),
                 ],
-                const SizedBox(height: 40),
-              ],
+              ),
             ),
-          ),
-          if (_isPrinting)
-            Container(
-              color: Colors.black.withOpacity(0.3),
-              child: const Center(
-                child: Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(24.0),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircularProgressIndicator(color: AppTheme.primaryRed),
-                        SizedBox(height: 16),
-                        Text('Gerando PDF...'),
-                      ],
+            if (_isPrinting)
+              Container(
+                color: Colors.black.withOpacity(0.3),
+                child: const Center(
+                  child: Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(24.0),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(color: AppTheme.primaryRed),
+                          SizedBox(height: 16),
+                          Text('Gerando PDF...'),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }

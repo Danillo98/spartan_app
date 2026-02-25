@@ -1,7 +1,7 @@
 name: spartan_app
 description: A new Flutter project.
 publish_to: 'none'
-version: 2.3.4
+version: 2.3.8+1
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -50,4 +50,5 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/
+    - web/
     # V2.2.2 - Pure Relay Pulse: Remoção de hacks experimentais para eliminar erro 400 e simular pulso elétrico manual da tela.

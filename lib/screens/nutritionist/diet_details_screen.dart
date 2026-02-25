@@ -1,9 +1,6 @@
-import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-// ignore: avoid_web_libraries_in_flutter
-import 'package:universal_html/html.dart' as html;
 import 'package:google_fonts/google_fonts.dart';
+import '../../services/print_service.dart';
 import '../../services/diet_service.dart';
 import '../../config/app_theme.dart';
 import 'add_diet_day_with_meals_screen.dart'; // Tela de adicionar refeições
@@ -76,9 +73,18 @@ class _DietDetailsScreenState extends State<DietDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.lightGrey,
-      body: _isLoading ? _buildLoading() : _buildBody(),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (Navigator.canPop(context)) {
+          Navigator.pop(context);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppTheme.lightGrey,
+        body: _isLoading ? _buildLoading() : _buildBody(),
+      ),
     );
   }
 
@@ -984,21 +990,11 @@ class _DietDetailsScreenState extends State<DietDetailsScreen> {
         'diet_days': _diet!['diet_days'],
       };
 
-      // Offload JSON encoding
-      final jsonData = await compute(jsonEncode, printData);
-
-      final blob = html.Blob([jsonData], 'application/json');
-      final url = html.Url.createObjectUrlFromBlob(blob);
-
-      final baseUrl = Uri.base.origin;
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final printUrl = '$baseUrl/print-diet-v2.html?v=$timestamp&dataUrl=$url';
-
-      html.window.open(printUrl, '_blank');
-
-      Future.delayed(const Duration(minutes: 1), () {
-        html.Url.revokeObjectUrl(url);
-      });
+      await PrintService.printReport(
+        data: printData,
+        templateName: 'print-diet-v2.html',
+        localStorageKey: 'spartan_diet_print',
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

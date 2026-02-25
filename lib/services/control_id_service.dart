@@ -427,4 +427,36 @@ class ControlIdService {
       print('⚠️ [Control iD] Sincronização silenciosa falhou: $e');
     }
   }
+
+  /// Busca os logs de acesso da catraca
+  static Future<List<Map<String, dynamic>>> getAccessLogs(String ip) async {
+    try {
+      final sanitizedIp = sanitizeIp(ip);
+      String session = await _login(sanitizedIp);
+      if (session.isEmpty) return [];
+
+      final url =
+          Uri.parse('http://$sanitizedIp/load_objects.fcgi?session=$session');
+
+      final body = jsonEncode({
+        "object": "access_logs",
+        "order": ["id DESC"], // Mais recentes primeiro
+        "limit": 20 // Pegar apenas os últimos 20
+      });
+
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: body,
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return List<Map<String, dynamic>>.from(data['access_logs'] ?? []);
+      }
+    } catch (e) {
+      print('Erro ao buscar logs da catraca: $e');
+    }
+    return [];
+  }
 }

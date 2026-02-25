@@ -525,6 +525,8 @@ class _CreateDietScreenState extends State<CreateDietScreen> {
                         items: _students,
                         labelBuilder: (student) =>
                             student['name'] ?? 'Sem nome',
+                        subLabelBuilder: (student) => student['email'] ?? '',
+                        photoUrlBuilder: (student) => student['photo_url'],
                         hintText: 'Buscar aluno...',
                         onChanged: (value) {
                           setState(() => _selectedStudent = value);

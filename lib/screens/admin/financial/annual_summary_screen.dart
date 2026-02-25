@@ -1,11 +1,9 @@
-import 'dart:convert';
-// ignore: avoid_web_libraries_in_flutter
-import 'package:universal_html/html.dart' as html;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../config/app_theme.dart';
 import '../../../services/financial_service.dart';
+import '../../../services/print_service.dart'; // Added PrintService import
 
 class AnnualSummaryScreen extends StatefulWidget {
   const AnnualSummaryScreen({super.key});
@@ -380,22 +378,13 @@ class _AnnualSummaryScreenState extends State<AnnualSummaryScreen> {
         'months': _data!['months'],
       };
 
-      final jsonData = jsonEncode(printData);
-      final blob = html.Blob([jsonData], 'application/json');
-      final url = html.Url.createObjectUrlFromBlob(blob);
-
-      final baseUrl = html.window.location.origin;
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final printUrl =
-          '$baseUrl/print-financial-annual.html?v=$timestamp&dataUrl=$url';
+      await PrintService.printReport(
+        data: printData,
+        templateName: 'print-financial-annual.html',
+        localStorageKey: 'spartan_financial_annual_print',
+      );
 
       if (mounted) setState(() => _isPrinting = false);
-
-      html.window.open(printUrl, '_blank');
-
-      Future.delayed(const Duration(seconds: 20), () {
-        html.Url.revokeObjectUrl(url);
-      });
     } catch (e) {
       if (mounted) {
         setState(() => _isPrinting = false);

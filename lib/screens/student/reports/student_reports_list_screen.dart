@@ -48,39 +48,48 @@ class _StudentReportsListScreenState extends State<StudentReportsListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.lightGrey,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded,
-              color: AppTheme.secondaryText),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          'Avaliações Físicas',
-          style: GoogleFonts.cinzel(
-            color: AppTheme.primaryText,
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (Navigator.canPop(context)) {
+          Navigator.pop(context);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppTheme.lightGrey,
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_rounded,
+                color: AppTheme.secondaryText),
+            onPressed: () => Navigator.pop(context),
           ),
+          title: Text(
+            'Avaliações Físicas',
+            style: GoogleFonts.cinzel(
+              color: AppTheme.primaryText,
+              fontWeight: FontWeight.bold,
+              fontSize: 20,
+            ),
+          ),
+          centerTitle: true,
         ),
-        centerTitle: true,
+        body: _isLoading
+            ? const Center(
+                child: CircularProgressIndicator(color: Color(0xFF457B9D)))
+            : _reports.isEmpty
+                ? _buildEmptyState()
+                : ListView.builder(
+                    padding: const EdgeInsets.all(20),
+                    itemCount: _reports.length,
+                    itemBuilder: (context, index) {
+                      final report = _reports[index];
+                      return _buildReportCard(report);
+                    },
+                  ),
       ),
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFF457B9D)))
-          : _reports.isEmpty
-              ? _buildEmptyState()
-              : ListView.builder(
-                  padding: const EdgeInsets.all(20),
-                  itemCount: _reports.length,
-                  itemBuilder: (context, index) {
-                    final report = _reports[index];
-                    return _buildReportCard(report);
-                  },
-                ),
     );
   }
 

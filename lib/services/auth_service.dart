@@ -624,7 +624,7 @@ class AuthService {
       final aluno = await _client
           .from('users_alunos')
           .select(
-              'id, nome, email, telefone, id_academia, is_blocked, payment_due, photo_url')
+              'id, nome, email, telefone, id_academia, is_blocked, payment_due_day, grace_period, created_at, photo_url')
           .eq('id', userId)
           .maybeSingle();
       if (aluno != null) {
@@ -727,16 +727,19 @@ class AuthService {
       // 2. Bloqueio Financeiro (Apenas para Alunos)
       // Se não pagou no mês atual e já passou da data de vencimento -> BLOQUEIA
       if (userData['role'] == 'student') {
-        final paymentDueDay = userData['payment_due'] as int?;
+        final paymentDueDay = userData['payment_due_day'] as int?;
         // Tentar obter id_academia de várias formas possíveis (id_academia ou created_by_admin_id)
         final idAcademia =
             userData['id_academia'] ?? userData['created_by_admin_id'] ?? '';
 
         if (idAcademia != null && paymentDueDay != null) {
+          final gracePeriod = (userData['grace_period'] ?? 3) as int;
           final isOverdue = await FinancialService.isStudentOverdue(
             studentId: userData['id'],
             idAcademia: idAcademia,
             paymentDueDay: paymentDueDay,
+            gracePeriod: gracePeriod,
+            createdAtStr: userData['created_at'],
           );
 
           if (isOverdue) {

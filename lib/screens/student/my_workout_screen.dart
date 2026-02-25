@@ -1,8 +1,7 @@
 import 'dart:convert';
-// ignore: avoid_web_libraries_in_flutter
-import 'package:universal_html/html.dart' as html;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../services/print_service.dart';
 import '../../services/workout_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/workout_session_service.dart';
@@ -59,11 +58,12 @@ class _MyWorkoutScreenState extends State<MyWorkoutScreen> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: true,
+      canPop: false,
       onPopInvokedWithResult: (didPop, result) {
-        // Se já deu pop, não faz nada. Caso contrário (embora canPop seja true),
-        // garantimos que o comportamento seja o esperado de voltar.
         if (didPop) return;
+        if (Navigator.canPop(context)) {
+          Navigator.pop(context);
+        }
       },
       child: Scaffold(
         backgroundColor: AppTheme.lightGrey,
@@ -549,21 +549,13 @@ class _WorkoutDetailsStudentScreenState
         'days': _workout!['days'],
       };
 
-      final jsonData = jsonEncode(printData);
-      final blob = html.Blob([jsonData], 'application/json');
-      final url = html.Url.createObjectUrlFromBlob(blob);
-
-      final baseUrl = html.window.location.origin;
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final printUrl = '$baseUrl/print-workout.html?v=$timestamp&dataUrl=$url';
+      await PrintService.printReport(
+        data: printData,
+        templateName: 'print-workout.html',
+        localStorageKey: 'spartan_workout_print',
+      );
 
       if (mounted) setState(() => _isPrinting = false);
-
-      html.window.open(printUrl, '_blank');
-
-      Future.delayed(const Duration(seconds: 20), () {
-        html.Url.revokeObjectUrl(url);
-      });
     } catch (e) {
       if (mounted) {
         setState(() => _isPrinting = false);
@@ -579,32 +571,41 @@ class _WorkoutDetailsStudentScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Scaffold(
-          backgroundColor: AppTheme.lightGrey,
-          body: _isLoading ? _buildLoading() : _buildBody(),
-        ),
-        if (_isPrinting)
-          Container(
-            color: Colors.black.withOpacity(0.3),
-            child: const Center(
-              child: Card(
-                child: Padding(
-                  padding: EdgeInsets.all(24.0),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircularProgressIndicator(color: AppTheme.primaryRed),
-                      SizedBox(height: 16),
-                      Text('Gerando PDF...'),
-                    ],
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (Navigator.canPop(context)) {
+          Navigator.pop(context);
+        }
+      },
+      child: Stack(
+        children: [
+          Scaffold(
+            backgroundColor: AppTheme.lightGrey,
+            body: _isLoading ? _buildLoading() : _buildBody(),
+          ),
+          if (_isPrinting)
+            Container(
+              color: Colors.black.withOpacity(0.3),
+              child: const Center(
+                child: Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(24.0),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircularProgressIndicator(color: AppTheme.primaryRed),
+                        SizedBox(height: 16),
+                        Text('Gerando PDF...'),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 

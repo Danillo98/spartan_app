@@ -7,6 +7,8 @@ class SearchableSelection<T> extends StatefulWidget {
   final T? value;
   final List<T> items;
   final String Function(T) labelBuilder;
+  final String Function(T)? subLabelBuilder;
+  final String? Function(T)? photoUrlBuilder;
   final void Function(T?) onChanged;
   final String hintText;
   final bool isLoading;
@@ -18,6 +20,8 @@ class SearchableSelection<T> extends StatefulWidget {
     required this.items,
     required this.labelBuilder,
     required this.onChanged,
+    this.subLabelBuilder,
+    this.photoUrlBuilder,
     this.hintText = 'Selecione...',
     this.isLoading = false,
   });
@@ -94,6 +98,8 @@ class _SearchableSelectionState<T> extends State<SearchableSelection<T>> {
       builder: (context) => _SelectionSheet<T>(
         items: widget.items,
         labelBuilder: widget.labelBuilder,
+        subLabelBuilder: widget.subLabelBuilder,
+        photoUrlBuilder: widget.photoUrlBuilder,
         initialValue: widget.value,
         onSelected: (val) {
           widget.onChanged(val);
@@ -107,12 +113,16 @@ class _SearchableSelectionState<T> extends State<SearchableSelection<T>> {
 class _SelectionSheet<T> extends StatefulWidget {
   final List<T> items;
   final String Function(T) labelBuilder;
+  final String Function(T)? subLabelBuilder;
+  final String? Function(T)? photoUrlBuilder;
   final T? initialValue;
   final ValueChanged<T> onSelected;
 
   const _SelectionSheet({
     required this.items,
     required this.labelBuilder,
+    this.subLabelBuilder,
+    this.photoUrlBuilder,
     this.initialValue,
     required this.onSelected,
   });
@@ -202,22 +212,62 @@ class _SelectionSheetState<T> extends State<_SelectionSheet<T>> {
                       itemBuilder: (context, index) {
                         final item = _filteredItems[index];
                         final label = widget.labelBuilder(item);
+                        final subLabel = widget.subLabelBuilder?.call(item);
+                        final photoUrl = widget.photoUrlBuilder?.call(item);
                         final isSelected = item == widget.initialValue;
 
                         return ListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 20, vertical: 4),
+                          leading: Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: AppTheme.lightGrey,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: isSelected
+                                    ? AppTheme.primaryRed
+                                    : Colors.transparent,
+                                width: 2,
+                              ),
+                            ),
+                            child: ClipOval(
+                              child: photoUrl != null && photoUrl.isNotEmpty
+                                  ? Image.network(
+                                      photoUrl,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, e, s) =>
+                                          const Icon(Icons.person,
+                                              color: Colors.grey),
+                                    )
+                                  : const Icon(Icons.person,
+                                      color: Colors.grey),
+                            ),
+                          ),
                           title: Text(
                             label,
-                            style: TextStyle(
+                            style: GoogleFonts.lato(
                               fontWeight: isSelected
                                   ? FontWeight.bold
-                                  : FontWeight.normal,
+                                  : FontWeight.w600,
                               color: isSelected
                                   ? AppTheme.primaryRed
                                   : AppTheme.primaryText,
+                              fontSize: 15,
                             ),
                           ),
+                          subtitle: subLabel != null
+                              ? Text(
+                                  subLabel,
+                                  style: GoogleFonts.lato(
+                                    fontSize: 12,
+                                    color: AppTheme.secondaryText,
+                                  ),
+                                )
+                              : null,
                           trailing: isSelected
-                              ? const Icon(Icons.check,
+                              ? const Icon(Icons.check_circle_rounded,
                                   color: AppTheme.primaryRed)
                               : null,
                           onTap: () => widget.onSelected(item),

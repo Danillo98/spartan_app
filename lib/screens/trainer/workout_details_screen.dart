@@ -1,9 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 
-// ignore: avoid_web_libraries_in_flutter
-import 'package:universal_html/html.dart' as html;
 import 'package:flutter/material.dart';
+import '../../services/print_service.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/workout_service.dart';
 import '../../services/cache_manager.dart';
@@ -69,96 +68,105 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Scaffold(
-          backgroundColor: AppTheme.lightGrey,
-          appBar: AppBar(
-            backgroundColor: trainerPrimary,
-            title: Text(
-              widget.workoutName,
-              style: GoogleFonts.lato(
-                  color: Colors.white, fontWeight: FontWeight.bold),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (Navigator.canPop(context)) {
+          Navigator.pop(context);
+        }
+      },
+      child: Stack(
+        children: [
+          Scaffold(
+            backgroundColor: AppTheme.lightGrey,
+            appBar: AppBar(
+              backgroundColor: trainerPrimary,
+              title: Text(
+                widget.workoutName,
+                style: GoogleFonts.lato(
+                    color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+              elevation: 0,
+              iconTheme: const IconThemeData(color: Colors.white),
             ),
-            elevation: 0,
-            iconTheme: const IconThemeData(color: Colors.white),
-          ),
-          body: _isLoading
-              ? const Center(
-                  child: CircularProgressIndicator(color: trainerPrimary))
-              : _errorMessage != null
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.error_outline,
-                                size: 64, color: AppTheme.accentRed),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Erro ao carregar',
-                              style: GoogleFonts.lato(
-                                  fontSize: 18, fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              _errorMessage!,
-                              style: GoogleFonts.lato(
-                                  fontSize: 14, color: Colors.grey),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 24),
-                            ElevatedButton.icon(
-                              onPressed: _loadDetails,
-                              icon: const Icon(Icons.refresh),
-                              label: const Text('Tentar Novamente'),
-                              style: ElevatedButton.styleFrom(
-                                  backgroundColor: trainerPrimary),
-                            ),
-                          ],
-                        ),
-                      ),
-                    )
-                  : _workout == null
-                      ? const Center(child: Text('Treino não encontrado'))
-                      : RefreshIndicator(
-                          onRefresh: _loadDetails,
-                          color: trainerPrimary,
-                          child: SingleChildScrollView(
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                _buildHeaderCard(),
-                                const SizedBox(height: 24),
-                                _buildDaysSection(),
-                              ],
-                            ),
+            body: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(color: trainerPrimary))
+                : _errorMessage != null
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.error_outline,
+                                  size: 64, color: AppTheme.accentRed),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Erro ao carregar',
+                                style: GoogleFonts.lato(
+                                    fontSize: 18, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                _errorMessage!,
+                                style: GoogleFonts.lato(
+                                    fontSize: 14, color: Colors.grey),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 24),
+                              ElevatedButton.icon(
+                                onPressed: _loadDetails,
+                                icon: const Icon(Icons.refresh),
+                                label: const Text('Tentar Novamente'),
+                                style: ElevatedButton.styleFrom(
+                                    backgroundColor: trainerPrimary),
+                              ),
+                            ],
                           ),
                         ),
-        ),
-        if (_isPrinting)
-          Container(
-            color: Colors.black.withOpacity(0.3),
-            child: const Center(
-              child: Card(
-                child: Padding(
-                  padding: EdgeInsets.all(24.0),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircularProgressIndicator(color: trainerPrimary),
-                      SizedBox(height: 16),
-                      Text('Gerando PDF...'),
-                    ],
+                      )
+                    : _workout == null
+                        ? const Center(child: Text('Treino não encontrado'))
+                        : RefreshIndicator(
+                            onRefresh: _loadDetails,
+                            color: trainerPrimary,
+                            child: SingleChildScrollView(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildHeaderCard(),
+                                  const SizedBox(height: 24),
+                                  _buildDaysSection(),
+                                ],
+                              ),
+                            ),
+                          ),
+          ),
+          if (_isPrinting)
+            Container(
+              color: Colors.black.withOpacity(0.3),
+              child: const Center(
+                child: Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(24.0),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircularProgressIndicator(color: trainerPrimary),
+                        SizedBox(height: 16),
+                        Text('Gerando PDF...'),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -290,24 +298,13 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
         'days': _workout!['days'],
       };
 
-      final jsonData = jsonEncode(printData);
-      final blob = html.Blob([jsonData], 'application/json');
-      final url = html.Url.createObjectUrlFromBlob(blob);
-
-      final baseUrl = html.window.location.origin;
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-
-      print('🖨️ Enviando para PDF: $printData');
-
-      final printUrl = '$baseUrl/print-workout.html?v=$timestamp&dataUrl=$url';
+      await PrintService.printReport(
+        data: printData,
+        templateName: 'print-workout.html',
+        localStorageKey: 'spartan_workout_print',
+      );
 
       if (mounted) setState(() => _isPrinting = false);
-
-      html.window.open(printUrl, '_blank');
-
-      Future.delayed(const Duration(seconds: 20), () {
-        html.Url.revokeObjectUrl(url);
-      });
     } catch (e) {
       if (mounted) {
         setState(() => _isPrinting = false);

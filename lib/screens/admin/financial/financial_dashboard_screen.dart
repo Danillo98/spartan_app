@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'dart:convert';
-// ignore: avoid_web_libraries_in_flutter
-import 'package:universal_html/html.dart' as html;
+import '../../../services/print_service.dart';
 import '../../../config/app_theme.dart';
 import '../../../services/financial_service.dart';
 import '../../../widgets/subscription_check.dart';
@@ -896,7 +894,6 @@ class _FinancialDashboardScreenState extends State<FinancialDashboardScreen> {
   }
 
   Future<void> _openPrintPage() async {
-    if (_transactions.isEmpty) return;
     setState(() => _isPrinting = true);
 
     try {
@@ -907,25 +904,13 @@ class _FinancialDashboardScreenState extends State<FinancialDashboardScreen> {
         'transactions': _transactions,
       };
 
-      final jsonData = jsonEncode(printData);
-      final blob = html.Blob([jsonData], 'application/json');
-      final url = html.Url.createObjectUrlFromBlob(blob);
+      await PrintService.printReport(
+        data: printData,
+        templateName: 'print-financial-monthly.html',
+        localStorageKey: 'spartan_financial_monthly_print',
+      );
 
-      final baseUrl = html.window.location.origin;
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final printUrl =
-          '$baseUrl/print-financial-monthly.html?v=$timestamp&dataUrl=$url';
-
-      // Libera a UI antes mesmo de abrir a aba, para evitar qualquer atraso do navegador
-      if (mounted) {
-        setState(() => _isPrinting = false);
-      }
-
-      html.window.open(printUrl, '_blank');
-
-      Future.delayed(const Duration(seconds: 20), () {
-        html.Url.revokeObjectUrl(url);
-      });
+      if (mounted) setState(() => _isPrinting = false);
     } catch (e) {
       if (mounted) {
         setState(() => _isPrinting = false);

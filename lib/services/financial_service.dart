@@ -430,6 +430,7 @@ class FinancialService {
       final studentId = student['id'];
       final dueDay =
           (student['payment_due'] ?? student['payment_due_day']) as int?;
+      final gracePeriod = (student['grace_period'] ?? 3) as int;
       final createdAtStr = student['created_at'] as String?;
 
       // Ignorar alunos sem data de criação (banco inconsistente) ou tratar como novos
@@ -497,10 +498,10 @@ class FinancialService {
             if (year < now.year || (year == now.year && month < now.month)) {
               status = 'overdue';
             }
-            // Mês atual e dia já passou -> Vencido
+            // Mês atual e dia já passou -> Vencido (Com 3 dias de carência)
             else if (year == now.year &&
                 month == now.month &&
-                now.day > dueDay) {
+                now.day > (dueDay + gracePeriod)) {
               status = 'overdue';
             } else {
               status = 'pending';
@@ -547,39 +548,45 @@ class FinancialService {
     required String studentId,
     required String idAcademia,
     int? paymentDueDay,
+    int gracePeriod = 3,
+    String? createdAtStr,
   }) async {
     if (paymentDueDay == null) return false;
-
-    final now = DateTime.now();
-
-    // Se hoje é ANTES ou IGUAL ao vencimento, está ok (Pendente)
-    if (now.day <= paymentDueDay) return false;
-
-    // Se passou do dia, verificamos se existe pagamento neste mês
-    final startOfMonth = DateTime(now.year, now.month, 1);
-    final endOfMonth = DateTime(now.year, now.month + 1, 0);
-
-    // Formatar datas como YYYY-MM-DD para garantir compatibilidade com o banco
-    final startStr = startOfMonth.toIso8601String().split('T')[0];
-    final endStr = endOfMonth.toIso8601String().split('T')[0];
+    if (createdAtStr == null) return false;
 
     try {
-      final response = await _client
+      final now = DateTime.now();
+      final createdAt = DateTime.parse(createdAtStr);
+
+      // 1. Quantos meses entre o cadastro e hoje?
+      int monthsRequired =
+          (now.year - createdAt.year) * 12 + (now.month - createdAt.month) + 1;
+
+      // 2. Quantos pagamentos de 'Mensalidade' este aluno já fez?
+      final paymentsResponse = await _client
           .from('financial_transactions')
           .select('id')
-          // .eq('id_academia', idAcademia) <-- REMOVIDO: Busca apenas pelo usuário para evitar erro de ID
           .eq('related_user_id', studentId)
           .eq('type', 'income')
-          .gte('transaction_date', startStr)
-          .lte('transaction_date', endStr)
-          .maybeSingle();
+          .eq('category', 'Mensalidade');
 
-      // Se encontrou transação (response != null), PAGOU -> Não está vencido (return false)
-      return response == null;
+      final paidCount = (paymentsResponse as List).length;
+
+      // Se já pagou tudo que deve até este mês (ou adiantou meses futuros)
+      if (paidCount >= monthsRequired) return false;
+
+      // Se deve meses anteriores ao atual -> BLOQUEIA IMEDIATAMENTE
+      // Ex: monthsRequired = 2, paidCount = 0. (Deve o mês 1 e o mês 2)
+      if (paidCount < monthsRequired - 1) return true;
+
+      // Se deve APENAS o mês atual (paidCount == monthsRequired - 1),
+      // verifica se já passou do dia de vencimento + carência
+      if (now.day > (paymentDueDay + gracePeriod)) return true;
+
+      return false; // Dentro do prazo
     } catch (e) {
-      print('Erro ao verificar status overdue: $e');
-      // Em caso de erro, permitir acesso (fail open) para evitar travar usuários
-      return false;
+      print('Erro ao verificar status overdue (Ledger): $e');
+      return false; // Fail Open
     }
   }
 
@@ -678,8 +685,9 @@ class FinancialService {
       } else {
         final dueDay =
             (student['payment_due'] ?? student['payment_due_day']) as int?;
+        final gracePeriod = (student['grace_period'] ?? 3) as int;
         if (dueDay != null) {
-          if (now.day > dueDay) {
+          if (now.day > (dueDay + gracePeriod)) {
             status = 'overdue';
           } else {
             status = 'pending';

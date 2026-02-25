@@ -7,7 +7,8 @@ class MultiSearchableSelection<T> extends StatefulWidget {
   final List<T> selectedItems;
   final List<T> items;
   final String Function(T) labelBuilder;
-  final String Function(T) idBuilder; // Necessário para comparar identidade
+  final String Function(T)? subLabelBuilder;
+  final String? Function(T)? photoUrlBuilder;
   final void Function(List<T>) onChanged;
   final String hintText;
   final bool isLoading;
@@ -18,9 +19,10 @@ class MultiSearchableSelection<T> extends StatefulWidget {
     required this.selectedItems,
     required this.items,
     required this.labelBuilder,
-    required this.idBuilder,
     required this.onChanged,
-    this.hintText = 'Selecione...',
+    this.subLabelBuilder,
+    this.photoUrlBuilder,
+    this.hintText = 'Selecionar alunos...',
     this.isLoading = false,
   });
 
@@ -33,17 +35,6 @@ class _MultiSearchableSelectionState<T>
     extends State<MultiSearchableSelection<T>> {
   @override
   Widget build(BuildContext context) {
-    String displayText = widget.hintText;
-    if (widget.selectedItems.isNotEmpty) {
-      if (widget.selectedItems.length == widget.items.length) {
-        displayText = 'Todos selecionados (${widget.items.length})';
-      } else if (widget.selectedItems.length == 1) {
-        displayText = widget.labelBuilder(widget.selectedItems.first);
-      } else {
-        displayText = '${widget.selectedItems.length} selecionados';
-      }
-    }
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -70,7 +61,9 @@ class _MultiSearchableSelectionState<T>
               children: [
                 Expanded(
                   child: Text(
-                    displayText,
+                    widget.selectedItems.isNotEmpty
+                        ? '${widget.selectedItems.length} selecionado(s)'
+                        : widget.hintText,
                     style: TextStyle(
                       color: widget.selectedItems.isNotEmpty
                           ? Colors.black87
@@ -106,13 +99,11 @@ class _MultiSearchableSelectionState<T>
       ),
       builder: (context) => _MultiSelectionSheet<T>(
         items: widget.items,
-        initialSelected: widget.selectedItems,
         labelBuilder: widget.labelBuilder,
-        idBuilder: widget.idBuilder,
-        onConfirm: (List<T> newSelection) {
-          widget.onChanged(newSelection);
-          Navigator.pop(context);
-        },
+        subLabelBuilder: widget.subLabelBuilder,
+        photoUrlBuilder: widget.photoUrlBuilder,
+        initialSelection: widget.selectedItems,
+        onChanged: widget.onChanged,
       ),
     );
   }
@@ -120,17 +111,19 @@ class _MultiSearchableSelectionState<T>
 
 class _MultiSelectionSheet<T> extends StatefulWidget {
   final List<T> items;
-  final List<T> initialSelected;
   final String Function(T) labelBuilder;
-  final String Function(T) idBuilder;
-  final ValueChanged<List<T>> onConfirm;
+  final String Function(T)? subLabelBuilder;
+  final String? Function(T)? photoUrlBuilder;
+  final List<T> initialSelection;
+  final ValueChanged<List<T>> onChanged;
 
   const _MultiSelectionSheet({
     required this.items,
-    required this.initialSelected,
     required this.labelBuilder,
-    required this.idBuilder,
-    required this.onConfirm,
+    this.subLabelBuilder,
+    this.photoUrlBuilder,
+    required this.initialSelection,
+    required this.onChanged,
   });
 
   @override
@@ -140,20 +133,20 @@ class _MultiSelectionSheet<T> extends StatefulWidget {
 
 class _MultiSelectionSheetState<T> extends State<_MultiSelectionSheet<T>> {
   late List<T> _filteredItems;
-  late Set<String> _selectedIds; // Usamos IDs para evitar problemas de hash
+  late List<T> _tempSelectedItems;
   final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _filteredItems = List.from(widget.items);
-    _selectedIds = widget.initialSelected.map(widget.idBuilder).toSet();
+    _filteredItems = widget.items;
+    _tempSelectedItems = List.from(widget.initialSelection);
   }
 
   void _filter(String query) {
     setState(() {
       if (query.isEmpty) {
-        _filteredItems = List.from(widget.items);
+        _filteredItems = widget.items;
       } else {
         _filteredItems = widget.items.where((item) {
           final label = widget.labelBuilder(item).toLowerCase();
@@ -163,42 +156,35 @@ class _MultiSelectionSheetState<T> extends State<_MultiSelectionSheet<T>> {
     });
   }
 
-  void _toggleItem(T item) {
-    final id = widget.idBuilder(item);
+  void _toggleSelection(T item) {
     setState(() {
-      if (_selectedIds.contains(id)) {
-        _selectedIds.remove(id);
+      if (_tempSelectedItems.contains(item)) {
+        _tempSelectedItems.remove(item);
       } else {
-        _selectedIds.add(id);
+        _tempSelectedItems.add(item);
       }
     });
+    widget.onChanged(_tempSelectedItems);
   }
 
-  void _toggleSelectAll() {
+  void _selectAll() {
     setState(() {
-      // Se todos os FILTRADOS estão selecionados, desseleciona eles
-      // Se algum não está, seleciona todos os FILTRADOS
-      final allFilteredIds = _filteredItems.map(widget.idBuilder).toSet();
-      final allSelected =
-          allFilteredIds.every((id) => _selectedIds.contains(id));
-
-      if (allSelected) {
-        _selectedIds.removeAll(allFilteredIds);
+      if (_tempSelectedItems.length == widget.items.length) {
+        _tempSelectedItems.clear();
       } else {
-        _selectedIds.addAll(allFilteredIds);
+        _tempSelectedItems = List.from(widget.items);
       }
     });
+    widget.onChanged(_tempSelectedItems);
   }
 
   @override
   Widget build(BuildContext context) {
-    // Verifica estado do "Selecionar Todos" (baseado no filtro atual)
-    final allFilteredIds = _filteredItems.map(widget.idBuilder).toSet();
-    final isAllSelected = allFilteredIds.isNotEmpty &&
-        allFilteredIds.every((id) => _selectedIds.contains(id));
+    final isAllSelected = _tempSelectedItems.length == widget.items.length &&
+        widget.items.isNotEmpty;
 
     return DraggableScrollableSheet(
-      initialChildSize: 0.8,
+      initialChildSize: 0.7,
       minChildSize: 0.5,
       maxChildSize: 0.95,
       expand: false,
@@ -215,32 +201,6 @@ class _MultiSelectionSheetState<T> extends State<_MultiSelectionSheet<T>> {
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-
-            // Header Row
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Selecionar Itens',
-                      style: GoogleFonts.cinzel(
-                          fontWeight: FontWeight.bold, fontSize: 18)),
-                  TextButton(
-                    onPressed: () {
-                      final selectedItems = widget.items
-                          .where((item) =>
-                              _selectedIds.contains(widget.idBuilder(item)))
-                          .toList();
-                      widget.onConfirm(selectedItems);
-                    },
-                    child: const Text('CONFIRMAR',
-                        style: TextStyle(fontWeight: FontWeight.bold)),
-                  ),
-                ],
-              ),
-            ),
-
-            const Divider(),
 
             // Search Bar
             Padding(
@@ -262,20 +222,19 @@ class _MultiSelectionSheetState<T> extends State<_MultiSelectionSheet<T>> {
               ),
             ),
 
-            // Select All Checkbox
-            if (_filteredItems.isNotEmpty)
-              ListTile(
-                leading: Checkbox(
-                  value: isAllSelected,
-                  activeColor: AppTheme.primaryRed,
-                  onChanged: (v) => _toggleSelectAll(),
-                ),
-                title: const Text('Selecionar Todos (Exibidos)',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                onTap: _toggleSelectAll,
+            // Selecionar Todos
+            CheckboxListTile(
+              title: Text(
+                'Selecionar Todos',
+                style: GoogleFonts.lato(fontWeight: FontWeight.bold),
               ),
+              value: isAllSelected,
+              onChanged: (_) => _selectAll(),
+              controlAffinity: ListTileControlAffinity.leading,
+              activeColor: AppTheme.primaryRed,
+            ),
 
-            const Divider(height: 1),
+            const Divider(),
 
             // List
             Expanded(
@@ -292,26 +251,94 @@ class _MultiSelectionSheetState<T> extends State<_MultiSelectionSheet<T>> {
                       itemBuilder: (context, index) {
                         final item = _filteredItems[index];
                         final label = widget.labelBuilder(item);
-                        final id = widget.idBuilder(item);
-                        final isSelected = _selectedIds.contains(id);
+                        final subLabel = widget.subLabelBuilder?.call(item);
+                        final photoUrl = widget.photoUrlBuilder?.call(item);
+                        final isSelected = _tempSelectedItems.contains(item);
 
-                        return ListTile(
-                          leading: Checkbox(
-                            value: isSelected,
-                            activeColor: AppTheme.primaryRed,
-                            onChanged: (v) => _toggleItem(item),
+                        return CheckboxListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 4),
+                          title: Row(
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: const BoxDecoration(
+                                  color: AppTheme.lightGrey,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: ClipOval(
+                                  child: photoUrl != null && photoUrl.isNotEmpty
+                                      ? Image.network(
+                                          photoUrl,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, e, s) =>
+                                              const Icon(Icons.person,
+                                                  color: Colors.grey),
+                                        )
+                                      : const Icon(Icons.person,
+                                          color: Colors.grey),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      label,
+                                      style: GoogleFonts.lato(
+                                        fontWeight: isSelected
+                                            ? FontWeight.bold
+                                            : FontWeight.w600,
+                                        color: isSelected
+                                            ? AppTheme.primaryRed
+                                            : AppTheme.primaryText,
+                                        fontSize: 15,
+                                      ),
+                                    ),
+                                    if (subLabel != null)
+                                      Text(
+                                        subLabel,
+                                        style: GoogleFonts.lato(
+                                          fontSize: 12,
+                                          color: AppTheme.secondaryText,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
-                          title: Text(
-                            label,
-                            style: TextStyle(
-                              color:
-                                  isSelected ? Colors.black : Colors.grey[800],
-                            ),
-                          ),
-                          onTap: () => _toggleItem(item),
+                          value: isSelected,
+                          onChanged: (_) => _toggleSelection(item),
+                          controlAffinity: ListTileControlAffinity.leading,
+                          activeColor: AppTheme.primaryRed,
+                          checkboxShape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(4)),
                         );
                       },
                     ),
+            ),
+
+            // Botão Confirmar (Opcional, mas ajuda no UX de modal)
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryRed,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: const Text('Confirmar Seleção',
+                      style: TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ),
             ),
           ],
         );

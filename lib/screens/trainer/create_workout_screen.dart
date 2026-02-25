@@ -4,9 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../services/workout_service.dart';
 import '../../services/workout_template_service.dart';
 import '../../config/app_theme.dart';
-import '../../widgets/searchable_selection.dart';
+import '../../widgets/multi_searchable_selection.dart';
 import 'create_workout_template_screen.dart';
-import 'workout_details_screen.dart';
 
 class CreateWorkoutScreen extends StatefulWidget {
   const CreateWorkoutScreen({super.key});
@@ -18,7 +17,7 @@ class CreateWorkoutScreen extends StatefulWidget {
 class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  Map<String, dynamic>? _selectedStudent;
+  List<Map<String, dynamic>> _selectedStudents = [];
   Map<String, dynamic>? _selectedTemplate;
 
   String? _selectedGoal;
@@ -148,9 +147,9 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
 
   Future<void> _saveWorkout() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedStudent == null) {
+    if (_selectedStudents.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Selecione um aluno')),
+        const SnackBar(content: Text('Selecione ao menos um aluno')),
       );
       return;
     }
@@ -163,6 +162,9 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
 
     setState(() => _isLoading = true);
 
+    int successCount = 0;
+    int failCount = 0;
+
     try {
       // 1. Obter modelo com seus dias
       final templateData = await WorkoutTemplateService.getTemplateById(
@@ -172,57 +174,55 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
         throw Exception("Não foi possível carregar o modelo de treino.");
       }
 
-      // 2. Criar Ficha no Banco
-      final result = await WorkoutService.createWorkout(
-        studentId: _selectedStudent!['id'],
-        name:
-            '${_selectedStudent!['nome'] ?? _selectedStudent!['name']} - ${templateData['name']}',
-        description: templateData['description'],
-        goal: _selectedGoal ?? templateData['goal'],
-        difficultyLevel: _selectedLevel ?? templateData['difficulty_level'],
-        startDate: _startDate,
-        endDate: _endDate,
-      );
+      for (var student in _selectedStudents) {
+        try {
+          // 2. Criar Ficha no Banco para cada aluno
+          final result = await WorkoutService.createWorkout(
+            studentId: student['id'],
+            name:
+                '${student['nome'] ?? student['name']} - ${templateData['name']}',
+            description: templateData['description'],
+            goal: _selectedGoal ?? templateData['goal'],
+            difficultyLevel: _selectedLevel ?? templateData['difficulty_level'],
+            startDate: _startDate,
+            endDate: _endDate,
+          );
 
-      if (!result['success']) {
-        throw Exception(result['message']);
-      }
+          if (result['success']) {
+            final workoutId = result['workout']['id'];
 
-      final workoutId = result['workout']['id'];
-
-      // 3. Clonar os Dias do Modelo se existirem
-      final List<dynamic> days = templateData['workout_template_days'] ?? [];
-      for (var dayConfig in days) {
-        await WorkoutService.addWorkoutDay(
-          workoutId: workoutId,
-          dayName: dayConfig['day_name'],
-          dayNumber: dayConfig['day_number'],
-          description: dayConfig['description'],
-        );
+            // 3. Clonar os Dias do Modelo se existirem
+            final List<dynamic> days =
+                templateData['workout_template_days'] ?? [];
+            for (var dayConfig in days) {
+              await WorkoutService.addWorkoutDay(
+                workoutId: workoutId,
+                dayName: dayConfig['day_name'],
+                dayNumber: dayConfig['day_number'],
+                description: dayConfig['description'],
+              );
+            }
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } catch (e) {
+          failCount++;
+          print('Erro ao atribuir para ${student['name']}: $e');
+        }
       }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Ficha de treino gerada e atribuída!'),
-            backgroundColor: trainerPrimary,
+            content: Text('Processo concluído! $successCount fichas geradas' +
+                (failCount > 0 ? ', $failCount falhas.' : '.')),
+            backgroundColor:
+                successCount > 0 ? trainerPrimary : AppTheme.accentRed,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
           ),
         );
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => WorkoutDetailsScreen(
-              workoutId: workoutId,
-              workoutName: _selectedStudent!['nome'] ??
-                  _selectedStudent!['name'] ??
-                  'Treino',
-            ),
-          ),
-        );
+        Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
@@ -294,18 +294,43 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                     ),
                     const SizedBox(height: 24),
 
-                    // Seleção de Aluno
-                    SearchableSelection<Map<String, dynamic>>(
-                      label: 'Selecione o Aluno',
-                      value: _selectedStudent,
+                    // Seleção de Alunos (Múltipla)
+                    MultiSearchableSelection<Map<String, dynamic>>(
+                      label: 'Alunos Selecionados',
+                      selectedItems: _selectedStudents,
                       items: _students,
                       labelBuilder: (student) => student['name'] ?? 'Sem nome',
-                      hintText: 'Buscar aluno...',
-                      onChanged: (value) {
-                        setState(() => _selectedStudent = value);
+                      subLabelBuilder: (student) => student['email'] ?? '',
+                      photoUrlBuilder: (student) => student['photo_url'],
+                      onChanged: (values) {
+                        setState(() {
+                          _selectedStudents = values;
+                        });
                       },
                       isLoading: _isLoadingStudents,
                     ),
+
+                    if (_selectedStudents.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        children: _selectedStudents.map((student) {
+                          return Chip(
+                            label: Text(
+                              student['name'] ?? 'Aluno',
+                              style: const TextStyle(
+                                  fontSize: 12, color: Colors.white),
+                            ),
+                            backgroundColor: trainerPrimary,
+                            deleteIcon: const Icon(Icons.close,
+                                size: 16, color: Colors.white),
+                            onDeleted: () {
+                              setState(() => _selectedStudents.remove(student));
+                            },
+                          );
+                        }).toList(),
+                      ),
+                    ],
 
                     const SizedBox(height: 16),
 

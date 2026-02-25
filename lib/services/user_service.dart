@@ -81,6 +81,7 @@ class UserService {
     required UserRole role,
     String? birthDate,
     int? paymentDueDay, // Dia de vencimento (1-31, apenas para alunos)
+    int? gracePeriod, // Dias de carência (apenas para alunos)
     bool isPaidCurrentMonth = false, // Se já pagou o mês atual
     double? initialPaymentAmount, // Valor do pagamento inicial
   }) async {
@@ -110,6 +111,7 @@ class UserService {
           'id_academia': idAcademia,
           'created_by_admin_id': createdByAdminId,
           if (paymentDueDay != null) 'paymentDueDay': paymentDueDay,
+          if (gracePeriod != null) 'gracePeriod': gracePeriod,
           if (isPaidCurrentMonth) 'isPaidCurrentMonth': true,
         }
       });
@@ -176,6 +178,10 @@ class UserService {
     // Novo status master do banco
     if (user.containsKey('status_financeiro')) {
       normalized['status_financeiro'] = user['status_financeiro'];
+    }
+    // Carência de pagamento
+    if (user.containsKey('grace_period')) {
+      normalized['grace_period'] = user['grace_period'];
     }
     return normalized;
   }
@@ -332,6 +338,7 @@ class UserService {
     UserRole?
         role, // Role vindo para saber qual tabela usar (ou opcional se buscarmos antes)
     int? paymentDueDay, // Novo parâmetro para dia de vencimento
+    int? gracePeriod, // Novo parâmetro para dia de carência
   }) async {
     try {
       // Se o role não foi passado, precisamos descobrir quem é o usuário
@@ -371,8 +378,9 @@ class UserService {
         updates['telefone'] = phone; // Agora é 'telefone' em todas
 
       // Se for aluno e tiver dia de vencimento, atualiza
-      if (tableName == 'users_alunos' && paymentDueDay != null) {
-        updates['payment_due'] = paymentDueDay;
+      if (tableName == 'users_alunos') {
+        if (paymentDueDay != null) updates['payment_due'] = paymentDueDay;
+        if (gracePeriod != null) updates['grace_period'] = gracePeriod;
       }
 
       final response = await _client

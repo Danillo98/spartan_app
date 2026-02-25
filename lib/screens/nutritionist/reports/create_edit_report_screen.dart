@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-// ignore: avoid_web_libraries_in_flutter
-import 'package:universal_html/html.dart' as html;
-import 'dart:convert';
+import '../../../services/print_service.dart';
 import '../../../services/physical_assessment_service.dart';
 import '../../../services/supabase_service.dart';
 import '../../../services/user_service.dart';
@@ -429,32 +427,13 @@ class _CreateEditReportScreenState extends State<CreateEditReportScreen> {
         'student_birth_date': widget.reportToEdit!['student_birth_date'],
       };
 
-      final jsonData = jsonEncode(printData);
-      final blob = html.Blob([jsonData], 'application/json');
-      final url = html.Url.createObjectUrlFromBlob(blob);
-
-      String baseUrl =
-          'https://spartan-app.vercel.app'; // Fallback to production URL
-      try {
-        final origin = html.window.location.origin;
-        if (origin != null &&
-            origin.isNotEmpty &&
-            !origin.contains('file://')) {
-          baseUrl = origin;
-        }
-      } catch (_) {}
-
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final printUrl =
-          '$baseUrl/print-evolution.html?v=$timestamp&dataUrl=$url';
+      await PrintService.printReport(
+        data: printData,
+        templateName: 'print-evolution.html',
+        localStorageKey: 'spartan_evolution_print',
+      );
 
       if (mounted) setState(() => _isPrinting = false);
-
-      html.window.open(printUrl, '_blank');
-
-      Future.delayed(const Duration(seconds: 20), () {
-        html.Url.revokeObjectUrl(url);
-      });
     } catch (e) {
       if (mounted) {
         setState(() => _isPrinting = false);

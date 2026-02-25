@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
@@ -60,6 +61,12 @@ class _AdminTurnstilesScreenState extends State<AdminTurnstilesScreen> {
   List<String> _savedIps = [];
   Map<String, bool> _ipStatuses = {};
   Timer? _statusTimer;
+  Timer? _logPollingTimer;
+  int _lastLogId = 0;
+
+  // Terminal de Log
+  final List<Map<String, dynamic>> _accessLogs = [];
+  final ScrollController _logScrollController = ScrollController();
 
   final String _downloadUrl =
       '${SupabaseConfig.supabaseUrl}/storage/v1/object/public/downloads/Spartan_Desktop.zip';
@@ -73,6 +80,10 @@ class _AdminTurnstilesScreenState extends State<AdminTurnstilesScreen> {
       // Checar status a cada 30 segundos
       _statusTimer = Timer.periodic(
           const Duration(seconds: 30), (_) => _checkAllConnections());
+
+      // Polling de logs a cada 5 segundos
+      _logPollingTimer =
+          Timer.periodic(const Duration(seconds: 5), (_) => _pollAccessLogs());
     }
   }
 
@@ -81,6 +92,7 @@ class _AdminTurnstilesScreenState extends State<AdminTurnstilesScreen> {
     _ipController.dispose();
     _freeAccessNameController.dispose();
     _statusTimer?.cancel();
+    _logPollingTimer?.cancel();
     super.dispose();
   }
 
@@ -178,7 +190,94 @@ class _AdminTurnstilesScreenState extends State<AdminTurnstilesScreen> {
         _ipStatuses[ip] = success;
       });
 
-      if (success) _saveIps();
+      if (success) {
+        _saveIps();
+        _addLog(
+            'Catraca $ip conectada com sucesso!', 'info', Icons.check_circle);
+      } else {
+        _addLog('Falha ao conectar na catraca $ip', 'error', Icons.error);
+      }
+    }
+  }
+
+  void _addLog(String message, String type, IconData icon,
+      {int? logId, String? photoUrl}) {
+    if (!mounted) return;
+
+    // Evita duplicatas se vier via Push e Polling
+    if (logId != null && logId > 0) {
+      bool exists = _accessLogs.any((log) => log['log_id'] == logId);
+      if (exists) return;
+    }
+
+    setState(() {
+      _accessLogs.insert(0, {
+        'message': message,
+        'type': type,
+        'icon': icon,
+        'time': DateFormat('HH:mm:ss').format(DateTime.now()),
+        'log_id': logId,
+        'photo_url': photoUrl,
+      });
+      // Limita log para não pesar memória
+      if (_accessLogs.length > 100) _accessLogs.removeLast();
+    });
+  }
+
+  Future<void> _pollAccessLogs() async {
+    if (!mounted || _savedIps.isEmpty) return;
+
+    for (String ip in _savedIps) {
+      if (_ipStatuses[ip] != true) continue;
+
+      try {
+        final logs = await ControlIdService.getAccessLogs(ip);
+        if (logs.isEmpty) continue;
+
+        // Inverte para processar do mais antigo para o mais novo
+        final reversedLogs = logs.reversed.toList();
+
+        for (var log in reversedLogs) {
+          final int id = log['id'] ?? 0;
+          if (id <= _lastLogId) continue;
+
+          final int catracaId = log['user_id'] ?? 0;
+          final int event = log['event'] ?? 0; // 7 = Sucesso, etc
+
+          // Localiza aluno
+          final student = _students.firstWhere(
+            (s) => ControlIdService.generateCatracaId(s['id']) == catracaId,
+            orElse: () => {},
+          );
+
+          final name = student['name'] ?? 'ID: $catracaId';
+          final status = student['status_financeiro'] ?? 'unknown';
+
+          if (event == 7 || event == 8) {
+            // 7 e 8 costumam ser entrada/saída autorizada
+            String action =
+                event == 7 ? 'entrou na academia' : 'saiu da academia';
+            String logType = event == 7 ? 'success' : 'exit';
+
+            if (status == 'paid' || status == 'pending' || status == 'pago') {
+              _addLog('Aluno: $name $action', logType,
+                  event == 7 ? Icons.login_rounded : Icons.logout_rounded,
+                  logId: id, photoUrl: student['photo_url']);
+            } else {
+              _addLog(
+                  'BLOQUEIO: Aluno $name Inadimplente', 'error', Icons.block,
+                  logId: id, photoUrl: student['photo_url']);
+            }
+          } else {
+            _addLog('Evento $event: $name', 'info', Icons.info_outline,
+                logId: id, photoUrl: student['photo_url']);
+          }
+
+          if (id > _lastLogId) _lastLogId = id;
+        }
+      } catch (e) {
+        print('Erro no polling de logs: $e');
+      }
     }
   }
 
@@ -235,6 +334,10 @@ class _AdminTurnstilesScreenState extends State<AdminTurnstilesScreen> {
             ? 'Câmera ativada para "$name"! Por favor, posicione o rosto.'
             : 'Erro: ${result['message']}';
         _statusColor = result['success'] ? Colors.green : Colors.red;
+
+        if (result['success']) {
+          _addLog('Solicitado cadastro facial: $name', 'info', Icons.face);
+        }
       });
     } catch (e) {
       setState(() {
@@ -256,7 +359,13 @@ class _AdminTurnstilesScreenState extends State<AdminTurnstilesScreen> {
     try {
       // Sincroniza em todas as catracas salvas
       for (String ip in _savedIps) {
-        await ControlIdService.syncAllStudents(ip);
+        final res = await ControlIdService.syncAllStudents(ip);
+        if (res['success']) {
+          _addLog('Sincronização concluída em $ip', 'success', Icons.sync);
+        } else {
+          _addLog('Erro ao sincronizar em $ip: ${res['message']}', 'error',
+              Icons.warning);
+        }
       }
 
       setState(() {
@@ -825,6 +934,7 @@ class _AdminTurnstilesScreenState extends State<AdminTurnstilesScreen> {
                                   : null,
                               items: _students,
                               labelBuilder: (s) => s['name'] ?? 'Sem Nome',
+                              photoUrlBuilder: (s) => s['photo_url'],
                               hintText: 'Pesquisar Aluno pelo nome...',
                               onChanged: (val) {
                                 if (val != null) {
@@ -926,6 +1036,192 @@ class _AdminTurnstilesScreenState extends State<AdminTurnstilesScreen> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 24),
+
+                  // TERMINAL DE LOG (PEDIDO PELO USUÁRIO)
+                  Text('Histórico da Catraca - Hoje',
+                      style: GoogleFonts.lato(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.primaryText)),
+                  const SizedBox(height: 12),
+                  Container(
+                    height: 300,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: AppTheme.borderGrey.withOpacity(0.3)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.03),
+                          blurRadius: 20,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Header do Terminal
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: AppTheme.lightGrey.withOpacity(0.5),
+                            border: Border(
+                                bottom: BorderSide(
+                                    color:
+                                        AppTheme.borderGrey.withOpacity(0.3))),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: const BoxDecoration(
+                                    color: Colors.red, shape: BoxShape.circle),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: const BoxDecoration(
+                                    color: Colors.amber,
+                                    shape: BoxShape.circle),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: const BoxDecoration(
+                                    color: Colors.green,
+                                    shape: BoxShape.circle),
+                              ),
+                              const Spacer(),
+                              Text(
+                                'Terminal de Acessos Spartan',
+                                style: GoogleFonts.lato(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.secondaryText,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: _accessLogs.isEmpty
+                              ? Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.sensors,
+                                          size: 32,
+                                          color: AppTheme.secondaryText
+                                              .withOpacity(0.3)),
+                                      const SizedBox(height: 12),
+                                      const Text(
+                                        'Aguardando eventos da catraca...',
+                                        style: TextStyle(
+                                          color: AppTheme.secondaryText,
+                                          fontStyle: FontStyle.italic,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : ListView.builder(
+                                  controller: _logScrollController,
+                                  padding: const EdgeInsets.all(16),
+                                  itemCount: _accessLogs.length,
+                                  itemBuilder: (context, index) {
+                                    final log = _accessLogs[index];
+                                    Color logColor = const Color(0xFF1A1A1A);
+                                    FontWeight weight = FontWeight.w500;
+                                    IconData iconData =
+                                        log['icon'] ?? Icons.chevron_right;
+
+                                    if (log['type'] == 'error' ||
+                                        log['type'] == 'exit') {
+                                      logColor = AppTheme.primaryRed;
+                                      weight = FontWeight.bold;
+                                    } else if (log['type'] == 'success') {
+                                      logColor = const Color(0xFF2E7D32);
+                                      weight = FontWeight.bold;
+                                    }
+
+                                    return Padding(
+                                      padding:
+                                          const EdgeInsets.only(bottom: 12),
+                                      child: Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            '[${log['time']}]',
+                                            style: GoogleFonts.sourceCodePro(
+                                              color: AppTheme.secondaryText,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Icon(iconData,
+                                              size: 16,
+                                              color: logColor.withOpacity(0.7)),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  log['message'] ?? '',
+                                                  style: GoogleFonts.lato(
+                                                    color: logColor,
+                                                    fontSize: 14,
+                                                    fontWeight: weight,
+                                                  ),
+                                                ),
+                                                if (log['photo_url'] !=
+                                                    null) ...[
+                                                  const SizedBox(height: 8),
+                                                  Container(
+                                                    width: 80,
+                                                    height:
+                                                        100, // Proporção 3x4
+                                                    decoration: BoxDecoration(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              8),
+                                                      border: Border.all(
+                                                          color: logColor
+                                                              .withOpacity(
+                                                                  0.3)),
+                                                      image: DecorationImage(
+                                                        image: NetworkImage(
+                                                            log['photo_url']),
+                                                        fit: BoxFit.cover,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 40),
                 ],
               ),
             )
