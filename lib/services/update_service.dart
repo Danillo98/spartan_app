@@ -23,6 +23,12 @@ class UpdateService {
       final request = http.Request('GET', Uri.parse(_zipUrl));
       final response = await client.send(request);
 
+      if (response.statusCode != 200) {
+        client.close();
+        throw Exception(
+            'Erro de Download (${response.statusCode}): O arquivo não foi encontrado no bucket "downloads". Verifique o nome e se o bucket é PUBLIC na Supabase.');
+      }
+
       final contentLength = response.contentLength ?? 0;
       int downloadedBytes = 0;
 
