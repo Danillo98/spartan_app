@@ -173,7 +173,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
             (status == 'active' || status == 'trialing');
         bool planChanged = status == 'active' &&
             (_oldPlan.toLowerCase() !=
-                subStatus['plan']?.toString().toLowerCase());
+                subStatus['plano']?.toString().toLowerCase());
         bool dateExtended = false;
         if (expDate != null && _oldExpiresAt != null) {
           // Se a nova data é pelo menos 20 dias após a antiga (margem de erro para fuso)

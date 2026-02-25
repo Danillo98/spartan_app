@@ -11,6 +11,7 @@ import '../../services/control_id_service.dart';
 import '../../services/user_service.dart';
 import '../../models/user_role.dart';
 import 'support_screen.dart';
+import '../../widgets/searchable_selection.dart';
 
 class AdminTurnstilesScreen extends StatefulWidget {
   const AdminTurnstilesScreen({super.key});
@@ -815,36 +816,23 @@ class _AdminTurnstilesScreenState extends State<AdminTurnstilesScreen> {
                           ),
                           const SizedBox(height: 24),
                           if (!_isFreeAccess)
-                            Container(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 16),
-                                decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
-                                        color: Colors.grey.shade300)),
-                                child: DropdownButtonHideUnderline(
-                                  child: DropdownButton<String>(
-                                    isExpanded: true,
-                                    hint: const Row(children: [
-                                      Icon(Icons.search,
-                                          color: Colors.grey, size: 20),
-                                      SizedBox(width: 8),
-                                      Text('Pesquisar Aluno pelo nome...'),
-                                    ]),
-                                    value: _selectedStudentId,
-                                    items: _students.map((student) {
-                                      return DropdownMenuItem<String>(
-                                        value: student['id'],
-                                        child: Text(student['name'] ??
-                                            student['nome'] ??
-                                            'Sem Nome'),
-                                      );
-                                    }).toList(),
-                                    onChanged: (val) => setState(
-                                        () => _selectedStudentId = val),
-                                  ),
-                                ))
+                            SearchableSelection<Map<String, dynamic>>(
+                              label: 'Selecione o Aluno',
+                              value: _selectedStudentId != null
+                                  ? _students.firstWhere(
+                                      (s) => s['id'] == _selectedStudentId,
+                                      orElse: () => {})
+                                  : null,
+                              items: _students,
+                              labelBuilder: (s) => s['name'] ?? 'Sem Nome',
+                              hintText: 'Pesquisar Aluno pelo nome...',
+                              onChanged: (val) {
+                                if (val != null) {
+                                  setState(
+                                      () => _selectedStudentId = val['id']);
+                                }
+                              },
+                            )
                           else
                             TextField(
                               controller: _freeAccessNameController,

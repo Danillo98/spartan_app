@@ -8,6 +8,8 @@ import '../../services/user_service.dart';
 import '../../config/app_theme.dart';
 import '../../widgets/subscription_check.dart';
 import 'subscription_screen.dart';
+import '../../services/control_id_service.dart'; // Catraca
+import 'package:shared_preferences/shared_preferences.dart'; // IP Salvo
 
 class CreateUserScreen extends StatefulWidget {
   const CreateUserScreen({super.key});
@@ -142,7 +144,16 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
             behavior: SnackBarBehavior.floating,
           ),
         );
-        Navigator.pop(context, true);
+
+        // EXTRA: Fluxo de Registro Facial na Catraca (Apenas Desktop)
+        if (result['user_id'] != null) {
+          await _showFaceRegistrationDialog(
+            result['user_id'],
+            _nameController.text,
+          );
+        }
+
+        if (mounted) Navigator.pop(context, true);
       } else {
         // Fallback: Se o backend retornar erro de limite (segurança dupla)
         final message = result['message']?.toString() ?? '';
@@ -538,6 +549,153 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _showFaceRegistrationDialog(String uuid, String name) async {
+    final prefs = await SharedPreferences.getInstance();
+    final ip = prefs.getString('control_id_ip') ?? '';
+
+    if (ip.isEmpty) return; // Catraca não configurada
+
+    if (!mounted) return;
+
+    final bool? wantRegister = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Registro Facial Control iD',
+          style: GoogleFonts.cinzel(fontWeight: FontWeight.bold),
+          textAlign: TextAlign.center,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.face_retouching_natural_rounded,
+                size: 64, color: AppTheme.primaryGold),
+            const SizedBox(height: 16),
+            Text(
+              'Deseja registrar o rosto de $name?',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.lato(fontSize: 16),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('AGORA NÃO',
+                style: TextStyle(color: AppTheme.secondaryText)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1A1A1A),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('SIM, REGISTRAR'),
+          ),
+        ],
+      ),
+    );
+
+    if (wantRegister == true && mounted) {
+      await _startFaceRegistration(uuid, ip);
+    }
+  }
+
+  Future<void> _startFaceRegistration(String uuid, String ip) async {
+    // 1. Abre popup de instrução
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          backgroundColor: Colors.white,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 16),
+              const SizedBox(
+                width: 60,
+                height: 60,
+                child: CircularProgressIndicator(
+                  color: AppTheme.primaryGold,
+                  strokeWidth: 6,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Aguardando Catraca...',
+                style: GoogleFonts.cinzel(
+                    fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Peça para o aluno se aproximar e olhar para a câmera da catraca por 5 segundos.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.lato(color: AppTheme.secondaryText),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'OK',
+                style: TextStyle(
+                    color: AppTheme.secondaryText, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final catracaId = ControlIdService.generateCatracaId(uuid);
+      final result = await ControlIdService.enrollFaceRemote(
+        ip: ip,
+        id: catracaId,
+      );
+
+      // Fecha a popup de espera (A API da controlid bloqueia até rolar a foto ou dar timeout de aprox 20-30s)
+      if (mounted) Navigator.pop(context);
+
+      if (mounted) {
+        if (result['success'] == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('A câmera da catraca está aguardando um rosto!'),
+              backgroundColor: AppTheme.success,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Falha na captura: ${result['message']}'),
+              backgroundColor: AppTheme.accentRed,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro de conexão com a catraca: $e'),
+            backgroundColor: AppTheme.accentRed,
+          ),
+        );
+      }
+    }
   }
 
   String _getRoleName(UserRole role) {

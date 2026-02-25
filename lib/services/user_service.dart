@@ -145,6 +145,8 @@ class UserService {
 
       return {
         'success': true,
+        'user_id':
+            response['user_id'], // Essencial para o popup facial no desktop
         'message': 'Usuário cadastrado com sucesso! Acesso liberado.',
         'requiresVerification': false,
       };
