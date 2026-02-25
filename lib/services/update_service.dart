@@ -64,7 +64,8 @@ timeout /t 3 /nobreak > nul
 
 echo [2/4] Extraindo novos arquivos...
 if exist "$tempDir\\Spartan_Extraction" rd /s /q "$tempDir\\Spartan_Extraction"
-powershell -Command "Expand-Archive -Path '$zipPath' -DestinationPath '$tempDir\\Spartan_Extraction' -Force"
+mkdir "$tempDir\\Spartan_Extraction"
+tar -xf "$zipPath" -C "$tempDir\\Spartan_Extraction"
 
 echo [3/4] Substituindo arquivos (Cirurgico)...
 if not exist "$tempDir\\Spartan_Extraction\\Spartan_Desktop" (

@@ -372,15 +372,28 @@ $userMessage
                               ),
                             ),
                             const SizedBox(height: 16),
-                            Text(
-                              'Fico à disposição através do meu WhatsApp caso precise de sistemas para outros tipos de negócios. Basta me chamar, e faremos seu negócio decolar! 😉',
-                              textAlign: TextAlign.left,
-                              style: GoogleFonts.lato(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                fontStyle: FontStyle.italic,
-                                color: Colors.black,
+                            Text.rich(
+                              TextSpan(
+                                children: [
+                                  TextSpan(
+                                    text:
+                                        'Fico à disposição através do meu WhatsApp caso precise de sistemas para outros tipos de negócios. Basta me chamar, e faremos seu negócio decolar! ',
+                                    style: GoogleFonts.lato(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      fontStyle: FontStyle.italic,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                  const TextSpan(
+                                    text: '😉',
+                                    style: TextStyle(
+                                      fontStyle: FontStyle.normal,
+                                    ),
+                                  ),
+                                ],
                               ),
+                              textAlign: TextAlign.left,
                             ),
                           ],
                         ),
