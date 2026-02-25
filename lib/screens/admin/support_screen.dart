@@ -310,6 +310,75 @@ $userMessage
 
                       const SizedBox(height: 32),
 
+                      // SEÇÃO: SOBRE O DESENVOLVEDOR (Sobre Mim)
+                      Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: const Color(
+                              0xFF1D1D1F), // Dark premium background
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 10,
+                              offset: const Offset(0, 5),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          children: [
+                            const CircleAvatar(
+                              radius: 30,
+                              backgroundColor: AppTheme.primaryGold,
+                              child: Icon(Icons.person,
+                                  color: Colors.white, size: 35),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Sobre Mim',
+                              style: GoogleFonts.cinzel(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.primaryGold,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Danillo Neto',
+                              style: GoogleFonts.lato(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Sou formado em Sistemas de Informação (TI) e trabalho desenvolvendo sistemas personalizados que solucionam problemas reais de empresas dos mais variados ramos. Minha missão é transformar processos complexos em ferramentas simples e eficientes.',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.lato(
+                                fontSize: 13,
+                                color: Colors.grey[400],
+                                height: 1.6,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            const Divider(color: Colors.white24),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Fico à disposição através do meu WhatsApp para a criação de sistemas para outros tipos de negócios também.',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.lato(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppTheme.primaryGold.withOpacity(0.9),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 48),
+
                       // Botões Legais (Agora no final)
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,

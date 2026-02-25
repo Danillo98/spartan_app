@@ -35,19 +35,27 @@ serve(async (req) => {
         return new Response(`Webhook Error: ${err.message}`, { status: 400 })
     }
 
-    // 2. Processar Evento "Checkout Completed"
-    if (event.type === 'checkout.session.completed') {
+    // 2. Processar Eventos de Sessão de Checkout
+    if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
         const session = event.data.object
         const metadata = session.metadata
 
-        console.log(`💰 Pagamento Confirmado! User: ${metadata.user_id_auth}, Email: ${session.customer_details?.email}`)
+        // REGRA DE OURO: Só liberar se o pagamento estiver CONFIRMADO ('paid')
+        if (session.payment_status !== 'paid') {
+            console.log(`⏳ Pagamento pendente para o usuário ${metadata.user_id_auth} (Status: ${session.payment_status}). Aguardando confirmação real.`);
+            return new Response(JSON.stringify({ received: true, status: 'pending' }), {
+                headers: { 'Content-Type': 'application/json' },
+            })
+        }
+
+        console.log(`💰 Pagamento CONFIRMADO via ${event.type}! User: ${metadata.user_id_auth}, Email: ${session.customer_details?.email}`)
 
         // 3. Inicializar Supabase Admin (Service Role)
         const supabaseUrl = Deno.env.get('SUPABASE_URL')!
         const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
         const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
 
-        // 3.B Se houver email real para atualizar (Fluxo de Email Tardio)
+        // 3.B Se houver email real para atualizar
         if (metadata.real_email_to_update) {
             console.log(`📧 Processando email para usuário ${metadata.user_id_auth}`);
             try {
@@ -55,15 +63,10 @@ serve(async (req) => {
                     metadata.user_id_auth,
                     {
                         email: metadata.real_email_to_update,
-                        email_confirm: true, // Confirma automaticamente
+                        email_confirm: true,
                     }
                 );
-
-                if (updateError) {
-                    console.error('⚠️ Falha ao atualizar email (pode já estar em uso):', updateError.message);
-                } else {
-                    console.log('✅ Email atualizado com sucesso para:', metadata.real_email_to_update);
-                }
+                if (updateError) console.error('⚠️ Falha ao atualizar email:', updateError.message);
             } catch (detailsError) {
                 console.error('⚠️ Erro ao atualizar email:', detailsError);
             }
@@ -71,21 +74,13 @@ serve(async (req) => {
 
         // 4. Executar Lógica de Criação/Atualização da Academia (Upsert com Smart Merge)
         try {
-            console.log('Iniciando operação de banco para User ID:', metadata.user_id_auth);
-
-            // A. Buscar dados existentes e dados pendentes para EVITAR SOBRESCRITA COM '00'
             const [{ data: existingUser }, { data: pendingData }] = await Promise.all([
                 supabaseAdmin.from('users_adm').select('*').eq('id', metadata.user_id_auth).maybeSingle(),
                 supabaseAdmin.from('pending_registrations').select('*').eq('id', metadata.user_id_auth).maybeSingle()
             ]);
 
-            console.log('Dados recuperados - Existente:', !!existingUser, 'Pendente:', !!pendingData);
-
-            // Helper para decidir qual valor usar
-            // Prioridade: 1. Metadata Stripe, 2. Dados de Registro Pendente, 3. Dados do Banco, 4. Default
             const getField = (metaValue: any, pendingValue: any, dbValue: any, defaultValue: any) => {
                 const isValid = (val: any) => val && val !== '' && val !== '00' && val !== 'undefined' && val !== 'null' && val !== null;
-
                 if (isValid(metaValue)) return metaValue;
                 if (isValid(pendingValue)) return pendingValue;
                 if (isValid(dbValue)) return dbValue;
@@ -97,27 +92,20 @@ serve(async (req) => {
             const telefoneFinal = getField(metadata.telefone, pendingData?.phone, existingUser?.telefone, '00');
             const cpfFinal = getField(metadata.cpf_responsavel, pendingData?.cpf, existingUser?.cpf, '00');
             const academiaFinal = getField(metadata.academia, pendingData?.gym_name, existingUser?.academia, 'Academia');
-            // FIX: Adicionando recuperação do CNPJ
             const cnpjFinal = getField(metadata.cnpj_academia, pendingData?.gym_cnpj || pendingData?.cnpj, existingUser?.cnpj_academia, '00');
             const enderecoFinal = getField(metadata.endereco, pendingData?.address_street, existingUser?.endereco, 'Endereço');
             const planoFinal = getField(metadata.plano_selecionado, null, existingUser?.plano_mensal, 'Prata');
             const stripeCustomerFinal = session.customer || existingUser?.stripe_customer_id;
 
-            // SISTEMA DE ASSINATURA HÍBRIDO - Cálculo de Datas
             const now = new Date();
             const assinaturaIniciada = now.toISOString();
 
-            const expiracaoDate = new Date(now);
-            expiracaoDate.setDate(expiracaoDate.getDate() + 30);
+            const expiracaoDate = new Date(now); expiracaoDate.setDate(expiracaoDate.getDate() + 30);
             const assinaturaExpirada = expiracaoDate.toISOString();
 
-            const delecaoDate = new Date(now);
-            delecaoDate.setDate(delecaoDate.getDate() + 91);
+            const delecaoDate = new Date(now); delecaoDate.setDate(delecaoDate.getDate() + 91);
             const assinaturaDeletada = delecaoDate.toISOString();
 
-            console.log(`📅 Assinatura (Renovação/Criação): Início=${assinaturaIniciada}, Expira=${assinaturaExpirada}`);
-
-            // B. Payload Definitivo (Merge Inteligente)
             const dbPayload = {
                 id: metadata.user_id_auth,
                 nome: nomeFinal,
@@ -125,13 +113,12 @@ serve(async (req) => {
                 telefone: telefoneFinal,
                 cpf: cpfFinal,
                 academia: academiaFinal,
-                cnpj_academia: cnpjFinal, // FIX: Inserindo CNPJ correto
+                cnpj_academia: cnpjFinal,
                 endereco: enderecoFinal,
                 plano_mensal: planoFinal,
                 email_verified: true,
                 is_blocked: false,
                 updated_at: new Date().toISOString(),
-                // NOVOS CAMPOS DE ASSINATURA (Sempre atualiza datas no pagamento)
                 assinatura_status: 'active',
                 assinatura_iniciada: assinaturaIniciada,
                 assinatura_expirada: assinaturaExpirada,
@@ -139,26 +126,12 @@ serve(async (req) => {
                 stripe_customer_id: stripeCustomerFinal,
             };
 
-            console.log('Dados a inserir (SMART MERGE v4 - No CNPJ):', JSON.stringify(dbPayload));
+            let { error: adminError } = await supabaseAdmin.from('users_adm').upsert(dbPayload);
+            if (adminError) throw adminError;
 
-            let { data: adminUser, error: adminError } = await supabaseAdmin
-                .from('users_adm')
-                .upsert(dbPayload)
-                .select()
-                .single();
-
-            if (adminError) {
-                console.error("ERRO POSTRGRES NO UPSERT:", adminError);
-                throw adminError;
-            }
-
-            console.log('✅ SUCESSO! Usuário salvo/atualizado em users_adm:', adminUser?.id);
-
-            // C. Limpeza de Temporários
-            console.log(`🧹 Limpando dados temporários...`);
+            // Limpeza
             await supabaseAdmin.from('pending_registrations').delete().eq('id', metadata.user_id_auth);
             await supabaseAdmin.from('email_verification_codes').delete().eq('user_id', metadata.user_id_auth);
-            // ADD: Remover da tabela de cancelados se houver
             await supabaseAdmin.from('users_canceled').delete().eq('user_id', metadata.user_id_auth);
 
         } catch (dbError) {
