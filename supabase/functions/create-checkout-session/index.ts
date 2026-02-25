@@ -1,10 +1,10 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import Stripe from 'https://esm.sh/stripe@12.0.0?target=deno'
 
-console.log("Create Checkout Session Function Initialized - v2.2.9 DEPLOY")
+console.log("Create Checkout Session Function Initialized - v2.3.3 DEPLOY")
 
 serve(async (req) => {
-  // 1. CORS Headers (Essencial para o Flutter conseguir chamar)
+  // 1. CORS Headers
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -17,7 +17,6 @@ serve(async (req) => {
 
   try {
     // 3. Setup Stripe
-    // A chave vem das Secrets que você configurou no Painel
     const STRIPE_SECRET_KEY = Deno.env.get('STRIPE_SECRET_KEY')
     if (!STRIPE_SECRET_KEY) {
       throw new Error('STRIPE_SECRET_KEY não encontrada nas variáveis de ambiente.')
@@ -29,54 +28,49 @@ serve(async (req) => {
     })
 
     // 4. Ler dados enviados pelo App
-    // origin: URL base de quem chamou (ex: http://localhost:5500 ou https://meuapp.com)
     const { priceId, userId, userEmail, userMetadata, origin } = await req.json()
 
     if (!priceId || !userId) {
       throw new Error('Parâmetros obrigatórios: priceId e userId.')
     }
 
-    // Define success URL dinamicamente ou fallback
     const baseUrl = origin || 'https://spartanapp.com.br';
     const successUrl = `${baseUrl}/success_payment.html`;
-    const cancelUrl = `${baseUrl}/`; // Volta pra home se cancelar
+    const cancelUrl = `${baseUrl}/`;
 
     console.log(`Gerando checkout para User: ${userId}, Plano: ${priceId}, Origin: ${baseUrl}`)
 
     // 5. Criar Sessão no Stripe
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'], // Revertido para 'card' para restaurar funcionamento. Ative PIX no dashboard do Stripe primeiro.
-      allow_promotion_codes: true,    // Ativa o campo de cupom de desconto no Checkout
+      // card e boleto habilitados. pix removido até aparecer no painel.
+      payment_method_types: ['card', 'boleto'],
+      allow_promotion_codes: true,
       line_items: [
         {
           price: priceId,
           quantity: 1,
         },
       ],
-      mode: 'subscription', // Assinatura recorrente
+      mode: 'subscription',
 
-      // URLs de retorno para o usuário
-      success_url: successUrl, // Página de "Obrigado"
-      cancel_url: cancelUrl,   // Página de "Cancelou"
+      success_url: successUrl,
+      cancel_url: cancelUrl,
 
-      customer_email: userEmail, // Preenche o email automaticamente no checkout
+      customer_email: userEmail,
 
-      // 6. METADADOS CRUCIAIS
-      // Aqui "escondemos" os dados do cadastro para recuperar no Webhook depois
       metadata: {
-        user_id_auth: userId,       // ID do Auth para vincular
-        ...userMetadata             // Nome, CNPJ, Telefone do form
+        user_id_auth: userId,
+        ...userMetadata
       },
       subscription_data: {
         metadata: {
-          user_id_auth: userId      // Redundância na assinatura também
+          user_id_auth: userId
         }
       }
     })
 
     console.log(`Sessão criada: ${session.id}, URL: ${session.url}`)
 
-    // 7. Retornar URL para o App
     return new Response(
       JSON.stringify({ url: session.url }),
       {
