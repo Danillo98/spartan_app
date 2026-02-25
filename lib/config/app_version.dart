@@ -1,6 +1,6 @@
 class AppVersion {
   // VERSÃO ATUAL DO APLICATIVO (Hardcoded no Build)
-  static const String current = '2.3.4';
+  static const String current = '2.3.5';
 
   // Helper para converter string de versão em número comparável
   // Ex: "1.0.1" -> 10001

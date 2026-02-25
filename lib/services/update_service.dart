@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 
 class UpdateService {
   static const String _zipUrl =
-      'https://waczgosbsrorcibwfayv.supabase.co/storage/v1/object/public/updates/Spartan_Desktop.zip';
+      'https://waczgosbsrorcibwfayv.supabase.co/storage/v1/object/public/downloads/Spartan_Desktop.zip';
 
   /// Realiza o download e inicia o script de atualização relay
   static Future<void> performUpdate(Function(double) onProgress) async {

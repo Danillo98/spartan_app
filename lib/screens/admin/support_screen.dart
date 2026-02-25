@@ -332,7 +332,7 @@ $userMessage
                               children: [
                                 const CircleAvatar(
                                   radius: 25,
-                                  backgroundColor: AppTheme.primaryRed,
+                                  backgroundColor: Colors.black,
                                   child: Icon(Icons.person,
                                       color: Colors.white, size: 25),
                                 ),
@@ -373,13 +373,13 @@ $userMessage
                             ),
                             const SizedBox(height: 16),
                             Text(
-                              'Fico à disposição através do meu WhatsApp para a criação de sistemas para outros tipos de negócios também.',
+                              'Fico à disposição através do meu WhatsApp caso precise de sistemas para outros tipos de negócios. Basta me chamar, e faremos seu negócio decolar! 😉',
                               textAlign: TextAlign.left,
                               style: GoogleFonts.lato(
                                 fontSize: 13,
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.bold,
                                 fontStyle: FontStyle.italic,
-                                color: AppTheme.primaryRed,
+                                color: Colors.black,
                               ),
                             ),
                           ],
