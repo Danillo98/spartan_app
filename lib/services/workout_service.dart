@@ -261,29 +261,36 @@ class WorkoutService {
           .eq('student_id', studentId)
           .order('created_at', ascending: false);
 
-      // Buscar informações do personal para cada treino
+      // Buscar informações do personal para todos os treinos em lote (Batch Fetch) - Otimização spartana
+      final personalIds = response
+          .map((w) => w['personal_id'])
+          .where((id) => id != null)
+          .toSet()
+          .toList();
+
+      Map<String, Map<String, dynamic>> personalsMap = {};
+      if (personalIds.isNotEmpty) {
+        final personals = await _client
+            .from('users_personal')
+            .select('id, nome, email')
+            .inFilter('id', personalIds);
+
+        for (var p in personals) {
+          personalsMap[p['id']] = {
+            'id': p['id'],
+            'name': p['nome'],
+            'email': p['email']
+          };
+        }
+      }
+
+      // Mapear os dados populados nos treinos
       for (var workout in response) {
         final personalId = workout['personal_id'];
         if (personalId != null) {
-          try {
-            final personal = await _client
-                .from('users_personal')
-                .select('id, nome, email')
-                .eq('id', personalId)
-                .maybeSingle();
-
-            if (personal != null) {
-              workout['personal'] = {
-                'id': personal['id'],
-                'name': personal['nome'],
-                'email': personal['email']
-              };
-            }
-          } catch (e) {
-            print('Warning: Failed to fetch personal: $e');
-          }
+          workout['personal'] = personalsMap[personalId] ??
+              {'id': null, 'name': 'Ex-Profissional', 'email': ''};
         } else {
-          // Null personalId indicates it's created by Admin
           workout['personal'] = {
             'id': null,
             'name': 'Administração da Academia',

@@ -10,6 +10,7 @@ import 'control_id_service.dart'; // Import ControliD Sync
 
 class AuthService {
   static final SupabaseClient _client = SupabaseService.client;
+  static Map<String, dynamic>? _cachedUserData;
 
   /// Retorna o usuário autenticado atualmente (se houver)
   static User? get currentUser => _client.auth.currentUser;
@@ -780,6 +781,7 @@ class AuthService {
   // Logout
   // Logout
   static Future<void> logout() async {
+    _cachedUserData = null;
     // Desinscrever do tópico da academia antes de dar signOut
     // Isso evita que o dispositivo continue recebendo push para a academia antiga
     try {
@@ -1065,21 +1067,33 @@ class AuthService {
   }
 
   // Obter dados completos do usuário atual
-  static Future<Map<String, dynamic>?> getCurrentUserData() async {
+  static Future<Map<String, dynamic>?> getCurrentUserData(
+      {bool forceRefresh = false}) async {
     final user = getCurrentUser();
-    if (user == null) return null;
+    if (user == null) {
+      _cachedUserData = null;
+      return null;
+    }
+
+    if (_cachedUserData != null && !forceRefresh) {
+      return _cachedUserData;
+    }
 
     final userData = await _findUserInTables(user.id);
-    if (userData != null) return userData;
+    if (userData != null) {
+      _cachedUserData = userData;
+      return userData;
+    }
 
     // Se não achou nas tabelas mas está logado, trata como visitante
-    return {
+    _cachedUserData = {
       'id': user.id,
       'email': user.email,
       'nome': user.userMetadata?['name'] ?? 'Visitante',
       'role': 'visitor',
       'is_blocked': false,
     };
+    return _cachedUserData;
   }
 
   // Obter role do usuário atual

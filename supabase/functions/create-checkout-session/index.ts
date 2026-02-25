@@ -45,7 +45,7 @@ serve(async (req) => {
 
     // 5. Criar Sessão no Stripe
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card', 'pix'], // Habilita Cartão e PIX
+      payment_method_types: ['card'], // Revertido para 'card' para restaurar funcionamento. Ative PIX no dashboard do Stripe primeiro.
       allow_promotion_codes: true,    // Ativa o campo de cupom de desconto no Checkout
       line_items: [
         {

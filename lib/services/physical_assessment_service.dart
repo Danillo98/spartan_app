@@ -60,36 +60,14 @@ class PhysicalAssessmentService {
 
   // Obter ID da Academia atual (Funciona para Admin, Nutri e Personal)
   static Future<String> _getAcademyId() async {
-    final user = _client.auth.currentUser;
-    if (user == null) throw Exception('Usuário não autenticado');
+    final userData = await AuthService.getCurrentUserData();
+    if (userData == null) throw Exception('Usuário não autenticado');
 
-    // 1. Tentar Nutricionista
-    final nutri = await _client
-        .from('users_nutricionista')
-        .select('id_academia')
-        .eq('id', user.id)
-        .maybeSingle();
-    if (nutri != null && nutri['id_academia'] != null)
-      return nutri['id_academia'];
-
-    // 2. Tentar Personal
-    final personal = await _client
-        .from('users_personal')
-        .select('id_academia')
-        .eq('id', user.id)
-        .maybeSingle();
-    if (personal != null && personal['id_academia'] != null)
-      return personal['id_academia'];
-
-    // 3. Tentar Admin
-    final admin = await _client
-        .from('users_adm')
-        .select('id')
-        .eq('id', user.id)
-        .maybeSingle();
-    if (admin != null) return admin['id'];
-
-    throw Exception('Academia não encontrada para o usuário atual.');
+    final idAcademia = userData['id_academia'] ?? userData['id'];
+    if (idAcademia == null) {
+      throw Exception('Academia não encontrada para o usuário atual.');
+    }
+    return idAcademia.toString();
   }
 
   // Buscar todos os relatórios da academia
