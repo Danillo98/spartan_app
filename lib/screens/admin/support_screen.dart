@@ -312,65 +312,74 @@ $userMessage
 
                       // SEÇÃO: SOBRE O DESENVOLVEDOR (Sobre Mim)
                       Container(
-                        padding: const EdgeInsets.all(24),
+                        padding: const EdgeInsets.all(32),
+                        width: double.infinity,
                         decoration: BoxDecoration(
-                          color: const Color(
-                              0xFF1D1D1F), // Dark premium background
-                          borderRadius: BorderRadius.circular(20),
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(24),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 10,
-                              offset: const Offset(0, 5),
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 20,
+                              offset: const Offset(0, 10),
                             ),
                           ],
                         ),
                         child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const CircleAvatar(
-                              radius: 30,
-                              backgroundColor: AppTheme.primaryGold,
-                              child: Icon(Icons.person,
-                                  color: Colors.white, size: 35),
+                            Row(
+                              children: [
+                                const CircleAvatar(
+                                  radius: 25,
+                                  backgroundColor: AppTheme.primaryRed,
+                                  child: Icon(Icons.person,
+                                      color: Colors.white, size: 25),
+                                ),
+                                const SizedBox(width: 16),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Sobre Mim',
+                                      style: GoogleFonts.cinzel(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppTheme.primaryText,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Danillo Neto',
+                                      style: GoogleFonts.lato(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppTheme.secondaryText,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Sobre Mim',
-                              style: GoogleFonts.cinzel(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.primaryGold,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              'Danillo Neto',
-                              style: GoogleFonts.lato(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 24),
                             Text(
                               'Sou formado em Sistemas de Informação (TI) e trabalho desenvolvendo sistemas personalizados que solucionam problemas reais de empresas dos mais variados ramos. Minha missão é transformar processos complexos em ferramentas simples e eficientes.',
-                              textAlign: TextAlign.center,
+                              textAlign: TextAlign.left,
                               style: GoogleFonts.lato(
-                                fontSize: 13,
-                                color: Colors.grey[400],
+                                fontSize: 14,
+                                color: AppTheme.primaryText,
+                                fontStyle: FontStyle.italic,
                                 height: 1.6,
                               ),
                             ),
                             const SizedBox(height: 16),
-                            const Divider(color: Colors.white24),
-                            const SizedBox(height: 12),
                             Text(
                               'Fico à disposição através do meu WhatsApp para a criação de sistemas para outros tipos de negócios também.',
-                              textAlign: TextAlign.center,
+                              textAlign: TextAlign.left,
                               style: GoogleFonts.lato(
-                                fontSize: 12,
+                                fontSize: 13,
                                 fontWeight: FontWeight.w600,
-                                color: AppTheme.primaryGold.withOpacity(0.9),
+                                fontStyle: FontStyle.italic,
+                                color: AppTheme.primaryRed,
                               ),
                             ),
                           ],
