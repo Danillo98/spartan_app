@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 
 class UpdateService {
   static const String _zipUrl =
-      'https://spartanapp.com.br/download/Spartan_Desktop.zip';
+      'https://waczgosbsrorcibwfayv.supabase.co/storage/v1/object/public/updates/Spartan_Desktop.zip';
 
   /// Realiza o download e inicia o script de atualização relay
   static Future<void> performUpdate(Function(double) onProgress) async {
@@ -43,29 +43,39 @@ class UpdateService {
       print('📦 Download concluído. Gerando script de relay...');
 
       // 2. Gerar Script BAT de Atualização
-      // O script espera o app fechar, extrai, move os arquivos e reinicia o app.
       final batchPath = '$tempDir\\spartan_updater.bat';
 
-      // Estrutura do ZIP: Spartan_Desktop/ (pasta raiz)
-      // Extraímos para uma subpasta temporária e movemos o conteúdo de dentro de 'Spartan_Desktop' para a pasta do app.
       final batchContent = '''
 @echo off
-title Atualizando Spartan Desktop
-echo Aguardando fechamento do aplicativo...
-timeout /t 2 /nobreak > nul
+title Atualizando Spartan Desktop...
+echo ===========================================
+echo INICIANDO ATUALIZACAO SPARTAN
+echo ===========================================
 
-echo Extraindo novos arquivos...
+echo [1/4] Forcando encerramento do app...
+taskkill /F /IM "Spartan Desktop.exe" /T > nul 2>&1
+timeout /t 3 /nobreak > nul
+
+echo [2/4] Extraindo novos arquivos...
 if exist "$tempDir\\Spartan_Extraction" rd /s /q "$tempDir\\Spartan_Extraction"
 powershell -Command "Expand-Archive -Path '$zipPath' -DestinationPath '$tempDir\\Spartan_Extraction' -Force"
 
-echo Substituindo arquivos (Cirurgico)...
+echo [3/4] Substituindo arquivos (Cirurgico)...
+if not exist "$tempDir\\Spartan_Extraction\\Spartan_Desktop" (
+    echo ERRO: Pasta Spartan_Desktop nao encontrada no ZIP!
+    pause
+    exit
+)
+
 xcopy /s /e /y "$tempDir\\Spartan_Extraction\\Spartan_Desktop\\*" "$appDir"
 
-echo Limpando temporarios...
+echo [4/4] Limpando temporarios...
 rd /s /q "$tempDir\\Spartan_Extraction"
 del "$zipPath"
 
-echo Reiniciando Spartan Desktop...
+echo ===========================================
+echo ATUALIZACAO CONCLUIDA! REINICIANDO...
+echo ===========================================
 start "" "$exePath"
 exit
 ''';
@@ -74,7 +84,7 @@ exit
 
       // 3. Executar o BAT e encerrar o App imediatamente
       print('⚡ Executando script e reiniciando...');
-      await Process.start('cmd', ['/c', 'start', '/min', '', batchPath],
+      await Process.start('cmd.exe', ['/c', 'start', '""', batchPath],
           runInShell: true);
       exit(0);
     } catch (e) {
