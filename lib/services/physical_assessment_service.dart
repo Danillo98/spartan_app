@@ -81,7 +81,7 @@ class PhysicalAssessmentService {
 
       var query = _client
           .from('physical_assessments')
-          .select('*, users_alunos(id, nome, email)')
+          .select()
           .eq('id_academia', academyId);
 
       // RBAC: Se não for admin, vê apenas as que criou
@@ -131,7 +131,7 @@ class PhysicalAssessmentService {
       // 1. Tenta buscar em Nutricionistas
       final nutris = await _client
           .from('users_nutricionista')
-          .select('id, nome, email')
+          .select()
           .inFilter('id', nutriIds);
 
       nutrisMap.addAll({
@@ -150,7 +150,7 @@ class PhysicalAssessmentService {
       if (missingIds.isNotEmpty) {
         final personals = await _client
             .from('users_personal')
-            .select('id, nome, email')
+            .select()
             .inFilter('id', missingIds);
 
         nutrisMap.addAll({
@@ -170,7 +170,7 @@ class PhysicalAssessmentService {
       if (stillMissing.isNotEmpty) {
         final adms = await _client
             .from('users_adm')
-            .select('id, nome')
+            .select()
             .inFilter('id', stillMissing);
 
         nutrisMap.addAll({

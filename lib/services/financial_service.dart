@@ -173,7 +173,7 @@ class FinancialService {
       if (studentIds.isNotEmpty)
         _client
             .from('users_alunos')
-            .select('id, nome')
+            .select()
             .filter('id', 'in', studentIds.toList())
             .then((rows) {
           for (var r in rows) namesMap[r['id']] = r['nome'];
@@ -181,7 +181,7 @@ class FinancialService {
       if (trainerIds.isNotEmpty)
         _client
             .from('users_personal')
-            .select('id, nome')
+            .select()
             .filter('id', 'in', trainerIds.toList())
             .then((rows) {
           for (var r in rows) namesMap[r['id']] = r['nome'];
@@ -189,7 +189,7 @@ class FinancialService {
       if (nutritionistIds.isNotEmpty)
         _client
             .from('users_nutricionista')
-            .select('id, nome')
+            .select()
             .filter('id', 'in', nutritionistIds.toList())
             .then((rows) {
           for (var r in rows) namesMap[r['id']] = r['nome'];

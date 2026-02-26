@@ -40,12 +40,12 @@ class WorkoutService {
       // 2. Buscar todos os alunos da mesma academia
       final students = await _client
           .from('users_alunos')
-          .select('id, nome, email')
+          .select()
           .eq('id_academia', idAcademia)
           .order('nome');
 
       // 3. Buscar fichas criadas por este usuário (para contador)
-      var workoutsQuery = _client.from('workouts').select('student_id');
+      var workoutsQuery = _client.from('workouts').select();
 
       // O Admin tem acesso a todas (ou pelo menos as que ele criou)
       // Se não filtrar por personal_id, conta todas as fichas da academia.
@@ -121,7 +121,7 @@ class WorkoutService {
 
         final personal = await _client
             .from('users_personal')
-            .select('nome')
+            .select()
             .eq('id', user.id)
             .maybeSingle();
 
@@ -208,10 +208,8 @@ class WorkoutService {
         return List<Map<String, dynamic>>.from(cached);
       }
 
-      var query = _client
-          .from('workouts')
-          .select('*, student:users_alunos!student_id(nome)')
-          .eq('id_academia', idAcademia);
+      var query =
+          _client.from('workouts').select().eq('id_academia', idAcademia);
 
       if (role == 'personal') {
         query = query.eq('personal_id', user.id);
@@ -272,7 +270,7 @@ class WorkoutService {
       if (personalIds.isNotEmpty) {
         final personals = await _client
             .from('users_personal')
-            .select('id, nome, email')
+            .select()
             .inFilter('id', personalIds);
 
         for (var p in personals) {
@@ -341,7 +339,7 @@ class WorkoutService {
         try {
           final studentView = await _client
               .from('users_alunos')
-              .select('id, nome, email')
+              .select()
               .eq('id', studentId)
               .maybeSingle();
 
@@ -364,7 +362,7 @@ class WorkoutService {
           // 1. Tentar Personais
           var personalView = await _client
               .from('users_personal')
-              .select('id, nome, email')
+              .select()
               .eq('id', personalId)
               .maybeSingle();
 
@@ -372,7 +370,7 @@ class WorkoutService {
           if (personalView == null) {
             personalView = await _client
                 .from('users_adm')
-                .select('id, nome, email, academia')
+                .select()
                 .eq('id', personalId)
                 .maybeSingle();
           }
@@ -649,7 +647,7 @@ class WorkoutService {
       // Buscar informações do personal
       final personal = await _client
           .from('users_personal')
-          .select('nome')
+          .select()
           .eq('id', user.id)
           .maybeSingle();
 

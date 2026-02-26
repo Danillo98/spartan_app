@@ -28,7 +28,7 @@ class UserService {
     // 2. Tentar Nutricionista
     final nutri = await _client
         .from('users_nutricionista')
-        .select('id_academia')
+        .select()
         .eq('id', currentUser.id)
         .maybeSingle();
     if (nutri != null && nutri['id_academia'] != null) {
@@ -36,7 +36,7 @@ class UserService {
       final academyDetails = await _client
           .from(
               'users_adm') // Assumindo que users_adm contém os dados da academia
-          .select('academia')
+          .select()
           .eq('id', nutri['id_academia'])
           .maybeSingle();
       if (academyDetails != null) {
@@ -51,13 +51,13 @@ class UserService {
     // 3. Tentar Personal
     final personal = await _client
         .from('users_personal')
-        .select('id_academia')
+        .select()
         .eq('id', currentUser.id)
         .maybeSingle();
     if (personal != null && personal['id_academia'] != null) {
       final academyDetails = await _client
           .from('users_adm')
-          .select('academia')
+          .select()
           .eq('id', personal['id_academia'])
           .maybeSingle();
       if (academyDetails != null) {
@@ -424,7 +424,7 @@ class UserService {
       // 1. Buscar dietas deste nutricionista
       final diets = await _client
           .from('diets') // Tabela diets
-          .select('student_id')
+          .select()
           .eq('nutritionist_id', nutritionistId);
 
       // 2. Extrair IDs dos alunos
@@ -550,7 +550,7 @@ class UserService {
       // Buscar dados do admin para ver o plano
       final adminDetails = await _client
           .from('users_adm')
-          .select('plano_mensal')
+          .select()
           .eq('id', idAcademia)
           .single();
       final plan = adminDetails['plano_mensal']?.toString() ?? 'Prata';

@@ -100,7 +100,7 @@ class WorkoutTemplateService {
 
       var query = _client
           .from('workout_templates')
-          .select('*')
+          .select()
           .eq('id_academia', idAcademia);
 
       if (role == 'personal') {
@@ -124,7 +124,7 @@ class WorkoutTemplateService {
     try {
       final template = await _client
           .from('workout_templates')
-          .select('*, workout_template_days(*)')
+          .select()
           .eq('id', templateId)
           .single();
 

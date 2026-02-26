@@ -137,7 +137,7 @@ class DietService {
       try {
         final nutritionist = await _client
             .from('users_nutricionista')
-            .select('nome')
+            .select()
             .eq('id', nutritionistId)
             .maybeSingle();
         final nutriName = nutritionist?['nome'] ?? 'Seu Nutricionista';
@@ -242,7 +242,7 @@ class DietService {
     if (studentIds.isNotEmpty) {
       final students = await _client
           .from('users_alunos')
-          .select('id, nome, email')
+          .select()
           .inFilter('id', studentIds);
       // Normalizar nome→name
       studentsMap = {
@@ -261,7 +261,7 @@ class DietService {
       // 1. Tentar Nutricionistas
       final nutris = await _client
           .from('users_nutricionista')
-          .select('id, nome, email')
+          .select()
           .inFilter('id', nutriIds);
 
       for (var n in nutris) {
@@ -279,7 +279,7 @@ class DietService {
       if (missingFromNutri.isNotEmpty) {
         final personals = await _client
             .from('users_personal')
-            .select('id, nome, email')
+            .select()
             .inFilter('id', missingFromNutri);
         for (var p in personals) {
           nutrisMap[p['id']] = {
@@ -297,7 +297,7 @@ class DietService {
       if (missingFromPersonal.isNotEmpty) {
         final adms = await _client
             .from('users_adm')
-            .select('id, nome, email')
+            .select()
             .inFilter('id', missingFromPersonal);
         for (var a in adms) {
           nutrisMap[a['id']] = {
@@ -661,7 +661,7 @@ class DietService {
       // 1. Buscar todos os alunos da academia
       final students = await _client
           .from('users_alunos')
-          .select('id, nome, email')
+          .select()
           .eq('id_academia', idAcademia)
           .order('nome');
 
@@ -714,7 +714,7 @@ class DietService {
       // Buscar informações do nutricionista
       final nutritionist = await _client
           .from('users_nutricionista')
-          .select('nome')
+          .select()
           .eq('id', user.id)
           .maybeSingle();
 

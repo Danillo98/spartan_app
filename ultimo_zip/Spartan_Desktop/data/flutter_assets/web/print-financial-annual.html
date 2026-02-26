@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resumo Anual - Spartan</title>
+
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Lato:wght@300;400;700&display=swap"
+        rel="stylesheet">
+
+    <style>
+        @page {
+            size: auto;
+            margin: 0mm;
+        }
+
+        @media print {
+            body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+                padding: 1.5cm;
+                margin: 0;
+            }
+
+            .print-button {
+                display: none;
+            }
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Lato', sans-serif;
+            padding: 20px;
+            background: white;
+            color: #000;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #000;
+        }
+
+        h1 {
+            font-family: 'Cinzel', serif;
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            text-transform: uppercase;
+            color: #444;
+        }
+
+        .big-summary {
+            text-align: center;
+            padding: 30px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            border: 1px solid #e9ecef;
+            margin-bottom: 30px;
+        }
+
+        .big-summary-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .big-summary-value {
+            font-size: 32px;
+            font-weight: bold;
+            font-family: 'Lato', sans-serif;
+        }
+
+        .mini-summary-container {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+        }
+
+        .mini-summary-item {
+            text-align: center;
+        }
+
+        .mini-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            color: #666;
+        }
+
+        .mini-value {
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 2px solid #000;
+            font-family: 'Cinzel', serif;
+            font-size: 12px;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+            font-size: 13px;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        .month-name {
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .value-green {
+            color: #2E7D32;
+        }
+
+        .value-red {
+            color: #C62828;
+        }
+
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 2px solid #e0e0e0;
+            text-align: center;
+            color: #999;
+            font-size: 10px;
+        }
+
+        .print-button {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #1a1a1a 0%, #000 100%);
+            color: #D4AF37;
+            border: 2px solid #D4AF37;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-family: 'Cinzel', serif;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        @media screen and (max-width: 600px) {
+            .print-button {
+                top: 85px;
+                right: 10px;
+                padding: 10px 16px;
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <button class="print-button" onclick="window.print()">🖨️ Imprimir</button>
+    <div class="container" id="content"></div>
+
+    <script>
+        function formatCurrency(value) {
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+        }
+
+        const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+        async function renderReport(data) {
+            let html = `
+                <div class="header">
+                    <div class="logo-container" style="width: 120px; height: 120px; margin: 0 auto 10px; display: flex; align-items: center; justify-content: center;">
+                        <img src="https://spartanapp.com.br/icons/Icon-512.png" 
+                             alt="Spartan Logo" 
+                             style="max-width: 100%; max-height: 100%; object-fit: contain;">
+                    </div>
+                    <h1>Resumo Anual Financeiro</h1>
+                    <p class="subtitle">Exercício de ${data.year}</p>
+                </div>
+
+                <div class="big-summary">
+                    <div class="big-summary-label">Resultado do Ano</div>
+                    <div class="big-summary-value ${data.total_balance >= 0 ? 'value-green' : 'value-red'}">
+                        ${formatCurrency(data.total_balance)}
+                    </div>
+                    <div class="mini-summary-container">
+                        <div class="mini-summary-item">
+                            <div class="mini-label">Total Entradas</div>
+                            <div class="mini-value value-green">${formatCurrency(data.total_income)}</div>
+                        </div>
+                        <div class="mini-summary-item">
+                            <div class="mini-label">Total Saídas</div>
+                            <div class="mini-value value-red">${formatCurrency(data.total_expense)}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <h3>Detalhamento Mensal</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Mês</th>
+                            <th style="text-align:right">Entradas</th>
+                            <th style="text-align:right">Saídas</th>
+                            <th style="text-align:right">Saldo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            if (data.months && data.months.length > 0) {
+                data.months.forEach(m => {
+                    html += `
+                        <tr>
+                            <td class="month-name">${MONTHS[m.month - 1]}</td>
+                            <td style="text-align:right; color:#666">${formatCurrency(m.income)}</td>
+                            <td style="text-align:right; color:#666">${formatCurrency(m.expense)}</td>
+                            <td style="text-align:right; font-weight:bold; color: ${m.balance >= 0 ? '#2E7D32' : '#C62828'}">
+                                ${formatCurrency(m.balance)}
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+
+            html += `
+                    </tbody>
+                </table>
+
+                    <div class="footer">
+                    <p>Documento gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}</p>
+                    <p>Spartan Gym - Gestão Anual</p>
+                </div>
+            `;
+
+            document.getElementById('content').innerHTML = html;
+        }
+
+        window.addEventListener('load', async () => {
+            const params = new URLSearchParams(window.location.search);
+            const dataUrl = params.get('dataUrl');
+
+            if (dataUrl) {
+                try {
+                    const response = await fetch(dataUrl);
+                    if (response.ok) {
+                        const data = await response.json();
+                        renderReport(data);
+                        return;
+                    }
+                } catch (e) { console.error(e); }
+            }
+
+            const dataStr = localStorage.getItem('spartan_financial_annual_print');
+            if (!dataStr) {
+                document.getElementById('content').innerHTML = '<p style="text-align:center">Nenhum dado encontrado.</p>';
+                return;
+            }
+
+            try {
+                const data = JSON.parse(dataStr);
+                localStorage.removeItem('spartan_financial_annual_print');
+                renderReport(data);
+            } catch (e) {
+                console.error(e);
+            }
+        });
+    </script>
+</body>
+
+</html>

@@ -167,7 +167,7 @@ class _AdminDashboardState extends State<AdminDashboard>
       // Usando a tabela app_versao que já existe no seu banco de dados
       final response = await Supabase.instance.client
           .from('app_versao')
-          .select('versao_atual')
+          .select()
           .eq('id', 1)
           .maybeSingle();
 
@@ -328,7 +328,7 @@ class _AdminDashboardState extends State<AdminDashboard>
       // Consulta leve apenas status e bloqueio
       final response = await Supabase.instance.client
           .from('users_adm')
-          .select('assinatura_status, is_blocked, assinatura_tolerancia')
+          .select()
           .eq('id', user.id)
           .maybeSingle();
 
@@ -823,19 +823,6 @@ class _AdminDashboardState extends State<AdminDashboard>
                   ),
                 ),
               ),
-      ),
-    );
-  }
-
-  void _showComingSoon(BuildContext context, String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Em breve: $feature'),
-        backgroundColor: _adminColor,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
       ),
     );
   }

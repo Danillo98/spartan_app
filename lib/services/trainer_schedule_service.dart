@@ -42,10 +42,8 @@ class TrainerScheduleService {
     final user = _client.auth.currentUser;
     if (user == null) return [];
 
-    var query = _client
-        .from('training_sessions')
-        .select('*, users_alunos(id, nome, email)')
-        .eq('personal_id', user.id);
+    var query =
+        _client.from('training_sessions').select().eq('personal_id', user.id);
 
     if (filterDate != null) {
       // Filtrar pelo dia específico (ignora hora)
@@ -103,7 +101,7 @@ class TrainerScheduleService {
     // 2. Buscar ficha ativa do aluno
     final workout = await _client
         .from('workouts')
-        .select('id, name')
+        .select()
         .eq('student_id', studentId)
         .eq('is_active',
             true) // Assumindo que existe flag is_active ou pega o mais recente
@@ -117,7 +115,7 @@ class TrainerScheduleService {
     // Tenta match exato 'Segunda' ou 'Segunda-feira' ou contém a string
     final days = await _client
         .from('workout_days')
-        .select('*, workout_exercises(*)')
+        .select()
         .eq('workout_id', workout['id']);
 
     // Tentar encontrar o dia correspondente

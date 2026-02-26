@@ -12,7 +12,7 @@ class NoticeService {
     // 1. Admin
     final admin = await _client
         .from('users_adm')
-        .select('id')
+        .select()
         .eq('id', user.id)
         .maybeSingle();
     if (admin != null) return admin['id'];
@@ -20,7 +20,7 @@ class NoticeService {
     // 2. Aluno
     final student = await _client
         .from('users_alunos')
-        .select('id_academia')
+        .select()
         .eq('id', user.id)
         .maybeSingle();
     if (student != null) return student['id_academia'];
@@ -28,7 +28,7 @@ class NoticeService {
     // 3. Nutri
     final nutri = await _client
         .from('users_nutricionista')
-        .select('id_academia')
+        .select()
         .eq('id', user.id)
         .maybeSingle();
     if (nutri != null) return nutri['id_academia'];
@@ -36,7 +36,7 @@ class NoticeService {
     // 4. Personal
     final trainer = await _client
         .from('users_personal')
-        .select('id_academia')
+        .select()
         .eq('id', user.id)
         .maybeSingle();
     if (trainer != null) return trainer['id_academia'];
@@ -46,30 +46,27 @@ class NoticeService {
 
   // Helper para detectar Role do usuário atual
   static Future<String> _getCurrentUserRoleString(String userId) async {
-    final admin = await _client
-        .from('users_adm')
-        .select('id')
-        .eq('id', userId)
-        .maybeSingle();
+    final admin =
+        await _client.from('users_adm').select().eq('id', userId).maybeSingle();
     if (admin != null) return 'admin';
 
     final student = await _client
         .from('users_alunos')
-        .select('id')
+        .select()
         .eq('id', userId)
         .maybeSingle();
     if (student != null) return 'student';
 
     final nutri = await _client
         .from('users_nutricionista')
-        .select('id')
+        .select()
         .eq('id', userId)
         .maybeSingle();
     if (nutri != null) return 'nutritionist';
 
     final trainer = await _client
         .from('users_personal')
-        .select('id')
+        .select()
         .eq('id', userId)
         .maybeSingle();
     if (trainer != null) return 'trainer';
@@ -277,7 +274,7 @@ class NoticeService {
     try {
       final student = await _client
           .from('users_alunos')
-          .select('payment_due_day')
+          .select()
           .eq('id', userId)
           .maybeSingle();
 
@@ -295,7 +292,7 @@ class NoticeService {
 
         final payment = await _client
             .from('financial_transactions')
-            .select('id')
+            .select()
             .eq('id_academia', idAcademia)
             .eq('related_user_id', userId)
             .eq('type', 'income')

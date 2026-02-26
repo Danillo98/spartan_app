@@ -90,11 +90,8 @@ class EmailVerificationService {
   /// Verifica se o email do usuário já foi verificado
   static Future<bool> isEmailVerified(String userId) async {
     try {
-      final response = await _client
-          .from('users')
-          .select('email_verified')
-          .eq('id', userId)
-          .single();
+      final response =
+          await _client.from('users').select().eq('id', userId).single();
 
       return response['email_verified'] ?? false;
     } catch (e) {
