@@ -379,7 +379,7 @@ class UserService {
 
       // Se for aluno e tiver dia de vencimento, atualiza
       if (tableName == 'users_alunos') {
-        if (paymentDueDay != null) updates['payment_due'] = paymentDueDay;
+        if (paymentDueDay != null) updates['payment_due_day'] = paymentDueDay;
         if (gracePeriod != null) updates['grace_period'] = gracePeriod;
       }
 

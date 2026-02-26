@@ -428,8 +428,7 @@ class FinancialService {
 
     for (var student in students) {
       final studentId = student['id'];
-      final dueDay =
-          (student['payment_due'] ?? student['payment_due_day']) as int?;
+      final dueDay = student['payment_due_day'] as int?;
       final gracePeriod = (student['grace_period'] ?? 3) as int;
       final createdAtStr = student['created_at'] as String?;
 

@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirmação de Email - Spartan App</title>
+    <link rel="manifest" href="manifest.json">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 550px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            text-align: center;
+        }
+
+        .logo {
+            width: 100px;
+            height: 100px;
+            margin: 0 auto 20px;
+        }
+
+        .logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        h1 {
+            color: #1a1a1a;
+            font-size: 28px;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        p {
+            color: #666;
+            font-size: 16px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #1a1a1a;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .btn {
+            display: inline-block;
+            background: linear-gradient(135deg, #1a1a1a 0%, #3d3d3d 100%);
+            color: white;
+            padding: 15px 40px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 16px;
+            transition: all 0.3s;
+            margin: 10px 5px;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+        }
+
+        .success-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+            animation: bounce 1s ease-in-out;
+        }
+
+        @keyframes bounce {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 30px 20px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+            }
+
+            h1 {
+                font-size: 24px;
+                width: 100%;
+            }
+
+            p {
+                width: 100%;
+            }
+
+            .btn {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin: 20px auto !important;
+                width: 100%;
+                max-width: 280px;
+                box-sizing: border-box;
+                float: none;
+            }
+
+            #success-section,
+            #error-section {
+                width: 100%;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="logo">
+            <img src="icons/Icon-192.png" alt="Spartan App Logo">
+        </div>
+
+        <h1>Confirmação de Conta</h1>
+        <p id="message">Verificando seus dados...</p>
+        <div class="spinner" id="spinner"></div>
+
+        <!-- Seção de Sucesso -->
+        <div id="success-section" style="display: none;">
+            <div class="success-icon">✅</div>
+            <h1 style="font-size: 24px; margin-bottom: 10px;">Conta Verificada!</h1>
+            <p style="font-weight: bold; color: #1a1a1a; font-size: 18px; margin-bottom: 20px;">
+                O aplicativo Spartan já foi atualizado!</p>
+            <p style="color: #666; margin-bottom: 30px;">
+                Você já pode fechar esta aba e seguir com seu cadastro no aplicativo.
+            </p>
+
+            <button class="btn" onclick="window.close()">Fechar esta aba</button>
+            <p id="countdown" style="font-size: 12px; margin-top: 15px; color: #999;">Esta aba tentará se fechar em 5
+                segundos...</p>
+        </div>
+
+        <!-- Seção de Erro -->
+        <div id="error-section" style="display: none;">
+            <h1 style="color: #d32f2f;">Erro na Verificação</h1>
+            <p id="error-message">Não foi possível verificar sua conta.</p>
+            <button class="btn" onclick="window.location.reload()">Tentar Novamente</button>
+        </div>
+        <div id="debug-log"
+            style="margin-top: 20px; font-family: monospace; font-size: 12px; color: #666; text-align: left; background: #f5f5f5; padding: 10px; border-radius: 5px; height: 150px; overflow-y: auto; display: none;">
+        </div>
+    </div>
+
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <script>
+        // Configuração do Supabase (Mesmas chaves do App)
+        const supabaseUrl = 'https://waczgosbsrorcibwfayv.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhY3pnb3Nic3JvcmNpYndmYXl2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgzOTQzNTgsImV4cCI6MjA4Mzk3MDM1OH0.IkVIseJ0StG6XKmcEpvTVaqCYfSRwVmASOquNQIwz-w';
+
+        // CORREÇÃO: Usar nome diferente para evitar conflito com a lib global 'supabase'
+        const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+
+        function log(msg) {
+            // Apenas log no console (invisível para o usuário)
+            console.log(msg);
+
+            // Debug visual desabilitado em produção
+            // const logDiv = document.getElementById('debug-log');
+            // if (logDiv) {
+            //     logDiv.style.display = 'block';
+            //     const time = new Date().toLocaleTimeString();
+            //     logDiv.innerHTML += `<div>[${time}] ${msg}</div>`;
+            //     logDiv.scrollTop = logDiv.scrollHeight;
+            // }
+        }
+
+        async function verifyAccount() {
+            try {
+                log('🚀 Iniciando verificação de Token Manual...');
+
+                // 1. Pegar o token da URL (?token=XXXXX)
+                const urlParams = new URLSearchParams(window.location.search);
+                const customToken = urlParams.get('token');
+
+                if (!customToken) {
+                    throw new Error('Link inválido. Nenhum token foi encontrado.');
+                }
+
+                log(`🔍 Token encontrado: ${customToken.substring(0, 5)}...`);
+
+                // 2. Chamar a nossa RPC customizada no banco
+                const { data, error } = await supabaseClient.rpc('confirm_user_registration', {
+                    token_input: customToken
+                });
+
+                if (error) throw error;
+
+                if (data && data.success) {
+                    log('✅ Sucesso! E-mail confirmado via RPC.');
+                    showSuccess();
+
+                    // Fecha a aba após 4 segundos
+                    setTimeout(() => {
+                        window.close();
+                    }, 4000);
+                } else {
+                    throw new Error(data?.message || 'Falha ao validar token.');
+                }
+
+            } catch (error) {
+                log('❌ ERRO: ' + error.message);
+                showError(error.message || 'Este link é inválido ou já expirou.');
+            }
+        }
+
+        function showSuccess() {
+            document.getElementById('spinner').style.display = 'none';
+            document.getElementById('message').style.display = 'none';
+            document.getElementById('success-section').style.display = 'block';
+        }
+
+        function showError(msg) {
+            // Não esconder o spinner se quiser debug, mas vamos manter o padrão
+            document.getElementById('spinner').style.display = 'none';
+            document.getElementById('message').style.display = 'none';
+            document.getElementById('error-section').style.display = 'block';
+            document.getElementById('error-message').innerText = msg;
+        }
+
+        // Global Error Handler
+        window.onerror = function (msg, url, line, col, error) {
+            log(`❌ ERRO GLOBAL: ${msg}`);
+            showError(`Erro inesperado: ${msg}`);
+            return false;
+        };
+
+        // Iniciar
+        verifyAccount();
+    </script>
+</body>
+
+</html>
