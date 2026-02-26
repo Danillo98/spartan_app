@@ -496,7 +496,7 @@ class FinancialService {
             if (year < now.year || (year == now.year && month < now.month)) {
               status = 'overdue';
             }
-            // Mês atual e dia já passou -> Vencido (Vencimento já inclui os 3 dias no banco)
+            // Mês atual e dia já passou -> Vencido (Vencimento Estrito)
             else if (year == now.year &&
                 month == now.month &&
                 now.day > dueDay) {
@@ -577,7 +577,7 @@ class FinancialService {
       if (paidCount < monthsRequired - 1) return true;
 
       // Se deve APENAS o mês atual (paidCount == monthsRequired - 1),
-      // verifica se já passou do dia de vencimento (que agora já inclui os 3 dias no banco)
+      // verifica se já passou do dia de vencimento estrito
       if (now.day > paymentDueDay) return true;
 
       return false; // Dentro do prazo

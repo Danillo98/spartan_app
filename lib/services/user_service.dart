@@ -110,8 +110,7 @@ class UserService {
           'id_academia': idAcademia,
           'created_by_admin_id': createdByAdminId,
           if (birthDate != null) 'birthDate': birthDate,
-          if (paymentDueDay != null)
-            'paymentDueDay': (paymentDueDay + 3 > 31) ? 31 : paymentDueDay + 3,
+          if (paymentDueDay != null) 'paymentDueDay': paymentDueDay,
           if (isPaidCurrentMonth) 'isPaidCurrentMonth': true,
         }
       });
