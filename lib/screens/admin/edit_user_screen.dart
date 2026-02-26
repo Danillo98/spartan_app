@@ -20,7 +20,9 @@ class _EditUserScreenState extends State<EditUserScreen> {
   late TextEditingController _emailController;
   late TextEditingController _phoneController;
   late TextEditingController _dueDayController;
+  late TextEditingController _birthDateController;
 
+  DateTime? _selectedBirthDate;
   late UserRole _selectedRole;
   int? _due_day_value;
   bool _isLoading = false;
@@ -32,18 +34,29 @@ class _EditUserScreenState extends State<EditUserScreen> {
     _emailController = TextEditingController(text: widget.user['email']);
     _phoneController = TextEditingController(text: widget.user['phone']);
 
-    // Inicia com valor existente ou vazio
-    // Inicia com valor existente ou vazio (Subtrai 3 dias para exibir o dia "original" sem a carência automática)
     final existingDueDay = widget.user['payment_due_day'];
     if (existingDueDay != null && existingDueDay is int) {
       final rawDay = existingDueDay - 3;
-      _due_day_value = rawDay < 1 ? 1 : rawDay; // Segurança
+      _due_day_value = rawDay < 1 ? 1 : rawDay;
     } else {
       _due_day_value = null;
     }
 
     _dueDayController = TextEditingController(
       text: _due_day_value != null ? _due_day_value.toString() : '',
+    );
+
+    if (widget.user['birth_date'] != null) {
+      try {
+        _selectedBirthDate = DateTime.parse(widget.user['birth_date']);
+      } catch (e) {
+        print('Erro ao converter data de nascimento: $e');
+      }
+    }
+    _birthDateController = TextEditingController(
+      text: _selectedBirthDate != null
+          ? "${_selectedBirthDate!.day.toString().padLeft(2, '0')}/${_selectedBirthDate!.month.toString().padLeft(2, '0')}/${_selectedBirthDate!.year}"
+          : '',
     );
 
     _selectedRole = _stringToRole(widget.user['role']);
@@ -55,6 +68,7 @@ class _EditUserScreenState extends State<EditUserScreen> {
     _emailController.dispose();
     _phoneController.dispose();
     _dueDayController.dispose();
+    _birthDateController.dispose();
     super.dispose();
   }
 
@@ -92,6 +106,9 @@ class _EditUserScreenState extends State<EditUserScreen> {
         phone: _phoneController.text.trim(),
         role: _selectedRole,
         paymentDueDay: dueDay,
+        birthDate: _selectedBirthDate != null
+            ? "${_selectedBirthDate!.year}-${_selectedBirthDate!.month.toString().padLeft(2, '0')}-${_selectedBirthDate!.day.toString().padLeft(2, '0')}"
+            : null,
       );
 
       if (!mounted) return;
@@ -155,6 +172,8 @@ class _EditUserScreenState extends State<EditUserScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final roleColor = _getRoleColor(_selectedRole);
+
     return Scaffold(
       backgroundColor: AppTheme.white,
       appBar: AppBar(
@@ -183,7 +202,6 @@ class _EditUserScreenState extends State<EditUserScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Seleção de tipo de usuário
                 Text(
                   'TIPO DE USUÁRIO',
                   style: GoogleFonts.lato(
@@ -194,33 +212,20 @@ class _EditUserScreenState extends State<EditUserScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-
-                // Cards de seleção de role
                 Wrap(
                   spacing: 12,
                   runSpacing: 12,
                   children: [
                     _buildRoleCard(
-                      UserRole.admin,
-                      Icons.admin_panel_settings_rounded,
-                    ),
+                        UserRole.admin, Icons.admin_panel_settings_rounded),
                     _buildRoleCard(
-                      UserRole.nutritionist,
-                      Icons.restaurant_menu_rounded,
-                    ),
+                        UserRole.nutritionist, Icons.restaurant_menu_rounded),
                     _buildRoleCard(
-                      UserRole.trainer,
-                      Icons.fitness_center_rounded,
-                    ),
-                    _buildRoleCard(
-                      UserRole.student,
-                      Icons.person_rounded,
-                    ),
+                        UserRole.trainer, Icons.fitness_center_rounded),
+                    _buildRoleCard(UserRole.student, Icons.person_rounded),
                   ],
                 ),
-
                 const SizedBox(height: 30),
-
                 Text(
                   'DADOS DO USUÁRIO',
                   style: GoogleFonts.lato(
@@ -230,28 +235,18 @@ class _EditUserScreenState extends State<EditUserScreen> {
                     letterSpacing: 1.5,
                   ),
                 ),
-
                 const SizedBox(height: 20),
-
-                // Nome
                 _buildTextField(
                   controller: _nameController,
                   label: 'Nome Completo',
                   hint: 'João Silva',
                   icon: Icons.person_outline_rounded,
-                  textCapitalization:
-                      TextCapitalization.words, // AUTO MAIÚSCULA
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Por favor, insira o nome completo';
-                    }
-                    return null;
-                  },
+                  textCapitalization: TextCapitalization.words,
+                  validator: (value) => (value == null || value.isEmpty)
+                      ? 'Por favor, insira o nome completo'
+                      : null,
                 ),
-
                 const SizedBox(height: 16),
-
-                // Email
                 _buildTextField(
                   controller: _emailController,
                   label: 'Email',
@@ -260,19 +255,13 @@ class _EditUserScreenState extends State<EditUserScreen> {
                   textCapitalization: TextCapitalization.none,
                   keyboardType: TextInputType.emailAddress,
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
+                    if (value == null || value.isEmpty)
                       return 'Por favor, insira o email';
-                    }
-                    if (!value.contains('@')) {
-                      return 'Email inválido';
-                    }
+                    if (!value.contains('@')) return 'Email inválido';
                     return null;
                   },
                 ),
-
                 const SizedBox(height: 16),
-
-                // Telefone
                 _buildTextField(
                   controller: _phoneController,
                   label: 'Telefone',
@@ -284,19 +273,47 @@ class _EditUserScreenState extends State<EditUserScreen> {
                     LengthLimitingTextInputFormatter(11),
                   ],
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
+                    if (value == null || value.isEmpty)
                       return 'Por favor, insira o telefone';
-                    }
-                    if (value.length < 10) {
-                      return 'Telefone inválido';
-                    }
+                    if (value.length < 10) return 'Telefone inválido';
                     return null;
                   },
                 ),
-
                 const SizedBox(height: 16),
-
-                // Data de Vencimento (Apenas para Alunos)
+                _buildDatePickerField(
+                  controller: _birthDateController,
+                  label: 'Data de Nascimento',
+                  hint: 'DD/MM/AAAA',
+                  icon: Icons.cake_outlined,
+                  onTap: () async {
+                    final DateTime? picked = await showDatePicker(
+                      context: context,
+                      initialDate: _selectedBirthDate ?? DateTime(2000),
+                      firstDate: DateTime(1900),
+                      lastDate: DateTime.now(),
+                      builder: (context, child) {
+                        return Theme(
+                          data: Theme.of(context).copyWith(
+                            colorScheme: ColorScheme.light(
+                              primary: roleColor,
+                              onPrimary: Colors.white,
+                              onSurface: const Color(0xFF1A1A1A),
+                            ),
+                          ),
+                          child: child!,
+                        );
+                      },
+                    );
+                    if (picked != null) {
+                      setState(() {
+                        _selectedBirthDate = picked;
+                        _birthDateController.text =
+                            "${picked.day.toString().padLeft(2, '0')}/${picked.month.toString().padLeft(2, '0')}/${picked.year}";
+                      });
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
                 if (_selectedRole == UserRole.student)
                   _buildTextField(
                     controller: _dueDayController,
@@ -309,90 +326,69 @@ class _EditUserScreenState extends State<EditUserScreen> {
                       LengthLimitingTextInputFormatter(2),
                     ],
                     validator: (value) {
-                      if (_selectedRole != UserRole.student) return null;
-                      if (value == null || value.isEmpty)
-                        return null; // Opcional
+                      if (value == null || value.isEmpty) return null;
                       final day = int.tryParse(value);
-                      if (day == null || day < 1 || day > 31) {
+                      if (day == null || day < 1 || day > 31)
                         return 'Dia inválido (1-31)';
-                      }
                       return null;
                     },
                   ),
-
                 const SizedBox(height: 30),
-
-                // Botão Atualizar
                 Container(
                   height: 56,
                   decoration: BoxDecoration(
                     borderRadius: AppTheme.buttonRadius,
                     boxShadow: [
-                      const BoxShadow(
-                        color: Color(0xFF1A1A1A),
+                      BoxShadow(
+                        color: roleColor.withOpacity(0.3),
                         blurRadius: 15,
-                        offset: Offset(0, 8),
+                        offset: const Offset(0, 8),
                       ),
                     ],
                   ),
                   child: ElevatedButton(
                     onPressed: _isLoading ? null : _handleUpdate,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1A1A1A),
+                      backgroundColor: roleColor,
                       foregroundColor: Colors.white,
-                      shadowColor: Colors.transparent,
                       shape: RoundedRectangleBorder(
-                        borderRadius: AppTheme.buttonRadius,
-                      ),
+                          borderRadius: AppTheme.buttonRadius),
                     ),
                     child: _isLoading
                         ? const SizedBox(
                             height: 24,
                             width: 24,
                             child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2,
-                            ),
-                          )
-                        : Text(
-                            'ATUALIZAR',
+                                color: Colors.white, strokeWidth: 2))
+                        : Text('ATUALIZAR',
                             style: GoogleFonts.lato(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 2,
-                            ),
-                          ),
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 2)),
                   ),
                 ),
-
                 const SizedBox(height: 16),
-
-                // Botão Alterar Senha (Acesso rápido admin)
                 SizedBox(
                   height: 56,
                   child: OutlinedButton.icon(
                     onPressed: _showChangePasswordDialog,
-                    icon: const Icon(Icons.lock_reset_rounded,
-                        color: Color(0xFF1A1A1A)),
+                    icon: Icon(Icons.lock_reset_rounded, color: roleColor),
                     label: Text(
                       'REDEFINIR SENHA',
                       style: GoogleFonts.lato(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF1A1A1A),
-                        letterSpacing: 1,
-                      ),
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: roleColor,
+                          letterSpacing: 1),
                     ),
                     style: OutlinedButton.styleFrom(
-                      side: const BorderSide(
-                          color: Color(0xFF1A1A1A), width: 1.5),
+                      side: BorderSide(color: roleColor, width: 1.5),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
-                        borderRadius: AppTheme.buttonRadius,
-                      ),
+                          borderRadius: AppTheme.buttonRadius),
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 30),
               ],
             ),
@@ -402,10 +398,39 @@ class _EditUserScreenState extends State<EditUserScreen> {
     );
   }
 
+  Widget _buildDatePickerField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.lightGrey,
+        borderRadius: AppTheme.inputRadius,
+        border: Border.all(color: AppTheme.borderGrey),
+      ),
+      child: TextFormField(
+        controller: controller,
+        readOnly: true,
+        onTap: onTap,
+        style: const TextStyle(color: AppTheme.primaryText),
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: hint,
+          prefixIcon: Icon(icon, color: _getRoleColor(_selectedRole)),
+          border: InputBorder.none,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        ),
+      ),
+    );
+  }
+
   Widget _buildRoleCard(UserRole role, IconData icon) {
     final isSelected = _selectedRole == role;
     final color = _getRoleColor(role);
-
     return InkWell(
       onTap: () => setState(() => _selectedRole = role),
       borderRadius: AppTheme.cardRadius,
@@ -416,25 +441,13 @@ class _EditUserScreenState extends State<EditUserScreen> {
           color: isSelected ? color.withOpacity(0.1) : Colors.white,
           borderRadius: AppTheme.cardRadius,
           border: Border.all(
-            color: isSelected ? color : AppTheme.borderGrey,
-            width: isSelected ? 2 : 1,
-          ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                      color: color.withOpacity(0.2),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4))
-                ]
-              : [],
+              color: isSelected ? color : AppTheme.borderGrey,
+              width: isSelected ? 2 : 1),
         ),
         child: Column(
           children: [
-            Icon(
-              icon,
-              size: 32,
-              color: isSelected ? color : AppTheme.secondaryText,
-            ),
+            Icon(icon,
+                size: 32, color: isSelected ? color : AppTheme.secondaryText),
             const SizedBox(height: 8),
             Text(
               _getRoleName(role),
@@ -443,7 +456,6 @@ class _EditUserScreenState extends State<EditUserScreen> {
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 color: isSelected ? color : AppTheme.secondaryText,
               ),
-              textAlign: TextAlign.center,
             ),
           ],
         ),
@@ -457,9 +469,8 @@ class _EditUserScreenState extends State<EditUserScreen> {
     required String hint,
     required IconData icon,
     TextInputType? keyboardType,
-    List<TextInputFormatter>? inputFormatters, // Adicionado parâmetro
+    List<TextInputFormatter>? inputFormatters,
     bool enabled = true,
-    String? helperText,
     String? Function(String?)? validator,
     TextCapitalization textCapitalization = TextCapitalization.sentences,
   }) {
@@ -468,36 +479,23 @@ class _EditUserScreenState extends State<EditUserScreen> {
         color:
             enabled ? AppTheme.lightGrey : AppTheme.lightGrey.withOpacity(0.5),
         borderRadius: AppTheme.inputRadius,
-        border: Border.all(
-          color: AppTheme.borderGrey,
-        ),
+        border: Border.all(color: AppTheme.borderGrey),
       ),
       child: TextFormField(
         controller: controller,
         enabled: enabled,
         keyboardType: keyboardType,
         textCapitalization: textCapitalization,
-        inputFormatters: inputFormatters, // Usar formatters
+        inputFormatters: inputFormatters,
         style: TextStyle(
-          color: enabled ? AppTheme.primaryText : AppTheme.secondaryText,
-        ),
-        cursorColor: const Color(0xFF1A1A1A),
+            color: enabled ? AppTheme.primaryText : AppTheme.secondaryText),
         decoration: InputDecoration(
           labelText: label,
           hintText: hint,
-          helperText: helperText,
-          helperStyle:
-              GoogleFonts.lato(color: AppTheme.secondaryText, fontSize: 12),
-          prefixIcon: Icon(icon,
-              color:
-                  enabled ? const Color(0xFF1A1A1A) : AppTheme.secondaryText),
+          prefixIcon: Icon(icon, color: _getRoleColor(_selectedRole)),
           border: InputBorder.none,
-          enabledBorder: InputBorder.none,
-          focusedBorder: OutlineInputBorder(
-            borderRadius: AppTheme.inputRadius,
-            borderSide: const BorderSide(color: Color(0xFF1A1A1A), width: 2),
-          ),
-          filled: false,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         ),
         validator: validator,
       ),
@@ -509,6 +507,7 @@ class _EditUserScreenState extends State<EditUserScreen> {
     final formKey = GlobalKey<FormState>();
     bool obscureText = true;
     bool isSaving = false;
+    final roleColor = _getRoleColor(_selectedRole);
 
     showDialog(
       context: context,
@@ -522,8 +521,7 @@ class _EditUserScreenState extends State<EditUserScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text(
-                        'Digite a nova senha para o usuário. Esta ação é imediata e não envia email.'),
+                    const Text('Digite a nova senha para o usuário.'),
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: passwordController,
@@ -535,17 +533,13 @@ class _EditUserScreenState extends State<EditUserScreen> {
                           icon: Icon(obscureText
                               ? Icons.visibility_off
                               : Icons.visibility),
-                          onPressed: () {
-                            setStateDialog(() => obscureText = !obscureText);
-                          },
+                          onPressed: () =>
+                              setStateDialog(() => obscureText = !obscureText),
                         ),
                       ),
-                      validator: (value) {
-                        if (value == null || value.length < 6) {
-                          return 'Mínimo de 6 caracteres';
-                        }
-                        return null;
-                      },
+                      validator: (value) => (value == null || value.length < 6)
+                          ? 'Mínimo de 6 caracteres'
+                          : null,
                     ),
                   ],
                 ),
@@ -560,37 +554,23 @@ class _EditUserScreenState extends State<EditUserScreen> {
                       ? null
                       : () async {
                           if (!formKey.currentState!.validate()) return;
-
                           setStateDialog(() => isSaving = true);
-
                           final result =
                               await UserService.adminUpdateUserPassword(
-                            widget.user['id'],
-                            passwordController.text,
-                          );
-
+                                  widget.user['id'], passwordController.text);
                           if (!context.mounted) return;
-                          Navigator.pop(context); // Close dialog
-
-                          if (result['success'] == true) {
-                            ScaffoldMessenger.of(this.context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Senha alterada com sucesso!'),
-                                backgroundColor: Colors.green,
-                              ),
-                            );
-                          } else {
-                            ScaffoldMessenger.of(this.context).showSnackBar(
-                              SnackBar(
-                                content: Text(result['message']),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
-                          }
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(this.context).showSnackBar(
+                            SnackBar(
+                              content: Text(result['success']
+                                  ? 'Senha alterada com sucesso!'
+                                  : result['message']),
+                              backgroundColor:
+                                  result['success'] ? Colors.green : Colors.red,
+                            ),
+                          );
                         },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1A1A1A),
-                  ),
+                  style: ElevatedButton.styleFrom(backgroundColor: roleColor),
                   child: isSaving
                       ? const SizedBox(
                           width: 20,

@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Spartan App - Sistema de Gerenciamento de Academia">
+    <title>Spartan App - Bem-vindo</title>
+    <link rel="manifest" href="manifest.json">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 50px 40px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            text-align: center;
+        }
+
+        .logo {
+            width: 150px;
+            height: 150px;
+            margin: 0 auto 30px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.2));
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.05);
+            }
+        }
+
+        h1 {
+            color: #1a1a1a;
+            font-size: 36px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            letter-spacing: 2px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 18px;
+            margin-bottom: 40px;
+            line-height: 1.6;
+        }
+
+        .features {
+            text-align: left;
+            margin: 30px 0;
+            padding: 20px;
+            background: #f8f8f8;
+            border-radius: 10px;
+        }
+
+        .feature {
+            display: flex;
+            align-items: center;
+            margin: 15px 0;
+            color: #333;
+        }
+
+        .feature-icon {
+            font-size: 24px;
+            margin-right: 15px;
+            min-width: 30px;
+        }
+
+        .feature-text {
+            font-size: 16px;
+            line-height: 1.5;
+        }
+
+        .install-button {
+            background: linear-gradient(135deg, #1a1a1a 0%, #3d3d3d 100%);
+            color: white;
+            border: none;
+            padding: 18px 50px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            margin: 20px 0;
+            display: inline-block;
+            text-decoration: none;
+        }
+
+        .install-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+        }
+
+        .install-button:active {
+            transform: translateY(0);
+        }
+
+        .install-button.hidden {
+            display: none;
+        }
+
+        .instructions {
+            margin-top: 30px;
+            padding: 20px;
+            background: #fff9e6;
+            border-left: 4px solid #ffc107;
+            border-radius: 5px;
+            text-align: left;
+        }
+
+        .instructions h3 {
+            color: #1a1a1a;
+            font-size: 18px;
+            margin-bottom: 15px;
+        }
+
+        .instructions ol {
+            margin-left: 20px;
+            color: #666;
+            line-height: 1.8;
+        }
+
+        .instructions li {
+            margin: 10px 0;
+        }
+
+        .device-specific {
+            display: none;
+        }
+
+        .note {
+            margin-top: 20px;
+            padding: 15px;
+            background: #e3f2fd;
+            border-radius: 5px;
+            color: #1565c0;
+            font-size: 14px;
+        }
+
+        .admin-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+            color: #1a1a1a;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(255, 215, 0, 0.3);
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 30px 20px;
+            }
+
+            h1 {
+                font-size: 28px;
+            }
+
+            .subtitle {
+                font-size: 16px;
+            }
+
+            .logo {
+                width: 120px;
+                height: 120px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="logo">
+            <img src="icons/Icon-192.png" alt="Spartan App Logo">
+        </div>
+
+        <div id="roleBadge" class="admin-badge">🏛️ Acesso Spartan</div>
+        <h1 id="roleTitle">SPARTAN APP</h1>
+        <p id="roleSubtitle" class="subtitle">
+            Bem-vindo ao sistema completo de gerenciamento de academia!<br>
+            Acompanhe seus treinos, dietas e evolução em um só lugar.
+        </p>
+
+        <div class="features">
+            <div class="feature">
+                <span class="feature-icon">✅</span>
+                <span class="feature-text">Gestão completa de usuários e academias</span>
+            </div>
+            <div class="feature">
+                <span class="feature-icon">📱</span>
+                <span class="feature-text">Funciona em Android, iOS, Windows e Mac</span>
+            </div>
+            <div class="feature">
+                <span class="feature-icon">🔄</span>
+                <span class="feature-text">Sincronização em tempo real</span>
+            </div>
+            <div class="feature">
+                <span class="feature-icon">🔒</span>
+                <span class="feature-text">Seguro e confiável</span>
+            </div>
+            <div class="feature">
+                <span class="feature-icon">⚡</span>
+                <span class="feature-text">Rápido e responsivo</span>
+            </div>
+        </div>
+
+        <!-- Botão Principal Unificado -->
+        <button id="accessSystemBtn" class="install-button">
+            ⬇️ Instalar Aplicativo
+        </button>
+
+        <!-- Aviso sobre Chrome -->
+        <p
+            style="font-size: 13px; color: #666; margin-top: 8px; max-width: 400px; margin-left: auto; margin-right: auto; line-height: 1.4;">
+            * A instalação automática é otimizada para <strong>Google Chrome</strong> e <strong>Edge</strong>.<br>
+            Em outros navegadores (Firefox, Safari, Opera), utilize a opção <strong>"Adicionar à Tela Inicial"</strong>
+            ou <strong>"Instalar App"</strong> no menu.
+        </p>
+
+        <!-- Mensagem de Status -->
+        <p id="system-message"
+            style="display:none; color: #1a1a1a; margin-top: 15px; font-weight: bold; font-size: 14px; background: #e8f5e9; padding: 10px; border-radius: 8px; border: 1px solid #c8e6c9;">
+        </p>
+
+        <!-- Instruções específicas por dispositivo -->
+        <div class="instructions">
+            <h3>📱 Clique em "Instalar Aplicativo" e instale automaticamente.</h3>
+
+            <!-- Android -->
+            <div id="android-instructions" class="device-specific">
+                <p style="margin-bottom: 15px; font-weight: bold; color: #1a1a1a;">SE NÃO INSTALAR AUTOMATICAMENTE SIGA
+                    OS PRÓXIMOS PASSOS:</p>
+                <ol>
+                    <li>Clique em <strong>"Instalar Aplicativo"</strong></li>
+                    <li>Clique em <strong>"Acessar Agora"</strong></li>
+                    <li>Nas configurações do seu navegador, procure por <strong>'Adicionar à Tela Inicial'</strong></li>
+                    <li>O Spartan App será instalado no seu dispositivo!</li>
+                </ol>
+            </div>
+
+            <!-- iOS -->
+            <div id="ios-instructions" class="device-specific">
+                <p style="margin-bottom: 15px; font-weight: bold; color: #1a1a1a;">SE NÃO INSTALAR AUTOMATICAMENTE SIGA
+                    OS PRÓXIMOS PASSOS:</p>
+                <ol>
+                    <li>Clique em <strong>"Instalar Aplicativo"</strong></li>
+                    <li>Clique em <strong>"Acessar Agora"</strong></li>
+                    <li>Nas configurações do seu navegador, procure por <strong>'Adicionar à Tela Inicial'</strong> (se
+                        tiver usando iOS achará essa opção na parte de compartilhamento)</li>
+                    <li>O Spartan App será instalado no seu dispositivo!</li>
+                </ol>
+            </div>
+
+            <!-- Desktop -->
+            <div id="desktop-instructions" class="device-specific">
+                <p style="margin-bottom: 15px; font-weight: bold; color: #1a1a1a;">SE NÃO INSTALAR AUTOMATICAMENTE SIGA
+                    OS PRÓXIMOS PASSOS:</p>
+                <ol>
+                    <li>Clique em <strong>"Instalar Aplicativo"</strong></li>
+                    <li>Clique em <strong>"Acessar Agora"</strong></li>
+                    <li>Nas configurações do seu navegador, procure por <strong>'Adicionar à Tela Inicial'</strong></li>
+                    <li>O Spartan App será instalado no seu dispositivo!</li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="note">
+            💡 <strong>Dica:</strong> Após instalar, você poderá acessar o Spartan App diretamente da tela inicial do
+            seu dispositivo, como qualquer outro aplicativo!
+        </div>
+    </div>
+
+    <!-- Overlay de Instalação (Barra de Progresso) -->
+    <div id="installOverlay"
+        style="display:none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
+        <div style="color: white; font-size: 24px; font-weight: bold; margin-bottom: 20px;">Instalando Spartan App...
+        </div>
+        <div style="width: 300px; height: 10px; background: #333; border-radius: 5px; overflow: hidden;">
+            <div id="installProgress"
+                style="width: 0%; height: 100%; background: #ffd700; transition: width 0.1s linear;"></div>
+        </div>
+        <div id="installStatus" style="color: #ccc; margin-top: 10px; font-size: 14px;">Preparando arquivos...</div>
+    </div>
+
+    <!-- Modal de Decisão Pós-Instalação -->
+    <div id="postInstallModal"
+        style="display:none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center;">
+        <div
+            style="background: white; padding: 30px; border-radius: 20px; width: 90%; max-width: 450px; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.3); animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
+            <div style="font-size: 50px; margin-bottom: 20px;">🎉</div>
+            <h2 style="color: #1a1a1a; margin-bottom: 10px; font-size: 20px;">Verifique se seu dispositivo concluiu a
+                instalação automática!</h2>
+            <p style="color: #666; margin-bottom: 30px; font-size: 15px;">Caso não tenha instalado, siga as instruções
+                para adicionar a Tela Inicial!</p>
+
+            <div style="display: flex; flex-direction: column; gap: 15px;">
+                <button onclick="openDesktopApp()" class="install-button"
+                    style="margin: 0; background: #1a1a1a; padding: 15px;">
+                    🚀 Acessar Agora
+                </button>
+                <button onclick="openInBrowser()" class="install-button"
+                    style="margin: 0; background: #f0f0f0; color: #333; padding: 15px; border: 1px solid #ddd;">
+                    📖 Ver instruções
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        @keyframes popIn {
+            from {
+                transform: scale(0.8);
+                opacity: 0;
+            }
+
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+    </style>
+
+    <script>
+        // Variáveis globais
+        let deferredPrompt;
+        const installOverlay = document.getElementById('installOverlay');
+        const progressBar = document.getElementById('installProgress');
+        const statusText = document.getElementById('installStatus');
+        const modal = document.getElementById('postInstallModal');
+
+        // Detecção de Role
+        const urlParams = new URLSearchParams(window.location.search);
+        const role = urlParams.get('role');
+        const roleBadge = document.getElementById('roleBadge');
+        const roleTitle = document.getElementById('roleTitle');
+        const roleSubtitle = document.getElementById('roleSubtitle');
+
+        // Salvamento Preventivo (Opção A)
+        if (role) {
+            localStorage.setItem('saved_login_role', role);
+            console.log("Role salva para o PWA:", role);
+        }
+
+        if (role === 'student' || role === 'Aluno') {
+            roleBadge.innerHTML = '🎓 Perfil: Aluno';
+            roleBadge.style.background = 'linear-gradient(135deg, #457B9D 0%, #a8dadc 100%)';
+            roleBadge.style.color = 'white';
+            roleTitle.innerText = 'SPARTAN ALUNO';
+            roleSubtitle.innerHTML = 'Bem-vindo, Espartano!<br>Prepare-se para transformar seu corpo e mente.';
+        } else if (role === 'trainer' || role === 'Personal Trainer') {
+            roleBadge.innerHTML = '💪 Perfil: Personal Trainer';
+            roleBadge.style.background = 'linear-gradient(135deg, #E63946 0%, #f1faee 100%)';
+            roleBadge.style.color = 'white';
+            roleTitle.innerText = 'SPARTAN TREINADOR';
+            roleSubtitle.innerHTML = 'Bem-vindo, Mestre!<br>Pronto para guiar seus alunos à vitória?';
+        } else if (role === 'nutritionist' || role === 'Nutricionista') {
+            roleBadge.innerHTML = '🍎 Perfil: Nutricionista';
+            roleBadge.style.background = 'linear-gradient(135deg, #2A9D8F 0%, #e9c46a 100%)';
+            roleBadge.style.color = 'white';
+            roleTitle.innerText = 'SPARTAN NUTRI';
+            roleSubtitle.innerHTML = 'Bem-vindo, Doutor(a)!<br>Alimentando a força dos nossos guerreiros.';
+        }
+
+        // Captura evento PWA
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            console.log("PWA Ready");
+        });
+
+        // Simula barra de progresso
+        function simulateProgress(callback) {
+            installOverlay.style.display = 'flex';
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += Math.random() * 15;
+                if (progress > 100) progress = 100;
+
+                progressBar.style.width = `${progress}%`;
+
+                if (progress < 30) statusText.innerText = "Baixando pacotes...";
+                else if (progress < 70) statusText.innerText = "Configurando ambiente...";
+                else statusText.innerText = "Finalizando instalação...";
+
+                if (progress === 100) {
+                    clearInterval(interval);
+                    setTimeout(() => {
+                        installOverlay.style.display = 'none';
+                        if (callback) callback();
+                    }, 500);
+                }
+            }, 200);
+        }
+
+        // Ação do Botão Principal
+        document.getElementById('accessSystemBtn').addEventListener('click', async () => {
+            // Se tiver role, garante que está salva antes de qualquer ação
+            if (role) {
+                localStorage.setItem('saved_login_role', role);
+            }
+
+            // 1. Tentar Prompt PWA (Se disponível)
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                deferredPrompt = null;
+
+                simulateProgress(() => {
+                    modal.style.display = 'flex';
+                });
+            } else {
+                simulateProgress(() => {
+                    modal.style.display = 'flex';
+                });
+            }
+        });
+
+        // Funções do Modal
+        function openDesktopApp() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const role = urlParams.get('role') || localStorage.getItem('saved_login_role');
+
+            // Suffixos para Deep Link (Desktop) e Web/PWA
+            const suffix = role ? "?role=" + encodeURIComponent(role) : "";
+            const webSuffix = role ? "index.html#/?role=" + encodeURIComponent(role) : "/";
+
+            // 1. Tenta Deep Link (para Spartan Desktop)
+            window.location.href = "spartan://open" + suffix;
+
+            // 2. Redirecionamento PWA Inteligente (Opção C)
+            // Se o PWA estiver instalado, o browser tentará abrir a URL no app
+            setTimeout(() => {
+                console.log("Redirecionando para PWA:", webSuffix);
+                window.location.href = webSuffix;
+            }, 800);
+        }
+
+        function openInBrowser() {
+            // Fecha o modal
+            modal.style.display = 'none';
+
+            // Focan nas instruções
+            document.querySelector('.instructions').scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
+        }
+
+        // Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('flutter_service_worker.js');
+            });
+        }
+
+        // Detecta dispositivo (Apenas Visual)
+        const userAgent = navigator.userAgent.toLowerCase();
+        if (/android/.test(userAgent)) document.getElementById('android-instructions').style.display = 'block';
+        else if (/iphone|ipad|ipod/.test(userAgent)) document.getElementById('ios-instructions').style.display = 'block';
+        else document.getElementById('desktop-instructions').style.display = 'block';
+
+    </script>
+</body>
+
+</html>

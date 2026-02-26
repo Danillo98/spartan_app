@@ -109,6 +109,7 @@ class UserService {
           'academia': academiaName,
           'id_academia': idAcademia,
           'created_by_admin_id': createdByAdminId,
+          if (birthDate != null) 'birthDate': birthDate,
           if (paymentDueDay != null)
             'paymentDueDay': (paymentDueDay + 3 > 31) ? 31 : paymentDueDay + 3,
           if (isPaidCurrentMonth) 'isPaidCurrentMonth': true,
@@ -174,6 +175,9 @@ class UserService {
     // Novo status master do banco
     if (user.containsKey('status_financeiro')) {
       normalized['status_financeiro'] = user['status_financeiro'];
+    }
+    if (user.containsKey('data_nascimento')) {
+      normalized['birth_date'] = user['data_nascimento'];
     }
     return normalized;
   }
@@ -330,6 +334,7 @@ class UserService {
     UserRole?
         role, // Role vindo para saber qual tabela usar (ou opcional se buscarmos antes)
     int? paymentDueDay, // Novo parâmetro para dia de vencimento (somará +3)
+    String? birthDate, // Nova data de nascimento
   }) async {
     try {
       // Se o role não foi passado, precisamos descobrir quem é o usuário
@@ -367,6 +372,9 @@ class UserService {
       if (email != null) updates['email'] = email;
       if (phone != null)
         updates['telefone'] = phone; // Agora é 'telefone' em todas
+      if (birthDate != null) {
+        updates['data_nascimento'] = birthDate;
+      }
 
       // Se for aluno e tiver dia de vencimento, atualiza
       if (tableName == 'users_alunos') {

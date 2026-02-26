@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dieta - Impressão</title>
+
+    <!-- Prevent Caching -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Lato:wght@300;400;700&display=swap"
+        rel="stylesheet">
+
+    <style>
+        /* Configuração da Página de Impressão */
+        @page {
+            size: auto;
+            margin: 0mm;
+        }
+
+        @media print {
+            body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+                padding: 1.5cm;
+                margin: 0;
+            }
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Lato', sans-serif;
+            padding: 20px;
+            background: white;
+            color: #000;
+            /* Preto absoluto */
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        /* Cabeçalho */
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            /* Reduzido */
+            padding-bottom: 15px;
+            /* Reduzido */
+            border-bottom: 2px solid #000;
+            /* Preto */
+        }
+
+        .logo-container {
+            width: 120px;
+            /* Menor */
+            height: 120px;
+            /* Menor */
+            margin: 0 auto 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .logo-img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        h1 {
+            font-family: 'Cinzel', serif;
+            color: #000;
+            font-size: 24px;
+            /* Menor */
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .subtitle {
+            color: #444;
+            font-size: 12px;
+        }
+
+        /* Informações da Dieta */
+        .diet-info {
+            background: #fff;
+            padding: 10px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #ccc;
+        }
+
+        .diet-info h2 {
+            font-family: 'Cinzel', serif;
+            color: #000;
+            font-size: 18px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 5px;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            /* 4 colunas em 2 linhas? Não, melhor 2x */
+            gap: 10px;
+        }
+
+        .info-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .info-label {
+            font-weight: bold;
+            color: #000;
+            font-size: 10px;
+            text-transform: uppercase;
+        }
+
+        .info-value {
+            color: #000;
+            font-size: 13px;
+        }
+
+        /* Dias da Semana */
+        .day-section {
+            margin-bottom: 20px;
+            page-break-inside: avoid;
+        }
+
+        .day-header {
+            background: transparent !important;
+            padding: 5px 0;
+            margin-bottom: 10px;
+            border-bottom: 3px solid #000;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+
+        .day-header h3 {
+            font-family: 'Cinzel', serif;
+            font-size: 20px;
+            font-weight: 900;
+            color: #000;
+            margin: 0;
+            text-transform: uppercase;
+        }
+
+        .day-totals {
+            display: flex;
+            gap: 15px;
+            font-size: 11px;
+            color: #000;
+            font-weight: bold;
+            padding: 0;
+            background: transparent;
+        }
+
+        .day-total-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .day-total-label {
+            font-size: 8px;
+            text-transform: uppercase;
+            color: #000;
+            margin-bottom: 0;
+            font-weight: bold;
+        }
+
+        .day-total-value {
+            font-weight: 900;
+            font-size: 12px;
+            color: #000;
+        }
+
+        /* Refeições Compactas */
+        .meal {
+            background: white !important;
+            border: 1px solid #000 !important;
+            border-radius: 6px;
+            padding: 10px;
+            /* Reduzido */
+            margin-bottom: 10px;
+            break-inside: avoid;
+        }
+
+        .meal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px dashed #ccc !important;
+        }
+
+        .meal-name {
+            font-family: 'Cinzel', serif !important;
+            font-size: 16px !important;
+            /* Tamanho ideal para leitura */
+            color: #000 !important;
+            font-weight: 900 !important;
+            text-transform: uppercase;
+            margin: 0;
+        }
+
+        .meal-calories {
+            background: #000 !important;
+            color: #fff !important;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px !important;
+            font-weight: 900 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        .meal-content {
+            margin-top: 5px;
+        }
+
+        .foods {
+            color: #000 !important;
+            line-height: 1.4;
+            margin-bottom: 5px;
+            font-size: 14px !important;
+            font-weight: 600 !important;
+            font-family: 'Lato', sans-serif !important;
+        }
+
+        .macros {
+            display: flex;
+            gap: 15px;
+            padding-top: 5px;
+            border-top: 1px dotted #ccc !important;
+            font-size: 11px !important;
+            margin-top: 5px;
+        }
+
+        .macro {
+            font-size: 11px !important;
+            color: #333 !important;
+            font-weight: 500 !important;
+        }
+
+        .macro strong {
+            color: #000 !important;
+            font-weight: 800 !important;
+        }
+
+        .instructions {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f4f4f4;
+            border-left: 4px solid #D4AF37;
+            font-size: 14px;
+            color: #333;
+            font-weight: 600;
+        }
+
+        /* Rodapé */
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 2px solid #e0e0e0;
+            text-align: center;
+            color: #999;
+            font-size: 12px;
+        }
+
+        /* Botão de Impressão */
+        .print-button {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #1a1a1a 0%, #000 100%);
+            color: #D4AF37;
+            border: 2px solid #D4AF37;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-family: 'Cinzel', serif;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s;
+        }
+
+        @media screen and (max-width: 600px) {
+            .print-button {
+                top: 85px;
+                /* Move para baixo no mobile */
+                right: 10px;
+                padding: 10px 16px;
+                font-size: 12px;
+            }
+        }
+
+        .print-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Estilos para Impressão */
+        @media print {
+            body {
+                padding: 0;
+            }
+
+            .print-button {
+                display: none;
+            }
+
+            .day-section {
+                page-break-inside: avoid;
+            }
+
+            .meal {
+                page-break-inside: avoid;
+            }
+        }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 50px;
+            font-size: 18px;
+            color: #666;
+        }
+
+        .error {
+            text-align: center;
+            padding: 50px;
+            color: #d32f2f;
+        }
+    </style>
+</head>
+
+<body>
+    <button class="print-button" onclick="window.print()">🖨️ Imprimir</button>
+
+    <div id="loading" class="loading">
+        Carregando dieta...
+    </div>
+
+    <div id="error" class="error" style="display: none;">
+        Erro ao carregar a dieta. Verifique se o link está correto.
+    </div>
+
+    <div id="content" class="container" style="display: none;">
+        <!-- Conteúdo será inserido aqui via JavaScript -->
+    </div>
+
+    <script>
+        // Ordem correta dos dias da semana
+        const WEEK_ORDER = {
+            'segunda': 1,
+            'segunda-feira': 1,
+            'terça': 2,
+            'terça-feira': 2,
+            'terca': 2,
+            'terca-feira': 2,
+            'quarta': 3,
+            'quarta-feira': 3,
+            'quinta': 4,
+            'quinta-feira': 4,
+            'sexta': 5,
+            'sexta-feira': 5,
+            'sábado': 6,
+            'sabado': 6,
+            'domingo': 7
+        };
+
+        // Função para ordenar dias da semana
+        function sortDaysByWeek(days) {
+            return days.sort((a, b) => {
+                const nameA = (a.day_name || '').toLowerCase().trim();
+                const nameB = (b.day_name || '').toLowerCase().trim();
+
+                const orderA = WEEK_ORDER[nameA] || a.day_number || 999;
+                const orderB = WEEK_ORDER[nameB] || b.day_number || 999;
+
+                return orderA - orderB;
+            });
+        }
+
+        // Função para obter parâmetros da URL
+        function getUrlParams() {
+            const params = new URLSearchParams(window.location.search);
+            return {
+                dietData: params.get('data')
+            };
+        }
+
+        // Função para formatar data
+        function formatDate(dateStr) {
+            if (!dateStr) return 'Não definido';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('pt-BR');
+        }
+
+        // Função para calcular totais do dia
+        function calculateDayTotals(meals) {
+            return meals.reduce((totals, meal) => {
+                totals.calories += meal.calories || 0;
+                totals.protein += meal.protein || 0;
+                totals.carbs += meal.carbs || 0;
+                totals.fats += meal.fats || 0;
+                return totals;
+            }, { calories: 0, protein: 0, carbs: 0, fats: 0 });
+        }
+
+        // Função para renderizar a dieta
+        function renderDiet(diet) {
+            const content = document.getElementById('content');
+
+            let html = `
+                <div class="header">
+                    <div class="logo-container">
+                        <img src="https://spartanapp.com.br/icons/Icon-512.png" 
+                             alt="Spartan Logo" 
+                             class="logo-img">
+                    </div>
+                    <h1>Plano Alimentar</h1>
+                    <p class="subtitle">Spartan Gym - Nutrição e Saúde</p>
+                </div>
+
+                <div class="diet-info">
+                    <h2>${diet.name_diet || 'Dieta'}</h2>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <span class="info-label">Aluno</span>
+                            <span class="info-value">${diet.student_name || 'N/A'}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Nutricionista</span>
+                            <span class="info-value">${diet.nutritionist_name || 'N/A'}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Objetivo</span>
+                            <span class="info-value">${diet.objective_diet || 'N/A'}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Calorias Totais</span>
+                            <span class="info-value">${diet.total_calories || 0} kcal</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Início</span>
+                            <span class="info-value">${formatDate(diet.start_date)}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Validade</span>
+                            <span class="info-value">${formatDate(diet.end_date)}</span>
+                        </div>
+                    </div>
+                    ${diet.description ? `<p style="margin-top: 15px; color: #666;">${diet.description}</p>` : ''}
+                </div>
+            `;
+
+            // Ordenar e renderizar dias da semana
+            if (diet.diet_days && diet.diet_days.length > 0) {
+                const sortedDays = sortDaysByWeek(diet.diet_days);
+
+                sortedDays.forEach(day => {
+                    // Calcular totais do dia
+                    const meals = day.meals || [];
+                    const totals = calculateDayTotals(meals);
+
+                    html += `
+                        <div class="day-section">
+                            <div class="day-header">
+                                <h3>${day.day_name || `Dia ${day.day_number}`}</h3>
+                                <div class="day-totals">
+                                    <div class="day-total-item">
+                                        <div class="day-total-label">Calorias</div>
+                                        <div class="day-total-value">${totals.calories} kcal</div>
+                                    </div>
+                                    <div class="day-total-item">
+                                        <div class="day-total-label">Proteínas</div>
+                                        <div class="day-total-value">${totals.protein}g</div>
+                                    </div>
+                                    <div class="day-total-item">
+                                        <div class="day-total-label">Carboidratos</div>
+                                        <div class="day-total-value">${totals.carbs}g</div>
+                                    </div>
+                                    <div class="day-total-item">
+                                        <div class="day-total-label">Gorduras</div>
+                                        <div class="day-total-value">${totals.fats}g</div>
+                                    </div>
+                                </div>
+                            </div>
+                    `;
+
+                    // Renderizar refeições do dia
+                    if (day.meals && day.meals.length > 0) {
+                        day.meals.forEach(meal => {
+                            html += `
+                                <div class="meal">
+                                    <div class="meal-header">
+                                        <div class="meal-name">
+                                            ${meal.meal_time ? `${meal.meal_time} - ` : ''}${meal.meal_name || 'Refeição'}
+                                        </div>
+                                        <div class="meal-calories">${meal.calories || 0} kcal</div>
+                                    </div>
+                                    <div class="meal-content">
+                                        <div class="foods">${meal.foods || 'Alimentos não especificados'}</div>
+                                        ${(meal.protein || meal.carbs || meal.fats) ? `
+                                            <div class="macros">
+                                                ${meal.protein ? `<div class="macro"><strong>Proteínas:</strong> ${meal.protein}g</div>` : ''}
+                                                ${meal.carbs ? `<div class="macro"><strong>Carboidratos:</strong> ${meal.carbs}g</div>` : ''}
+                                                ${meal.fats ? `<div class="macro"><strong>Gorduras:</strong> ${meal.fats}g</div>` : ''}
+                                            </div>
+                                        ` : ''}
+                                        ${meal.instructions ? `
+                                            <div class="instructions">
+                                                <strong>Instruções:</strong> ${meal.instructions}
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            `;
+                        });
+                    } else {
+                        html += '<p style="color: #999; padding: 20px;">Nenhuma refeição cadastrada para este dia.</p>';
+                    }
+
+                    html += '</div>';
+                });
+            } else {
+                html += '<p style="color: #999; text-align: center; padding: 40px;">Nenhum dia da semana cadastrado.</p>';
+            }
+
+            html += `
+                <div class="footer">
+                    <p>Documento gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}</p>
+                    <p>Spartan Gym - Todos os direitos reservados</p>
+                </div>
+            `;
+
+            content.innerHTML = html;
+            content.style.display = 'block';
+        }
+
+        // Carregar dados ao iniciar
+        window.addEventListener('load', async () => {
+            const params = new URLSearchParams(window.location.search);
+            const dataUrl = params.get('dataUrl');
+
+            if (dataUrl) {
+                try {
+                    const response = await fetch(dataUrl);
+                    if (response.ok) {
+                        const diet = await response.json();
+                        document.getElementById('loading').style.display = 'none';
+                        renderDiet(diet);
+                        return;
+                    }
+                } catch (e) {
+                    console.error("Error fetching blob:", e);
+                }
+            }
+
+            // Tentar ler do localStorage primeiro (método novo)
+            let dietData = localStorage.getItem('spartan_diet_print');
+
+            // Fallback: tentar ler da URL (método antigo, para compatibilidade)
+            if (!dietData) {
+                dietData = params.get('data');
+                if (dietData) {
+                    dietData = decodeURIComponent(dietData);
+                }
+            }
+
+            if (!dietData) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').textContent = 'Nenhum dado de dieta foi fornecido.';
+                return;
+            }
+
+            try {
+                const diet = JSON.parse(dietData);
+
+                // Limpar localStorage após carregar (evita dados antigos)
+                localStorage.removeItem('spartan_diet_print');
+
+                document.getElementById('loading').style.display = 'none';
+                renderDiet(diet);
+            } catch (e) {
+                console.error('Erro ao processar dados:', e);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').textContent = 'Erro ao processar os dados da dieta.';
+            }
+        });
+    </script>
+</body>
+
+</html>
