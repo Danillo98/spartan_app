@@ -80,8 +80,7 @@ class UserService {
     required String phone,
     required UserRole role,
     String? birthDate,
-    int? paymentDueDay, // Dia de vencimento (1-31, apenas para alunos)
-    int? gracePeriod, // Dias de carência (apenas para alunos)
+    int? paymentDueDay, // Dia desejado (sistema somará +3 automaticamente)
     bool isPaidCurrentMonth = false, // Se já pagou o mês atual
     double? initialPaymentAmount, // Valor do pagamento inicial
   }) async {
@@ -110,8 +109,8 @@ class UserService {
           'academia': academiaName,
           'id_academia': idAcademia,
           'created_by_admin_id': createdByAdminId,
-          if (paymentDueDay != null) 'paymentDueDay': paymentDueDay,
-          if (gracePeriod != null) 'gracePeriod': gracePeriod,
+          if (paymentDueDay != null)
+            'paymentDueDay': (paymentDueDay + 3 > 31) ? 31 : paymentDueDay + 3,
           if (isPaidCurrentMonth) 'isPaidCurrentMonth': true,
         }
       });
@@ -175,10 +174,6 @@ class UserService {
     // Novo status master do banco
     if (user.containsKey('status_financeiro')) {
       normalized['status_financeiro'] = user['status_financeiro'];
-    }
-    // Carência de pagamento
-    if (user.containsKey('grace_period')) {
-      normalized['grace_period'] = user['grace_period'];
     }
     return normalized;
   }
@@ -334,8 +329,7 @@ class UserService {
     String? phone,
     UserRole?
         role, // Role vindo para saber qual tabela usar (ou opcional se buscarmos antes)
-    int? paymentDueDay, // Novo parâmetro para dia de vencimento
-    int? gracePeriod, // Novo parâmetro para dia de carência
+    int? paymentDueDay, // Novo parâmetro para dia de vencimento (somará +3)
   }) async {
     try {
       // Se o role não foi passado, precisamos descobrir quem é o usuário
@@ -376,8 +370,11 @@ class UserService {
 
       // Se for aluno e tiver dia de vencimento, atualiza
       if (tableName == 'users_alunos') {
-        if (paymentDueDay != null) updates['payment_due_day'] = paymentDueDay;
-        if (gracePeriod != null) updates['grace_period'] = gracePeriod;
+        if (paymentDueDay != null) {
+          // Regra cirúrgica: Soma 3 dias automaticamente
+          updates['payment_due_day'] =
+              (paymentDueDay + 3 > 31) ? 31 : paymentDueDay + 3;
+        }
       }
 
       final response = await _client

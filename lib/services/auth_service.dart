@@ -727,12 +727,10 @@ class AuthService {
             userData['id_academia'] ?? userData['created_by_admin_id'] ?? '';
 
         if (idAcademia != null && paymentDueDay != null) {
-          final gracePeriod = (userData['grace_period'] ?? 3) as int;
           final isOverdue = await FinancialService.isStudentOverdue(
             studentId: userData['id'],
             idAcademia: idAcademia,
             paymentDueDay: paymentDueDay,
-            gracePeriod: gracePeriod,
             createdAtStr: userData['created_at'],
           );
 

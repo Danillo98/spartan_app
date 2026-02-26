@@ -32,7 +32,6 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
   DateTime? _selectedBirthDate;
   UserRole _selectedRole = UserRole.student;
   int? _selectedPaymentDay; // Dia de vencimento
-  int? _selectedGracePeriod = 3; // Dias de carência
   bool _isPaidCurrentMonth = false; // Pagamento inicial
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -121,8 +120,6 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
             : null,
         paymentDueDay:
             _selectedRole == UserRole.student ? _selectedPaymentDay : null,
-        gracePeriod:
-            _selectedRole == UserRole.student ? _selectedGracePeriod : null,
         isPaidCurrentMonth:
             _selectedRole == UserRole.student ? _isPaidCurrentMonth : false,
         initialPaymentAmount:
@@ -1034,36 +1031,6 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
                       },
                     ),
                   ],
-
-                  const SizedBox(height: 16),
-                  // Campo Carência (Switch)
-                  Container(
-                    decoration: BoxDecoration(
-                      color: AppTheme.lightGrey,
-                      borderRadius: AppTheme.inputRadius,
-                      border: Border.all(color: AppTheme.borderGrey),
-                    ),
-                    child: SwitchListTile(
-                      title: Text(
-                        'Período de Carência?',
-                        style: GoogleFonts.lato(
-                          fontSize: 16,
-                          color: AppTheme.primaryText,
-                        ),
-                      ),
-                      subtitle: Text(
-                        'Se marcado "Sim", o aluno terá 3 dias de lambuja após o vencimento para não ter o acesso bloqueado na catraca e no perfil.',
-                        style: GoogleFonts.lato(
-                          fontSize: 12,
-                          color: AppTheme.secondaryText,
-                        ),
-                      ),
-                      value: _selectedGracePeriod == 3,
-                      activeColor: Colors.blue,
-                      onChanged: (val) =>
-                          setState(() => _selectedGracePeriod = val ? 3 : 0),
-                    ),
-                  ),
                 ],
 
                 const SizedBox(height: 16),

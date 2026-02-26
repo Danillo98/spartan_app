@@ -429,7 +429,6 @@ class FinancialService {
     for (var student in students) {
       final studentId = student['id'];
       final dueDay = student['payment_due_day'] as int?;
-      final gracePeriod = (student['grace_period'] ?? 3) as int;
       final createdAtStr = student['created_at'] as String?;
 
       // Ignorar alunos sem data de criação (banco inconsistente) ou tratar como novos
@@ -497,10 +496,10 @@ class FinancialService {
             if (year < now.year || (year == now.year && month < now.month)) {
               status = 'overdue';
             }
-            // Mês atual e dia já passou -> Vencido (Com 3 dias de carência)
+            // Mês atual e dia já passou -> Vencido (Vencimento já inclui os 3 dias no banco)
             else if (year == now.year &&
                 month == now.month &&
-                now.day > (dueDay + gracePeriod)) {
+                now.day > dueDay) {
               status = 'overdue';
             } else {
               status = 'pending';
@@ -547,7 +546,6 @@ class FinancialService {
     required String studentId,
     required String idAcademia,
     int? paymentDueDay,
-    int gracePeriod = 3,
     String? createdAtStr,
   }) async {
     if (paymentDueDay == null) return false;
@@ -579,8 +577,8 @@ class FinancialService {
       if (paidCount < monthsRequired - 1) return true;
 
       // Se deve APENAS o mês atual (paidCount == monthsRequired - 1),
-      // verifica se já passou do dia de vencimento + carência
-      if (now.day > (paymentDueDay + gracePeriod)) return true;
+      // verifica se já passou do dia de vencimento (que agora já inclui os 3 dias no banco)
+      if (now.day > paymentDueDay) return true;
 
       return false; // Dentro do prazo
     } catch (e) {
@@ -683,9 +681,8 @@ class FinancialService {
         status = 'overdue';
       } else {
         final dueDay = student['payment_due_day'] as int?;
-        final gracePeriod = (student['grace_period'] ?? 3) as int;
         if (dueDay != null) {
-          if (now.day > (dueDay + gracePeriod)) {
+          if (now.day > dueDay) {
             status = 'overdue';
           } else {
             status = 'pending';

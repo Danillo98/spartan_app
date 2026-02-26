@@ -161,7 +161,6 @@ class _StudentDashboardState extends State<StudentDashboard>
     final paymentDueDay = data['payment_due_day'];
 
     if (idAcademia != null) {
-      final gracePeriod = (data['grace_period'] ?? 3) as int;
       bool isOverdue = false;
       try {
         isOverdue = await FinancialService.isStudentOverdue(
@@ -170,7 +169,6 @@ class _StudentDashboardState extends State<StudentDashboard>
           paymentDueDay: paymentDueDay is int
               ? paymentDueDay
               : int.tryParse(paymentDueDay.toString()),
-          gracePeriod: gracePeriod,
         );
       } catch (e) {
         print('Erro ao verificar status financeiro: $e');

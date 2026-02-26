@@ -22,7 +22,7 @@ class _EditUserScreenState extends State<EditUserScreen> {
   late TextEditingController _dueDayController;
 
   late UserRole _selectedRole;
-  int? _selectedGracePeriod; // Dias de carência
+  int? _due_day_value;
   bool _isLoading = false;
 
   @override
@@ -33,13 +33,20 @@ class _EditUserScreenState extends State<EditUserScreen> {
     _phoneController = TextEditingController(text: widget.user['phone']);
 
     // Inicia com valor existente ou vazio
+    // Inicia com valor existente ou vazio (Subtrai 3 dias para exibir o dia "original" sem a carência automática)
     final existingDueDay = widget.user['payment_due_day'];
+    if (existingDueDay != null && existingDueDay is int) {
+      final rawDay = existingDueDay - 3;
+      _due_day_value = rawDay < 1 ? 1 : rawDay; // Segurança
+    } else {
+      _due_day_value = null;
+    }
+
     _dueDayController = TextEditingController(
-      text: existingDueDay != null ? existingDueDay.toString() : '',
+      text: _due_day_value != null ? _due_day_value.toString() : '',
     );
 
     _selectedRole = _stringToRole(widget.user['role']);
-    _selectedGracePeriod = widget.user['grace_period'] ?? 3;
   }
 
   @override
@@ -85,8 +92,6 @@ class _EditUserScreenState extends State<EditUserScreen> {
         phone: _phoneController.text.trim(),
         role: _selectedRole,
         paymentDueDay: dueDay,
-        gracePeriod:
-            _selectedRole == UserRole.student ? _selectedGracePeriod : null,
       );
 
       if (!mounted) return;
@@ -314,38 +319,6 @@ class _EditUserScreenState extends State<EditUserScreen> {
                       return null;
                     },
                   ),
-
-                if (_selectedRole == UserRole.student) ...[
-                  const SizedBox(height: 16),
-                  // Campo Carência (Switch)
-                  Container(
-                    decoration: BoxDecoration(
-                      color: AppTheme.lightGrey,
-                      borderRadius: AppTheme.inputRadius,
-                      border: Border.all(color: AppTheme.borderGrey),
-                    ),
-                    child: SwitchListTile(
-                      title: Text(
-                        'Período de Carência?',
-                        style: GoogleFonts.lato(
-                          fontSize: 16,
-                          color: AppTheme.primaryText,
-                        ),
-                      ),
-                      subtitle: Text(
-                        'Se marcado "Sim", o aluno terá 3 dias de lambuja após o vencimento para não ter o acesso bloqueado na catraca e no perfil.',
-                        style: GoogleFonts.lato(
-                          fontSize: 12,
-                          color: AppTheme.secondaryText,
-                        ),
-                      ),
-                      value: _selectedGracePeriod == 3,
-                      activeColor: Colors.blue,
-                      onChanged: (val) =>
-                          setState(() => _selectedGracePeriod = val ? 3 : 0),
-                    ),
-                  ),
-                ],
 
                 const SizedBox(height: 30),
 
