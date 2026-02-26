@@ -11,6 +11,7 @@ import 'control_id_service.dart'; // Import ControliD Sync
 class AuthService {
   static final SupabaseClient _client = SupabaseService.client;
   static Map<String, dynamic>? _cachedUserData;
+  static const String version = '2.4.1';
 
   /// Retorna o usuário autenticado atualmente (se houver)
   static User? get currentUser => _client.auth.currentUser;
@@ -37,7 +38,7 @@ class AuthService {
       // Verificar se email já existe em users_adm
       final existingUser = await _client
           .from('users_adm')
-          .select('email')
+          .select() // Changed from select('email')
           .eq('email', email)
           .maybeSingle();
 
@@ -190,25 +191,25 @@ class AuthService {
       // Verificar se email já foi cadastrado em qualquer tabela
       var existingUser = await _client
           .from('users_adm')
-          .select('email')
+          .select() // Changed from select('email')
           .eq('email', email)
           .maybeSingle();
       if (existingUser == null)
         existingUser = await _client
             .from('users_nutricionista')
-            .select('email')
+            .select() // Changed from select('email')
             .eq('email', email)
             .maybeSingle();
       if (existingUser == null)
         existingUser = await _client
             .from('users_personal')
-            .select('email')
+            .select() // Changed from select('email')
             .eq('email', email)
             .maybeSingle();
       if (existingUser == null)
         existingUser = await _client
             .from('users_alunos')
-            .select('email')
+            .select() // Changed from select('email')
             .eq('email', email)
             .maybeSingle();
 
@@ -810,8 +811,7 @@ class AuthService {
       // Buscar dados do admin
       final admin = await _client
           .from('users_adm')
-          .select(
-              'assinatura_status, assinatura_expirada, assinatura_deletada, is_blocked')
+          .select()
           .eq('id', adminId)
           .maybeSingle();
 
@@ -920,7 +920,7 @@ class AuthService {
     try {
       final admin = await _client
           .from('users_adm')
-          .select('assinatura_status, academia, assinatura_expirada')
+          .select()
           .eq('id', idAcademia)
           .maybeSingle();
 
