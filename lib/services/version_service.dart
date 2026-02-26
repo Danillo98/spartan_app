@@ -12,7 +12,7 @@ class VersionService {
     try {
       final response = await _supabase
           .from('app_versao')
-          .select('versao_atual')
+          .select()
           .order('id', ascending: false)
           .limit(1)
           .maybeSingle();

@@ -14,7 +14,7 @@ class UserService {
     // 1. Tentar Admin
     final admin = await _client
         .from('users_adm')
-        .select('id, academia') // Seleciona campos necessários
+        .select()
         .eq('id', currentUser.id)
         .maybeSingle();
     if (admin != null) {

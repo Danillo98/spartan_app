@@ -564,7 +564,7 @@ class FinancialService {
       // 2. Quantos pagamentos de 'Mensalidade' este aluno já fez?
       final paymentsResponse = await _client
           .from('financial_transactions')
-          .select('id')
+          .select()
           .eq('related_user_id', studentId)
           .eq('type', 'income')
           .eq('category', 'Mensalidade');

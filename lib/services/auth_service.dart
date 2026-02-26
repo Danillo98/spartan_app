@@ -530,18 +530,15 @@ class AuthService {
   // Método auxiliar para buscar informações da academia (Nome e Endereço)
   static Future<Map<String, String>?> _getAcademyInfo(String idAcademia) async {
     try {
-      final admin = await _client
+      final info = await _client
           .from('users_adm')
-          .select(
-              'academia, endereco') // Selecionar nome da academia e endereço
+          .select()
           .eq('id', idAcademia)
           .maybeSingle();
-
-      if (admin == null) return null;
-
+      if (info == null) return null;
       return {
-        'nome': admin['academia'] as String? ?? 'Academia Não Informada',
-        'endereco': admin['endereco'] as String? ?? '',
+        'nome': info['academia'] as String? ?? 'Academia Não Informada',
+        'endereco': info['endereco'] as String? ?? '',
       };
     } catch (_) {
       return null;
@@ -980,7 +977,7 @@ class AuthService {
 
       final admin = await _client
           .from('users_adm')
-          .select('assinatura_status, assinatura_expirada, is_blocked')
+          .select()
           .eq('id', userData['id'])
           .single();
 
