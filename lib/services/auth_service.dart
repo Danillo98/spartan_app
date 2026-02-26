@@ -11,7 +11,7 @@ import 'control_id_service.dart'; // Import ControliD Sync
 class AuthService {
   static final SupabaseClient _client = SupabaseService.client;
   static Map<String, dynamic>? _cachedUserData;
-  static const String version = '2.4.1';
+  static const String version = '2.6.0';
 
   /// Retorna o usuário autenticado atualmente (se houver)
   static User? get currentUser => _client.auth.currentUser;
