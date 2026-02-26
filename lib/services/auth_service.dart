@@ -553,8 +553,7 @@ class AuthService {
       // 1. Verificar users_adm
       final admin = await _client
           .from('users_adm')
-          .select(
-              'id, nome, email, telefone, academia, cpf, endereco, plano_mensal, is_blocked, photo_url, assinatura_status, assinatura_expirada')
+          .select()
           .eq('id', userId)
           .maybeSingle();
       if (admin != null) {
@@ -571,8 +570,7 @@ class AuthService {
       // 2. Verificar users_nutricionista
       final nutri = await _client
           .from('users_nutricionista')
-          .select(
-              'id, nome, email, telefone, id_academia, is_blocked, photo_url')
+          .select()
           .eq('id', userId)
           .maybeSingle();
       if (nutri != null) {
@@ -597,8 +595,7 @@ class AuthService {
       // 3. Verificar users_personal
       final personal = await _client
           .from('users_personal')
-          .select(
-              'id, nome, email, telefone, id_academia, is_blocked, photo_url')
+          .select()
           .eq('id', userId)
           .maybeSingle();
       if (personal != null) {
@@ -623,8 +620,7 @@ class AuthService {
       // 4. Verificar users_alunos
       final aluno = await _client
           .from('users_alunos')
-          .select(
-              'id, nome, email, telefone, id_academia, is_blocked, payment_due_day, grace_period, created_at, photo_url')
+          .select()
           .eq('id', userId)
           .maybeSingle();
       if (aluno != null) {
