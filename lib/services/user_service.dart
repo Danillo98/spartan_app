@@ -22,6 +22,7 @@ class UserService {
         'id_academia': admin['id'],
         'role': 'admin',
         'academia_name': admin['academia'],
+        'cnpj_academia': admin['cnpj'],
       };
     }
 
@@ -44,6 +45,7 @@ class UserService {
           'id_academia': nutri['id_academia'],
           'role': 'nutritionist',
           'academia_name': academyDetails['academia'],
+          'cnpj_academia': academyDetails['cnpj'],
         };
       }
     }
@@ -65,6 +67,7 @@ class UserService {
           'id_academia': personal['id_academia'],
           'role': 'trainer',
           'academia_name': academyDetails['academia'],
+          'cnpj_academia': academyDetails['cnpj'],
         };
       }
     }
@@ -107,6 +110,7 @@ class UserService {
           'name': name.trim(),
           'phone': phone.trim(),
           'academia': academiaName,
+          'cnpj_academia': academyContext['cnpj_academia'],
           'id_academia': idAcademia,
           'created_by_admin_id': createdByAdminId,
           if (birthDate != null) 'birthDate': birthDate,
