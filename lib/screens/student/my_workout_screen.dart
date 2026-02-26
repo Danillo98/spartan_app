@@ -57,35 +57,26 @@ class _MyWorkoutScreenState extends State<MyWorkoutScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-        if (Navigator.canPop(context)) {
-          Navigator.pop(context);
-        }
-      },
-      child: Scaffold(
-        backgroundColor: AppTheme.lightGrey,
-        appBar: AppBar(
-          backgroundColor: AppTheme.primaryRed,
-          title: Text(
-            'Meus Treinos',
-            style: GoogleFonts.lato(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
+    return Scaffold(
+      backgroundColor: AppTheme.lightGrey,
+      appBar: AppBar(
+        backgroundColor: AppTheme.primaryRed,
+        title: Text(
+          'Meus Treinos',
+          style: GoogleFonts.lato(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
           ),
-          iconTheme: const IconThemeData(color: Colors.white),
         ),
-        body: _isLoading
-            ? const Center(
-                child: CircularProgressIndicator(color: AppTheme.primaryRed),
-              )
-            : _workouts.isEmpty
-                ? _buildEmptyState()
-                : _buildWorkoutsList(),
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(color: AppTheme.primaryRed),
+            )
+          : _workouts.isEmpty
+              ? _buildEmptyState()
+              : _buildWorkoutsList(),
     );
   }
 
@@ -571,41 +562,32 @@ class _WorkoutDetailsStudentScreenState
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-        if (Navigator.canPop(context)) {
-          Navigator.pop(context);
-        }
-      },
-      child: Stack(
-        children: [
-          Scaffold(
-            backgroundColor: AppTheme.lightGrey,
-            body: _isLoading ? _buildLoading() : _buildBody(),
-          ),
-          if (_isPrinting)
-            Container(
-              color: Colors.black.withOpacity(0.3),
-              child: const Center(
-                child: Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(24.0),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircularProgressIndicator(color: AppTheme.primaryRed),
-                        SizedBox(height: 16),
-                        Text('Gerando PDF...'),
-                      ],
-                    ),
+    return Stack(
+      children: [
+        Scaffold(
+          backgroundColor: AppTheme.lightGrey,
+          body: _isLoading ? _buildLoading() : _buildBody(),
+        ),
+        if (_isPrinting)
+          Container(
+            color: Colors.black.withOpacity(0.3),
+            child: const Center(
+              child: Card(
+                child: Padding(
+                  padding: EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(color: AppTheme.primaryRed),
+                      SizedBox(height: 16),
+                      Text('Gerando PDF...'),
+                    ],
                   ),
                 ),
               ),
             ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 

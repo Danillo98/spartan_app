@@ -682,8 +682,7 @@ class FinancialService {
       if (currentPaidCount < monthsSinceStart - 1) {
         status = 'overdue';
       } else {
-        final dueDay =
-            (student['payment_due'] ?? student['payment_due_day']) as int?;
+        final dueDay = student['payment_due_day'] as int?;
         final gracePeriod = (student['grace_period'] ?? 3) as int;
         if (dueDay != null) {
           if (now.day > (dueDay + gracePeriod)) {

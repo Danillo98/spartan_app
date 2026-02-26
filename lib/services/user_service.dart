@@ -169,9 +169,6 @@ class UserService {
     if (user.containsKey('nome')) normalized['name'] = user['nome'];
     if (user.containsKey('telefone')) normalized['phone'] = user['telefone'];
     normalized['is_blocked'] = user['is_blocked'] ?? false;
-    if (user.containsKey('payment_due')) {
-      normalized['payment_due_day'] = user['payment_due'];
-    }
     if (user.containsKey('payment_due_day')) {
       normalized['payment_due_day'] = user['payment_due_day'];
     }

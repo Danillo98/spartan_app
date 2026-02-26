@@ -4,6 +4,27 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'financial_service.dart';
 
 class ControlIdService {
+  // Histórico persistente que sobrevive à mudança de telas (Memória de Sessão)
+  static final List<Map<String, dynamic>> accessLogHistory = [];
+  static int lastProcessedLogId = 0;
+
+  static void addLogToHistory(Map<String, dynamic> log) {
+    if (log['log_id'] != null && log['log_id'] > 0) {
+      bool exists = accessLogHistory.any((l) => l['log_id'] == log['log_id']);
+      if (exists) return;
+      if (log['log_id'] > lastProcessedLogId) {
+        lastProcessedLogId = log['log_id'];
+      }
+    }
+
+    accessLogHistory.insert(0, log);
+
+    // Limita log para não pesar memória (200 registros)
+    if (accessLogHistory.length > 200) {
+      accessLogHistory.removeLast();
+    }
+  }
+
   static Future<Map<String, dynamic>> addUser({
     required String ip,
     required int id,

@@ -62,10 +62,9 @@ class _AdminTurnstilesScreenState extends State<AdminTurnstilesScreen> {
   Map<String, bool> _ipStatuses = {};
   Timer? _statusTimer;
   Timer? _logPollingTimer;
-  int _lastLogId = 0;
-
-  // Terminal de Log
-  final List<Map<String, dynamic>> _accessLogs = [];
+  // Terminal de Log (Persistente via ControlIdService)
+  List<Map<String, dynamic>> get _accessLogs =>
+      ControlIdService.accessLogHistory;
   final ScrollController _logScrollController = ScrollController();
 
   final String _downloadUrl =
@@ -202,26 +201,17 @@ class _AdminTurnstilesScreenState extends State<AdminTurnstilesScreen> {
 
   void _addLog(String message, String type, IconData icon,
       {int? logId, String? photoUrl}) {
-    if (!mounted) return;
-
-    // Evita duplicatas se vier via Push e Polling
-    if (logId != null && logId > 0) {
-      bool exists = _accessLogs.any((log) => log['log_id'] == logId);
-      if (exists) return;
-    }
-
-    setState(() {
-      _accessLogs.insert(0, {
-        'message': message,
-        'type': type,
-        'icon': icon,
-        'time': DateFormat('HH:mm:ss').format(DateTime.now()),
-        'log_id': logId,
-        'photo_url': photoUrl,
-      });
-      // Limita log para não pesar memória
-      if (_accessLogs.length > 100) _accessLogs.removeLast();
+    // Adiciona ao histórico centralizado/persistente do service
+    ControlIdService.addLogToHistory({
+      'message': message,
+      'type': type,
+      'icon': icon,
+      'time': DateFormat('HH:mm:ss').format(DateTime.now()),
+      'log_id': logId,
+      'photo_url': photoUrl,
     });
+
+    if (mounted) setState(() {});
   }
 
   Future<void> _pollAccessLogs() async {
@@ -239,7 +229,7 @@ class _AdminTurnstilesScreenState extends State<AdminTurnstilesScreen> {
 
         for (var log in reversedLogs) {
           final int id = log['id'] ?? 0;
-          if (id <= _lastLogId) continue;
+          if (id <= ControlIdService.lastProcessedLogId) continue;
 
           final int catracaId = log['user_id'] ?? 0;
           final int event = log['event'] ?? 0; // 7 = Sucesso, etc
@@ -273,7 +263,7 @@ class _AdminTurnstilesScreenState extends State<AdminTurnstilesScreen> {
                 logId: id, photoUrl: student['photo_url']);
           }
 
-          if (id > _lastLogId) _lastLogId = id;
+          // O _addLog já cuida do lastProcessedLogId via ControlIdService
         }
       } catch (e) {
         print('Erro no polling de logs: $e');
@@ -1134,88 +1124,93 @@ class _AdminTurnstilesScreenState extends State<AdminTurnstilesScreen> {
                                     ],
                                   ),
                                 )
-                              : ListView.builder(
+                              : Scrollbar(
                                   controller: _logScrollController,
-                                  padding: const EdgeInsets.all(16),
-                                  itemCount: _accessLogs.length,
-                                  itemBuilder: (context, index) {
-                                    final log = _accessLogs[index];
-                                    Color logColor = const Color(0xFF1A1A1A);
-                                    FontWeight weight = FontWeight.w500;
-                                    IconData iconData =
-                                        log['icon'] ?? Icons.chevron_right;
+                                  thumbVisibility: true,
+                                  child: ListView.builder(
+                                    controller: _logScrollController,
+                                    padding: const EdgeInsets.all(16),
+                                    itemCount: _accessLogs.length,
+                                    itemBuilder: (context, index) {
+                                      final log = _accessLogs[index];
+                                      Color logColor = const Color(0xFF1A1A1A);
+                                      FontWeight weight = FontWeight.w500;
+                                      IconData iconData =
+                                          log['icon'] ?? Icons.chevron_right;
 
-                                    if (log['type'] == 'error' ||
-                                        log['type'] == 'exit') {
-                                      logColor = AppTheme.primaryRed;
-                                      weight = FontWeight.bold;
-                                    } else if (log['type'] == 'success') {
-                                      logColor = const Color(0xFF2E7D32);
-                                      weight = FontWeight.bold;
-                                    }
+                                      if (log['type'] == 'error' ||
+                                          log['type'] == 'exit') {
+                                        logColor = AppTheme.primaryRed;
+                                        weight = FontWeight.bold;
+                                      } else if (log['type'] == 'success') {
+                                        logColor = const Color(0xFF2E7D32);
+                                        weight = FontWeight.bold;
+                                      }
 
-                                    return Padding(
-                                      padding:
-                                          const EdgeInsets.only(bottom: 12),
-                                      child: Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            '[${log['time']}]',
-                                            style: GoogleFonts.sourceCodePro(
-                                              color: AppTheme.secondaryText,
-                                              fontSize: 12,
+                                      return Padding(
+                                        padding:
+                                            const EdgeInsets.only(bottom: 12),
+                                        child: Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              '[${log['time']}]',
+                                              style: GoogleFonts.sourceCodePro(
+                                                color: AppTheme.secondaryText,
+                                                fontSize: 12,
+                                              ),
                                             ),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Icon(iconData,
-                                              size: 16,
-                                              color: logColor.withOpacity(0.7)),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  log['message'] ?? '',
-                                                  style: GoogleFonts.lato(
-                                                    color: logColor,
-                                                    fontSize: 14,
-                                                    fontWeight: weight,
-                                                  ),
-                                                ),
-                                                if (log['photo_url'] !=
-                                                    null) ...[
-                                                  const SizedBox(height: 8),
-                                                  Container(
-                                                    width: 80,
-                                                    height:
-                                                        100, // Proporção 3x4
-                                                    decoration: BoxDecoration(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                              8),
-                                                      border: Border.all(
-                                                          color: logColor
-                                                              .withOpacity(
-                                                                  0.3)),
-                                                      image: DecorationImage(
-                                                        image: NetworkImage(
-                                                            log['photo_url']),
-                                                        fit: BoxFit.cover,
-                                                      ),
+                                            const SizedBox(width: 12),
+                                            Icon(iconData,
+                                                size: 16,
+                                                color:
+                                                    logColor.withOpacity(0.7)),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    log['message'] ?? '',
+                                                    style: GoogleFonts.lato(
+                                                      color: logColor,
+                                                      fontSize: 14,
+                                                      fontWeight: weight,
                                                     ),
                                                   ),
+                                                  if (log['photo_url'] !=
+                                                      null) ...[
+                                                    const SizedBox(height: 8),
+                                                    Container(
+                                                      width: 80,
+                                                      height:
+                                                          100, // Proporção 3x4
+                                                      decoration: BoxDecoration(
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(8),
+                                                        border: Border.all(
+                                                            color: logColor
+                                                                .withOpacity(
+                                                                    0.3)),
+                                                        image: DecorationImage(
+                                                          image: NetworkImage(
+                                                              log['photo_url']),
+                                                          fit: BoxFit.cover,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
                                                 ],
-                                              ],
+                                              ),
                                             ),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  },
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                  ),
                                 ),
                         ),
                       ],
