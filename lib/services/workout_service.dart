@@ -18,7 +18,8 @@ class WorkoutService {
   }
 
   // Buscar alunos do personal que têm fichas
-  static Future<List<Map<String, dynamic>>> getMyStudents() async {
+  static Future<List<Map<String, dynamic>>> getMyStudents(
+      {bool withCount = true}) async {
     try {
       final user = _client.auth.currentUser;
       if (user == null) return [];
@@ -40,12 +41,26 @@ class WorkoutService {
       // 2. Buscar todos os alunos da mesma academia
       final students = await _client
           .from('users_alunos')
-          .select()
+          .select('id, nome, email, telefone')
           .eq('id_academia', idAcademia)
           .order('nome');
 
+      if (!withCount) {
+        final studentsSimple = students
+            .map((student) => {
+                  'id': student['id'],
+                  'name': student['nome'], // Campo normalizado para UI
+                  'email': student['email'],
+                  'workout_count': 0,
+                })
+            .toList();
+        await CacheManager().set(cacheKey, studentsSimple);
+        return studentsSimple;
+      }
+
       // 3. Buscar fichas criadas por este usuário (para contador)
-      var workoutsQuery = _client.from('workouts').select();
+      // CRÍTICO: Buscar APENAS id e student_id para economizar megabytes de download
+      var workoutsQuery = _client.from('workouts').select('id, student_id');
 
       // O Admin tem acesso a todas (ou pelo menos as que ele criou)
       // Se não filtrar por personal_id, conta todas as fichas da academia.
@@ -208,8 +223,12 @@ class WorkoutService {
         return List<Map<String, dynamic>>.from(cached);
       }
 
-      var query =
-          _client.from('workouts').select().eq('id_academia', idAcademia);
+      // CRÍTICO: Especificar colunas para NÃO trazer imagens Base64 imensas
+      var query = _client
+          .from('workouts')
+          .select(
+              'id, name, goal, difficulty_level, is_active, start_date, end_date, created_at, student_id, personal_id, id_academia')
+          .eq('id_academia', idAcademia);
 
       if (role == 'personal') {
         query = query.eq('personal_id', user.id);
@@ -217,16 +236,69 @@ class WorkoutService {
 
       final response = await query.order('created_at', ascending: false);
 
+      // Buscar alunos em lote
+      final studentIds = response
+          .map((w) => w['student_id']?.toString())
+          .where((id) => id != null)
+          .toSet()
+          .toList();
+
+      Map<String, dynamic> studentsMap = {};
+      if (studentIds.isNotEmpty) {
+        final students = await _client
+            .from('users_alunos')
+            .select('id, nome, email')
+            .inFilter('id', studentIds);
+        for (var s in students) {
+          studentsMap[s['id']] = {
+            'name': s['nome'],
+            'photo_url': null,
+            'id': s['id']
+          };
+        }
+      }
+
+      // Buscar personais em lote
+      final personalIds = response
+          .map((w) => w['personal_id']?.toString())
+          .where((id) => id != null)
+          .toSet()
+          .toList();
+
+      Map<String, dynamic> personalsMap = {};
+      if (personalIds.isNotEmpty) {
+        final personals = await _client
+            .from('users_personal')
+            .select('id, nome, email')
+            .inFilter('id', personalIds);
+        for (var p in personals) {
+          personalsMap[p['id']] = {'name': p['nome'], 'id': p['id']};
+        }
+
+        // Fallback para admin (se a ficha foi criada por admin)
+        final missingPersonals =
+            personalIds.where((k) => !personalsMap.containsKey(k)).toList();
+        if (missingPersonals.isNotEmpty) {
+          final adms = await _client
+              .from('users_adm')
+              .select('id, nome, email')
+              .inFilter('id', missingPersonals);
+          for (var a in adms) {
+            personalsMap[a['id']] = {
+              'name': a['nome'] ?? 'Administrador',
+              'id': a['id']
+            };
+          }
+        }
+      }
+
       // Adaptar resposta para UI
       final result = response.map((w) {
-        final studentData = w['student'] as Map<String, dynamic>?;
-        // Criar um objeto student compatível com a UI que espera 'name'
-        final adaptedStudent = studentData != null
-            ? {'name': studentData['nome'], 'photo_url': null}
-            : null;
-
         final newMap = Map<String, dynamic>.from(w);
-        newMap['student'] = adaptedStudent;
+        newMap['student'] = studentsMap[w['student_id']?.toString()] ??
+            {'name': 'Aluno não atribuído'};
+        newMap['personal'] = personalsMap[w['personal_id']?.toString()] ??
+            {'name': 'Administração da Academia'};
         return newMap;
       }).toList();
 

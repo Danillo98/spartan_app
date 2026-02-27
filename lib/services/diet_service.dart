@@ -640,7 +640,8 @@ class DietService {
 
   // Buscar alunos do nutricionista que têm dietas
   // Buscar TODOS os alunos do nutricionista (da mesma academia)
-  static Future<List<Map<String, dynamic>>> getMyStudents() async {
+  static Future<List<Map<String, dynamic>>> getMyStudents(
+      {bool withCount = true}) async {
     try {
       final context = await _getContext();
       final idAcademia = context['id_academia'];
@@ -661,9 +662,22 @@ class DietService {
       // 1. Buscar todos os alunos da academia
       final students = await _client
           .from('users_alunos')
-          .select()
+          .select('id, nome, email, telefone')
           .eq('id_academia', idAcademia)
           .order('nome');
+
+      if (!withCount) {
+        final studentsSimple = students
+            .map((student) => {
+                  'id': student['id'],
+                  'name': student['nome'],
+                  'email': student['email'],
+                  'diet_count': 0,
+                })
+            .toList();
+        await CacheManager().set(cacheKey, studentsSimple);
+        return studentsSimple;
+      }
 
       // 2. Buscar dietas para calcular count (opcional)
       var dietsQuery = _client

@@ -100,7 +100,8 @@ class WorkoutTemplateService {
 
       var query = _client
           .from('workout_templates')
-          .select()
+          .select(
+              'id, name, difficulty_level, goal, created_at, id_academia, personal_id')
           .eq('id_academia', idAcademia);
 
       if (role == 'personal') {

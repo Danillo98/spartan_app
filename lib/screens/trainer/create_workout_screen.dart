@@ -65,7 +65,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
     });
 
     try {
-      final students = await WorkoutService.getMyStudents();
+      final students = await WorkoutService.getMyStudents(withCount: false);
       final templates = await WorkoutTemplateService.getTemplates();
 
       if (mounted) {

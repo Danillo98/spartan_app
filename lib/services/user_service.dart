@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
 import 'auth_service.dart';
+import 'cache_manager.dart';
 import '../models/user_role.dart';
 
 class UserService {
@@ -293,8 +294,10 @@ class UserService {
     String? birthDate, // Nova data de nascimento
   }) async {
     try {
-      // Se o role não foi passado, precisamos descobrir quem é o usuário
-      String? roleString;
+      final currentUser = _client.auth.currentUser;
+      if (currentUser == null) throw Exception('Admin não autenticado');
+
+      String roleString;
       if (role != null) {
         roleString = role.toString().split('.').last;
       } else {
@@ -303,59 +306,47 @@ class UserService {
         roleString = existingUser['role'];
       }
 
-      String tableName;
-      if (roleString == 'admin')
-        tableName = 'users_adm';
-      else if (roleString == 'nutritionist')
-        tableName = 'users_nutricionista';
-      else if (roleString == 'trainer')
-        tableName = 'users_personal';
-      else
-        tableName = 'users_alunos';
+      print('🚀 [UserService] Editando usuário via v3: $userId ($roleString)');
 
-      // Se o email foi alterado, atualizar em auth.users também
-      if (email != null) {
-        print('📧 [DEBUG] Atualizando email em auth.users via RPC...');
-        await _client.rpc('admin_update_user_credentials', params: {
-          'target_user_id': userId,
-          'new_email': email,
-          'new_password': null,
-        });
+      final response = await _client.rpc('admin_update_user_v3', params: {
+        'p_admin_id': currentUser.id,
+        'p_user_id': userId,
+        'p_role': roleString,
+        'p_name': name,
+        'p_email': email,
+        'p_phone': phone,
+        'p_birth_date': birthDate,
+        'p_due_day': paymentDueDay,
+      });
+
+      // Se a resposta vier como lista (SETOF/TABLE), pegamos o primeiro. Se vier como objeto (JSONB), usamos direto.
+      final result = (response is List) ? response.first : response;
+
+      if (result != null && result['success'] == true) {
+        await CacheManager().invalidatePattern('user_$userId');
+        return {
+          'success': true,
+          'message': result['message'] ?? 'Usuário atualizado com sucesso',
+        };
+      } else {
+        return {
+          'success': false,
+          'message':
+              result?['message'] ?? 'Erro ao processar atualização no servidor',
+        };
       }
-
-      final Map<String, dynamic> updates = {};
-      if (name != null) updates['nome'] = name; // Agora é 'nome' em todas
-      if (email != null) updates['email'] = email;
-      if (phone != null)
-        updates['telefone'] = phone; // Agora é 'telefone' em todas
-      if (birthDate != null) {
-        updates['data_nascimento'] = birthDate;
-      }
-
-      // Se for aluno e tiver dia de vencimento, atualiza com valor exato
-      if (tableName == 'users_alunos') {
-        if (paymentDueDay != null) {
-          // Salva o valor exato digitado pelo admin (sem offset)
-          updates['payment_due_day'] = paymentDueDay.clamp(1, 31);
-        }
-      }
-
-      final response = await _client
-          .from(tableName)
-          .update(updates)
-          .eq('id', userId)
-          .select()
-          .single();
-
-      return {
-        'success': true,
-        'user': response,
-        'message': 'Usuário atualizado com sucesso',
-      };
     } catch (e) {
+      print('❌ Erro Crítico no updateUser: $e');
+
+      String msg = e.toString();
+      if (msg.contains('PGRST116')) {
+        msg =
+            'Erro de comunicação (PGRST116). Você aplicou o SQL da função "admin_update_user_v3" no painel do Supabase?';
+      }
+
       return {
         'success': false,
-        'message': 'Erro ao atualizar usuário: ${e.toString()}',
+        'message': 'Erro ao atualizar: $msg',
       };
     }
   }
@@ -447,33 +438,39 @@ class UserService {
     }
   }
 
-  // Alternar status de bloqueio do usuário
+  // Alternar status de bloqueio do usuário via RPC (Seguro)
   static Future<Map<String, dynamic>> toggleUserBlockStatus(
       String userId, String role, bool currentStatus) async {
     try {
-      String tableName;
-      if (role == 'admin')
-        tableName = 'users_adm';
-      else if (role == 'nutritionist')
-        tableName = 'users_nutricionista';
-      else if (role == 'trainer')
-        tableName = 'users_personal';
-      else
-        tableName = 'users_alunos';
+      final currentUser = _client.auth.currentUser;
+      if (currentUser == null) throw Exception('Admin não autenticado');
 
-      final newStatus = !currentStatus;
+      print('🔒 [UserService] Alternando bloqueio para: $userId (Role: $role)');
 
-      await _client
-          .from(tableName)
-          .update({'is_blocked': newStatus}).eq('id', userId);
+      final response = await _client.rpc('admin_toggle_user_block', params: {
+        'p_admin_id': currentUser.id,
+        'p_user_id': userId,
+        'p_role': role,
+      });
 
-      return {
-        'success': true,
-        'message':
-            'Usuário ${newStatus ? "bloqueado" : "desbloqueado"} com sucesso',
-        'is_blocked': newStatus
-      };
+      if (response != null && response['success'] == true) {
+        // Invalidar cache do usuário para refletir o status imediatamente
+        await CacheManager().invalidatePattern('user_$userId');
+
+        return {
+          'success': true,
+          'message': response['message'] ?? 'Status alterado com sucesso',
+          'is_blocked': response['is_blocked']
+        };
+      } else {
+        return {
+          'success': false,
+          'message':
+              response?['message'] ?? 'Erro ao alterar status de bloqueio',
+        };
+      }
     } catch (e) {
+      print('❌ Erro no toggleUserBlockStatus: $e');
       return {
         'success': false,
         'message': 'Erro ao alterar status: ${e.toString()}'

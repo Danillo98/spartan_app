@@ -98,7 +98,7 @@ class _EditUserScreenState extends State<EditUserScreen> {
         dueDay = int.tryParse(_dueDayController.text);
       }
 
-      await UserService.updateUser(
+      final result = await UserService.updateUser(
         userId: widget.user['id'],
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
@@ -112,20 +112,25 @@ class _EditUserScreenState extends State<EditUserScreen> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Usuário atualizado com sucesso!',
-              style: TextStyle(color: Colors.white)),
-          backgroundColor: AppTheme.success,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      Navigator.pop(context, true);
+      if (result['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Usuário atualizado com sucesso!',
+                style: TextStyle(color: Colors.white)),
+            backgroundColor: AppTheme.success,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        Navigator.pop(context, true);
+      } else {
+        throw Exception(result['message'] ?? 'Erro desconhecido');
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erro ao atualizar: ${e.toString()}',
+            content: Text(
+                'Erro ao atualizar: ${e.toString().replaceAll('Exception: ', '')}',
                 style: const TextStyle(color: Colors.white)),
             backgroundColor: AppTheme.accentRed,
             behavior: SnackBarBehavior.floating,
@@ -430,34 +435,30 @@ class _EditUserScreenState extends State<EditUserScreen> {
   Widget _buildRoleCard(UserRole role, IconData icon) {
     final isSelected = _selectedRole == role;
     final color = _getRoleColor(role);
-    return InkWell(
-      onTap: () => setState(() => _selectedRole = role),
-      borderRadius: AppTheme.cardRadius,
-      child: Container(
-        width: (MediaQuery.of(context).size.width - 60) / 2,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isSelected ? color.withOpacity(0.1) : Colors.white,
-          borderRadius: AppTheme.cardRadius,
-          border: Border.all(
-              color: isSelected ? color : AppTheme.borderGrey,
-              width: isSelected ? 2 : 1),
-        ),
-        child: Column(
-          children: [
-            Icon(icon,
-                size: 32, color: isSelected ? color : AppTheme.secondaryText),
-            const SizedBox(height: 8),
-            Text(
-              _getRoleName(role),
-              style: GoogleFonts.lato(
-                fontSize: 14,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: isSelected ? color : AppTheme.secondaryText,
-              ),
+    return Container(
+      width: (MediaQuery.of(context).size.width - 60) / 2,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isSelected ? color.withOpacity(0.1) : Colors.white,
+        borderRadius: AppTheme.cardRadius,
+        border: Border.all(
+            color: isSelected ? color : AppTheme.borderGrey,
+            width: isSelected ? 2 : 1),
+      ),
+      child: Column(
+        children: [
+          Icon(icon,
+              size: 32, color: isSelected ? color : AppTheme.secondaryText),
+          const SizedBox(height: 8),
+          Text(
+            _getRoleName(role),
+            style: GoogleFonts.lato(
+              fontSize: 14,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              color: isSelected ? color : AppTheme.secondaryText,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
