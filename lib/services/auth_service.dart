@@ -11,7 +11,7 @@ import 'control_id_service.dart'; // Import ControliD Sync
 class AuthService {
   static final SupabaseClient _client = SupabaseService.client;
   static Map<String, dynamic>? _cachedUserData;
-  static const String version = '2.4.1';
+  static const String version = '2.6.0';
 
   /// Retorna o usuário autenticado atualmente (se houver)
   static User? get currentUser => _client.auth.currentUser;
@@ -652,6 +652,10 @@ class AuthService {
     required String email,
     required String password,
   }) async {
+    // CRÍTICO: Limpar cache ANTES de qualquer coisa.
+    // Sem isso, usuário B que loga depois de A vê os dados de A.
+    _cachedUserData = null;
+
     try {
       print('🔐 [DEBUG] Tentando autenticação Auth com email: $email');
       final response = await _client.auth.signInWithPassword(
@@ -672,6 +676,13 @@ class AuthService {
       print('🔍 [DEBUG] Buscando dados complementares em _findUserInTables...');
       final userData = await _findUserInTables(response.user!.id);
       print('✅ [DEBUG] Dados encontrados: ${userData != null ? "Sim" : "Não"}');
+
+      // CRÍTICO: Popular o cache imediatamente após login.
+      // Sem isso, getCurrentUserData() chamaria _findUserInTables novamente
+      // em cada tela (prefetch, dashboard, workout, diets) = N queries extras.
+      if (userData != null) {
+        _cachedUserData = userData;
+      }
 
       if (userData == null) {
         // Usuário autenticado mas sem registro nas tabelas (Lead Pendente)

@@ -89,7 +89,8 @@ class _StudentDashboardState extends State<StudentDashboard>
   }
 
   Future<void> _loadUserData() async {
-    if (_userData == null) setState(() => _isLoading = true);
+    // Sempre buscar dados frescos (sem verificar cache local)
+    setState(() => _isLoading = true);
     try {
       final data = await AuthService.getCurrentUserData();
 

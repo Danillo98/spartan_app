@@ -97,8 +97,15 @@ class CacheManager {
           'expiresAt': expiresAt.toIso8601String(),
         });
         await _prefs!.setString(key, encoded);
-      } catch (e) {
-        print('Cache encode error for $key: $e');
+      } on Exception catch (e) {
+        final msg = e.toString();
+        // QuotaExceededError: too large for localStorage → keep in memory only
+        if (msg.toLowerCase().contains('quota') ||
+            msg.toLowerCase().contains('storage')) {
+          print('[Cache] Quota excedida para "$key", mantendo só em memória.');
+        } else {
+          print('Cache encode error for $key: $e');
+        }
       }
     }
   }

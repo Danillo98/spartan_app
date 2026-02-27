@@ -1,78 +1,31 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
+import 'auth_service.dart';
 import '../models/user_role.dart';
 
 class UserService {
   static final SupabaseClient _client = SupabaseService.client;
 
-  // Obter o contexto da academia do usuário logado (Funciona para Admin, Nutri e Personal)
-  // Retorna { 'id_academia': <UUID>, 'role': <'admin'|'nutritionist'|'trainer'>, 'academia_name': <String>, 'cnpj_academia': <String> }
+  // Obter o contexto da academia do usuário logado
+  // OTIMIZADO: Usa cache do AuthService em vez de 3-4 queries sequenciais
   static Future<Map<String, dynamic>> _getAcademyContext() async {
-    final currentUser = _client.auth.currentUser;
-    if (currentUser == null) throw Exception('Usuário não autenticado');
+    // AuthService.getCurrentUserData() usa cache em memória - 0 queries se já carregado
+    final userData = await AuthService.getCurrentUserData();
+    if (userData == null) throw Exception('Usuário não autenticado');
 
-    // 1. Tentar Admin
-    final admin = await _client
-        .from('users_adm')
-        .select()
-        .eq('id', currentUser.id)
-        .maybeSingle();
-    if (admin != null) {
-      return {
-        'id_academia': admin['id'],
-        'role': 'admin',
-        'academia_name': admin['academia'],
-        'cnpj_academia': admin['cnpj'],
-      };
+    final role = userData['role'] as String? ?? 'trainer';
+    final idAcademia = userData['id_academia'] ?? userData['id'];
+
+    if (idAcademia == null) {
+      throw Exception('Não foi possível vincular seu perfil a uma academia.');
     }
 
-    // 2. Tentar Nutricionista
-    final nutri = await _client
-        .from('users_nutricionista')
-        .select()
-        .eq('id', currentUser.id)
-        .maybeSingle();
-    if (nutri != null && nutri['id_academia'] != null) {
-      // Para Nutri/Personal, precisamos buscar o nome e CNPJ da academia separadamente
-      final academyDetails = await _client
-          .from(
-              'users_adm') // Assumindo que users_adm contém os dados da academia
-          .select()
-          .eq('id', nutri['id_academia'])
-          .maybeSingle();
-      if (academyDetails != null) {
-        return {
-          'id_academia': nutri['id_academia'],
-          'role': 'nutritionist',
-          'academia_name': academyDetails['academia'],
-          'cnpj_academia': academyDetails['cnpj'],
-        };
-      }
-    }
-
-    // 3. Tentar Personal
-    final personal = await _client
-        .from('users_personal')
-        .select()
-        .eq('id', currentUser.id)
-        .maybeSingle();
-    if (personal != null && personal['id_academia'] != null) {
-      final academyDetails = await _client
-          .from('users_adm')
-          .select()
-          .eq('id', personal['id_academia'])
-          .maybeSingle();
-      if (academyDetails != null) {
-        return {
-          'id_academia': personal['id_academia'],
-          'role': 'trainer',
-          'academia_name': academyDetails['academia'],
-          'cnpj_academia': academyDetails['cnpj'],
-        };
-      }
-    }
-
-    throw Exception('Não foi possível vincular seu perfil a uma academia.');
+    return {
+      'id_academia': idAcademia,
+      'role': role,
+      'academia_name': userData['academia'] ?? '',
+      'cnpj_academia': userData['cnpj_academia'] ?? userData['cnpj'] ?? '',
+    };
   }
 
   // Criar usuário pelo Admin (Nutricionista, Personal ou Aluno)
@@ -379,12 +332,11 @@ class UserService {
         updates['data_nascimento'] = birthDate;
       }
 
-      // Se for aluno e tiver dia de vencimento, atualiza
+      // Se for aluno e tiver dia de vencimento, atualiza com valor exato
       if (tableName == 'users_alunos') {
         if (paymentDueDay != null) {
-          // Regra cirúrgica: Soma 3 dias automaticamente
-          updates['payment_due_day'] =
-              (paymentDueDay + 3 > 31) ? 31 : paymentDueDay + 3;
+          // Salva o valor exato digitado pelo admin (sem offset)
+          updates['payment_due_day'] = paymentDueDay.clamp(1, 31);
         }
       }
 

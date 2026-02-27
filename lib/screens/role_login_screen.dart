@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/user_role.dart';
 import '../services/auth_service.dart';
+import '../services/prefetch_service.dart';
 import '../config/app_theme.dart';
 import 'admin_register_screen.dart';
 import 'forgot_password_screen.dart';
@@ -179,6 +180,10 @@ class _RoleLoginScreenState extends State<RoleLoginScreen>
             }
           }
         }
+
+        // Pre-aquecer cache em background ANTES de navegar
+        // Garante que as telas carregam instantaneamente na primeira visita
+        PrefetchService.warmUp();
 
         Widget dashboard;
         switch (widget.role) {

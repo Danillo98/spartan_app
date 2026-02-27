@@ -36,8 +36,7 @@ class _EditUserScreenState extends State<EditUserScreen> {
 
     final existingDueDay = widget.user['payment_due_day'];
     if (existingDueDay != null && existingDueDay is int) {
-      final rawDay = existingDueDay - 3;
-      _due_day_value = rawDay < 1 ? 1 : rawDay;
+      _due_day_value = existingDueDay; // Usar o valor exato do banco
     } else {
       _due_day_value = null;
     }
