@@ -90,7 +90,7 @@ class _PixCheckoutScreenState extends State<PixCheckoutScreen> {
         .eq('id', widget.userId)
         .listen((data) {
           if (data.isNotEmpty) {
-            final status = data.first['status_assinatura'];
+            final status = data.first['assinatura_status'];
             if (status == 'active' && mounted && !_paymentConfirmed) {
               setState(() => _paymentConfirmed = true);
               _showSuccessAndClose();

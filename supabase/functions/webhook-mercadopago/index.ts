@@ -62,10 +62,9 @@ Deno.serve(async (req: Request) => {
         const { error } = await supabase
             .from("users_adm")
             .update({
-                status_assinatura: "active",
-                plano: planName,
-                expira_em: expiresAt.toISOString(),
-                mp_payment_id: String(paymentId),
+                assinatura_status: "active",
+                plano_mensal: planName,
+                assinatura_expirada: expiresAt.toISOString(),
                 updated_at: now.toISOString(),
             })
             .eq("id", userId);
