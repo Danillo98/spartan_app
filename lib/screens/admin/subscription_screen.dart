@@ -12,6 +12,7 @@ import '../../services/auth_service.dart';
 import '../../models/user_role.dart';
 import '../login_screen.dart';
 import 'admin_dashboard.dart';
+import 'pix_checkout_screen.dart';
 
 // Conditional import for web
 import 'subscription_screen_web_helper.dart'
@@ -427,7 +428,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
     }
   }
 
-  // Iniciar checkout do Stripe
+  // Iniciar checkout do provedor ativo (Stripe ou Mercado Pago PIX)
   Future<void> _initiateCheckout(String planName) async {
     try {
       setState(() {
@@ -439,7 +440,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
       final user = AuthService.getCurrentUser();
       if (user == null) throw Exception('Usuário não autenticado');
 
-      // GARANTIA DE BASELINE: Se os dados não foram carregados, carrega agora
       if (_currentPlan.isEmpty ||
           _expiresAt == null && _userRole != UserRole.visitor) {
         await _loadSubscriptionData();
@@ -449,13 +449,32 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
         _isLoading = true;
         _oldPlan = _currentPlan;
         _oldExpiresAt = _expiresAt;
-        print(
-            '📝 BASELINE SALVO - Plano: $_oldPlan, Vencimento: $_oldExpiresAt');
       });
 
+      // === MERCADO PAGO PIX ===
+      if (PaymentService.isPixProvider) {
+        setState(() => _isLoading = false);
+        final amount = PaymentService.getAmountByPlanName(planName);
+        final result = await Navigator.push<bool>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PixCheckoutScreen(
+              userId: user.id,
+              userEmail: user.email ?? '',
+              planName: planName,
+              amount: amount,
+            ),
+          ),
+        );
+        if (result == true && mounted) {
+          _showPaymentSuccessDialog();
+        }
+        return;
+      }
+
+      // === STRIPE (fluxo original) ===
       final priceId = PaymentService.getPriceIdByName(planName);
 
-      // BUSCA DE DADOS PENDENTES (Smart Merge v3 - Client Side)
       Map<String, String> checkoutMetadata = {
         'plano_selecionado': planName,
         'is_upgrade':
@@ -463,7 +482,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
       };
 
       if (_userRole == UserRole.visitor) {
-        print('🔍 Buscando dados de cadastro pendente para o checkout...');
         final pendingRes = await Supabase.instance.client
             .from('pending_registrations')
             .select()
@@ -471,7 +489,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
             .maybeSingle();
 
         if (pendingRes != null) {
-          print('✅ Dados pendentes encontrados! Anexando ao checkout...');
           checkoutMetadata.addAll({
             'nome': pendingRes['full_name'] ?? '',
             'academia': pendingRes['gym_name'] ?? '',
@@ -492,7 +509,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
       if (checkoutUrl.isNotEmpty) {
         final uri = Uri.parse(checkoutUrl);
         if (await canLaunchUrl(uri)) {
-          // Marcar que foi para o Stripe para fazer refresh ao voltar
           _wentToStripe = true;
           await launchUrl(uri, mode: LaunchMode.externalApplication);
         } else {

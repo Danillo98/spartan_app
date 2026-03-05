@@ -4,33 +4,41 @@ import 'stripe_service.dart';
 import 'mercado_pago_service.dart';
 
 class PaymentService {
-  /// Cria uma sessão de checkout chamando o provedor ativo.
-  /// Retorna a URL para redirecionamento ou código PIX.
+  /// Retorna true se o provedor ativo é o Mercado Pago (PIX).
+  /// Use isso na UI para decidir qual fluxo de checkout abrir.
+  static bool get isPixProvider =>
+      PaymentConfig.activeProvider == PaymentProvider.mercadoPago;
+
+  /// Cria uma sessão de checkout STRIPE. Retorna a URL de redirecionamento.
+  /// Use apenas quando isPixProvider == false.
   static Future<String> createCheckoutSession({
     required String priceId,
     required String userId,
     required String userEmail,
     Map<String, String>? metadata,
   }) async {
-    if (PaymentConfig.activeProvider == PaymentProvider.mercadoPago) {
-      // Para o Mercado Pago PIX, podemos usar o nome do plano se o priceId não for numérico
-      // ou converter/buscar o valor correspondente ao priceId.
-      // Por simplicidade inicial, passamos os dados básicos.
-      return MercadoPagoService.createPixCheckout(
-        planName: metadata?['plano_selecionado'] ?? 'Plano Spartan',
-        userId: userId,
-        userEmail: userEmail,
-        amount: _getAmountByPriceId(priceId),
-      );
-    } else {
-      // Provedor padrão: Stripe
-      return StripeService.createCheckoutSession(
-        priceId: priceId,
-        userId: userId,
-        userEmail: userEmail,
-        metadata: metadata,
-      );
-    }
+    return StripeService.createCheckoutSession(
+      priceId: priceId,
+      userId: userId,
+      userEmail: userEmail,
+      metadata: metadata,
+    );
+  }
+
+  /// Gera um PIX via Mercado Pago. Retorna um Map com qrCode, qrCodeBase64, paymentId.
+  /// Use apenas quando isPixProvider == true.
+  static Future<Map<String, dynamic>> createPixData({
+    required String planName,
+    required String userId,
+    required String userEmail,
+    required double amount,
+  }) async {
+    return MercadoPagoService.createPixCheckout(
+      planName: planName,
+      userId: userId,
+      userEmail: userEmail,
+      amount: amount,
+    );
   }
 
   /// Cancela a assinatura no provedor ativo
@@ -60,12 +68,19 @@ class PaymentService {
     }
   }
 
-  /// Helper interno para converter PriceID em valor numérico (usado pelo Mercado Pago)
-  static double _getAmountByPriceId(String priceId) {
-    if (priceId == StripeConfig.pricePrata) return 129.90;
-    if (priceId == StripeConfig.priceOuro) return 239.90;
-    if (priceId == StripeConfig.pricePlatina) return 349.90;
-    if (priceId == StripeConfig.priceDiamante) return 459.90;
-    return 0.0;
+  /// Retorna o valor em R$ de um plano pelo nome (prata, ouro, platina, diamante)
+  static double getAmountByPlanName(String planName) {
+    switch (planName.toLowerCase()) {
+      case 'prata':
+        return 129.90;
+      case 'ouro':
+        return 239.90;
+      case 'platina':
+        return 349.90;
+      case 'diamante':
+        return 459.90;
+      default:
+        return 0.0;
+    }
   }
 }
