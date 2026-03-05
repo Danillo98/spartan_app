@@ -472,7 +472,7 @@ class _AdminTurnstilesScreenState extends State<AdminTurnstilesScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'PASSO 2: COMO INICIAR TODOS OS DIAS?',
+                    'PASSO 2: DEPOIS DE BAIXAR, SIGA ESTAS INSTRUÇÕES:',
                     style: GoogleFonts.cinzel(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
