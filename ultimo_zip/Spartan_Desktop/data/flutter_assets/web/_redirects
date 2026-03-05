@@ -1,9 +1,0 @@
-# Exceções para páginas estáticas reais
-/reset-password.html  /reset-password.html  200
-/confirm.html         /confirm.html         200
-/bem-vindo.html       /bem-vindo.html       200
-/landing.html         /landing.html         200
-/print-*.html         /:splat               200
-
-# Redireciona todas as outras rotas para o index.html do Flutter
-/*    /index.html   200

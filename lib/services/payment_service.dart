@@ -1,72 +1,50 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+import '../config/payment_config.dart';
 import '../config/stripe_config.dart';
-
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'stripe_service.dart';
+import 'mercado_pago_service.dart';
 
 class PaymentService {
-  /// Cria uma sessão de checkout chamando a Edge Function do Supabase.
-  /// Retorna a URL para redirecionamento.
+  /// Cria uma sessão de checkout chamando o provedor ativo.
+  /// Retorna a URL para redirecionamento ou código PIX.
   static Future<String> createCheckoutSession({
     required String priceId,
     required String userId,
     required String userEmail,
     Map<String, String>? metadata,
   }) async {
-    // URL da sua função (Slug apenas, para usar com o SDK)
-    const functionName = 'create-checkout-session';
-
-    if (StripeConfig.checkoutFunctionUrl.isEmpty) {
-      // MOCK PARA TESTE DE UI
-      print(
-          "⚠️ MOCK: Simulando criação de checkout para $userEmail (Plano: $priceId)");
-      await Future.delayed(const Duration(seconds: 2));
-      return "https://checkout.stripe.com/test-mock-url";
-    }
-
-    try {
-      // Captura a URL base atual (ex: http://localhost:64007 ou https://spartanapp.com.br)
-      // Isso garante que o Stripe redirecione para a mesma porta/domínio que iniciou o fluxo.
-      String origin = 'https://spartanapp.com.br';
-      try {
-        origin = Uri.base.origin;
-      } catch (e) {
-        // Fallback para mobile ou erro
-      }
-
-      print('🚀 Enviando para function ($functionName)...');
-      print('📍 ORIGIN detectada: $origin');
-
-      final bodyData = {
-        'priceId': priceId,
-        'userId': userId,
-        'userEmail': userEmail,
-        'userMetadata': metadata,
-        'origin': origin,
-      };
-
-      print('📦 Payload: $bodyData');
-
-      final response = await Supabase.instance.client.functions.invoke(
-        functionName,
-        body: bodyData,
+    if (PaymentConfig.activeProvider == PaymentProvider.mercadoPago) {
+      // Para o Mercado Pago PIX, podemos usar o nome do plano se o priceId não for numérico
+      // ou converter/buscar o valor correspondente ao priceId.
+      // Por simplicidade inicial, passamos os dados básicos.
+      return MercadoPagoService.createPixCheckout(
+        planName: metadata?['plano_selecionado'] ?? 'Plano Spartan',
+        userId: userId,
+        userEmail: userEmail,
+        amount: _getAmountByPriceId(priceId),
       );
-
-      // O SDK lança exceção sestatus code não for 2xx? Depende da versão.
-      // Geralmente retorna um FunctionResponse.
-
-      final data = response.data;
-      if (data != null && data['url'] != null) {
-        return data['url'];
-      } else {
-        throw Exception('Resposta inválida da função: $data');
-      }
-    } catch (e) {
-      throw Exception('Erro de conexão com pagamento: $e');
+    } else {
+      // Provedor padrão: Stripe
+      return StripeService.createCheckoutSession(
+        priceId: priceId,
+        userId: userId,
+        userEmail: userEmail,
+        metadata: metadata,
+      );
     }
   }
 
-  /// Helper para pegar o ID do plano baseado no nome selecionado
+  /// Cancela a assinatura no provedor ativo
+  static Future<Map<String, dynamic>> cancelSubscription({
+    required String userId,
+  }) async {
+    if (PaymentConfig.activeProvider == PaymentProvider.mercadoPago) {
+      return MercadoPagoService.cancelRecurrence(userId: userId);
+    } else {
+      return StripeService.cancelSubscription(userId: userId);
+    }
+  }
+
+  /// Helper para pegar o ID do plano (Stripe) baseado no nome selecionado
   static String getPriceIdByName(String planName) {
     switch (planName.toLowerCase()) {
       case 'prata':
@@ -82,42 +60,12 @@ class PaymentService {
     }
   }
 
-  /// Cancela a assinatura do usuário no Stripe
-  /// Retorna um Map com success, message e deletionDate
-  static Future<Map<String, dynamic>> cancelSubscription({
-    required String userId,
-  }) async {
-    const functionName = 'cancel-subscription';
-
-    try {
-      print('🗑️ Iniciando cancelamento via Edge Function...');
-
-      final response = await Supabase.instance.client.functions.invoke(
-        functionName,
-        body: {
-          'userId': userId,
-          'confirmCancellation': true,
-        },
-      );
-
-      final data = response.data;
-
-      if (data != null && data['success'] == true) {
-        print('✅ Cancelamento bem-sucedido: ${data['message']}');
-        return {
-          'success': true,
-          'message': data['message'] ?? 'Assinatura cancelada com sucesso',
-          'deletionDate': data['deletionDate'],
-        };
-      } else {
-        throw Exception(data?['error'] ?? 'Erro desconhecido no cancelamento');
-      }
-    } catch (e) {
-      print('❌ Erro no cancelamento: $e');
-      return {
-        'success': false,
-        'message': 'Erro ao cancelar assinatura: $e',
-      };
-    }
+  /// Helper interno para converter PriceID em valor numérico (usado pelo Mercado Pago)
+  static double _getAmountByPriceId(String priceId) {
+    if (priceId == StripeConfig.pricePrata) return 129.90;
+    if (priceId == StripeConfig.priceOuro) return 239.90;
+    if (priceId == StripeConfig.pricePlatina) return 349.90;
+    if (priceId == StripeConfig.priceDiamante) return 459.90;
+    return 0.0;
   }
 }
