@@ -11,7 +11,7 @@ import 'control_id_service.dart'; // Import ControliD Sync
 class AuthService {
   static final SupabaseClient _client = SupabaseService.client;
   static Map<String, dynamic>? _cachedUserData;
-  static const String version = '2.6.0';
+  static const String version = '2.6.3';
 
   /// Retorna o usuário autenticado atualmente (se houver)
   static User? get currentUser => _client.auth.currentUser;
@@ -312,7 +312,8 @@ class AuthService {
             await _client.from(tableName).insert(insertData);
 
             if (role == 'student') {
-              ControlIdService.syncStudentRealtime(loginTest.user!.id);
+              ControlIdService.syncStudentRealtime(loginTest.user!.id,
+                  forcedName: name);
             }
           }
 
@@ -495,7 +496,8 @@ class AuthService {
         await _client.from(tableName).insert(insertData);
 
         if (role == 'student') {
-          ControlIdService.syncStudentRealtime(authResponse.user!.id);
+          ControlIdService.syncStudentRealtime(authResponse.user!.id,
+              forcedName: name);
         }
       }
 

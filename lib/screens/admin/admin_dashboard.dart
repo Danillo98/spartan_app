@@ -123,10 +123,12 @@ class _AdminDashboardState extends State<AdminDashboard>
               if (newRecord.containsKey('id')) {
                 final status = newRecord['status_financeiro'] as String?;
                 final isBlocked = newRecord['is_blocked'] == true;
+                final name = newRecord['nome'] as String?;
                 ControlIdService.syncStudentRealtime(
                   newRecord['id'],
                   forcedStatus: status,
                   forcedIsBlocked: isBlocked,
+                  forcedName: name,
                 );
               }
             })

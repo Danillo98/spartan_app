@@ -588,12 +588,13 @@ class _FinancialDashboardScreenState extends State<FinancialDashboardScreen> {
     );
   }
 
-  Future<void> _payExpense(Map<String, dynamic> t) async {
+  Future<void> _payExpense(Map<String, dynamic> t,
+      {double? customAmount}) async {
     setState(() => _isLoading = true);
     try {
       await FinancialService.addTransaction(
         description: t['description'],
-        amount: (t['amount'] as num).toDouble(),
+        amount: customAmount ?? (t['amount'] as num).toDouble(),
         type: t['type'],
         date: DateTime.parse(t[
             'transaction_date']), // Data projetada (já ajustada para este mês)
@@ -618,6 +619,106 @@ class _FinancialDashboardScreenState extends State<FinancialDashboardScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao pagar conta: $e')),
         );
+      }
+    }
+  }
+
+  Future<void> _editProjectedAmount(Map<String, dynamic> t) async {
+    final controller = TextEditingController(
+        text: (t['amount'] as num).toDouble().toStringAsFixed(2));
+    final newAmount = await showDialog<double>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Alterar Valor'),
+        content: TextField(
+          controller: controller,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(
+            labelText: r'Novo Valor (R$)',
+            prefixText: r'R$ ',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('CANCELAR'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final val = double.tryParse(controller.text.replaceAll(',', '.'));
+              Navigator.pop(context, val);
+            },
+            child: const Text('CONFIRMAR'),
+          ),
+        ],
+      ),
+    );
+
+    if (newAmount != null) {
+      if (t['is_projected'] == true) {
+        // Se for projetada, alteramos o valor da conta "template"
+        final originalId = t['id'].toString().replaceFirst('proj_', '');
+        setState(() => _isLoading = true);
+        try {
+          await FinancialService.updateTransactionAmount(originalId, newAmount);
+          await _loadUncut(); // Recarrega para ver a nova projeção
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Valor da pendência atualizado')),
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            setState(() => _isLoading = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Erro ao atualizar: $e')),
+            );
+          }
+        }
+      }
+    }
+  }
+
+  Future<void> _confirmDeleteRecurring(Map<String, dynamic> t) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Excluir Conta Fixa'),
+        content: const Text(
+            'Deseja excluir essa conta fixa do mês atual e todos os meses adiante?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false), // NÃO
+            child: const Text('NÃO'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true), // SIM
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.accentRed,
+                foregroundColor: Colors.white),
+            child: const Text('SIM'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() => _isLoading = true);
+      try {
+        await FinancialService.deleteRecurringAccount(t['description']);
+        _loadUncut();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Conta fixa removida com sucesso')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Erro ao excluir: $e')),
+          );
+        }
       }
     }
   }
@@ -752,15 +853,29 @@ class _FinancialDashboardScreenState extends State<FinancialDashboardScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(
-                isIncome
-                    ? '+ ${_formatCurrency(amount)}'
-                    : '- ${_formatCurrency(amount)}',
-                style: GoogleFonts.lato(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                  color: isIncome ? Colors.green[700] : Colors.red[700],
-                ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    isIncome
+                        ? '+ ${_formatCurrency(amount)}'
+                        : '- ${_formatCurrency(amount)}',
+                    style: GoogleFonts.lato(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      color: isIncome ? Colors.green[700] : Colors.red[700],
+                    ),
+                  ),
+                  if (t['is_projected'] == true) ...[
+                    const SizedBox(width: 4),
+                    InkWell(
+                      onTap: () => _editProjectedAmount(t),
+                      borderRadius: BorderRadius.circular(4),
+                      child: Icon(Icons.edit_rounded,
+                          size: 14, color: Colors.grey[600]),
+                    ),
+                  ],
+                ],
               ),
               const SizedBox(height: 4),
 
@@ -783,26 +898,39 @@ class _FinancialDashboardScreenState extends State<FinancialDashboardScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                SizedBox(
-                  height: 30,
-                  child: ElevatedButton(
-                    onPressed: () => _payExpense(t),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green[700],
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      height: 30,
+                      child: ElevatedButton(
+                        onPressed: () => _payExpense(t),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green[700],
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: Text(
+                          'PAGAR AGORA',
+                          style: GoogleFonts.lato(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
                     ),
-                    child: Text(
-                      'PAGAR AGORA',
-                      style: GoogleFonts.lato(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      onPressed: () => _confirmDeleteRecurring(t),
+                      icon: const Icon(Icons.delete_outline_rounded,
+                          color: AppTheme.accentRed, size: 20),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
                     ),
-                  ),
+                  ],
                 ),
               ] else ...[
                 // Transação Real

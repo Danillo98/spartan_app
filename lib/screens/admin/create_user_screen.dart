@@ -617,11 +617,12 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
     );
 
     if (wantRegister == true && mounted) {
-      await _startFaceRegistration(uuid, ip);
+      await _startFaceRegistration(uuid, ip, name);
     }
   }
 
-  Future<void> _startFaceRegistration(String uuid, String ip) async {
+  Future<void> _startFaceRegistration(
+      String uuid, String ip, String name) async {
     // 1. Abre popup de instrução
     showDialog(
       context: context,
@@ -675,6 +676,15 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
 
     try {
       final catracaId = ControlIdService.generateCatracaId(uuid);
+
+      // NOVO: Garante que o usuário existe na catraca antes de pedir a facial
+      // Isso evita o "Erro Desconhecido" que ocorre quando a catraca tenta cadastrar um ID inexistente
+      await ControlIdService.addUser(
+        ip: ip,
+        id: catracaId,
+        name: name,
+      );
+
       final result = await ControlIdService.enrollFaceRemote(
         ip: ip,
         id: catracaId,

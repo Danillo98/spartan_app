@@ -5,19 +5,23 @@ New-Item -ItemType Directory -Path "output\Spartan_Desktop" -Force
 # Copiar arquivos da build para a pasta organizadora
 Copy-Item -Path "build\windows\x64\runner\Release\*" -Destination "output\Spartan_Desktop\" -Recurse -Force
 
-# Renomear o executável caso esteja com o nome padrão do Flutter
+# Renomear o executável para o padrão solicitado
 if (Test-Path "output\Spartan_Desktop\spartan_app.exe") {
     Rename-Item -Path "output\Spartan_Desktop\spartan_app.exe" -NewName "Spartan Desktop.exe" -Force
 }
 
-# Criar o arquivo ZIP usando o comando tar (disponível no Windows para maior velocidade e estabilidade)
+# Garantir que a pasta de destino existe
+if (-not (Test-Path "ultimo_zip")) {
+    New-Item -ItemType Directory -Path "ultimo_zip" -Force
+}
+
+# Criar o arquivo ZIP na raiz primeiro para evitar problemas de path relativo no tar
 Remove-Item -Path "Spartan_Desktop.zip" -Force -ErrorAction SilentlyContinue
-# -a: auto-detect output format by extension (.zip)
-# -c: create
-# -f: filename
-# -C: change directory (to 'output' so we don't include the 'output' folder itself in the zip, just its content)
 tar -a -cf Spartan_Desktop.zip -C output Spartan_Desktop
+
+# Mover para a pasta final 'ultimo_zip'
+Move-Item -Path "Spartan_Desktop.zip" -Destination "ultimo_zip\Spartan_Desktop.zip" -Force
 
 # Limpeza final
 Remove-Item -Path "output" -Recurse -Force
-Write-Output "Pronto! Spartan_Desktop.zip criado com sucesso usando tar (BSTar)."
+Write-Output "Pronto! ultimo_zip\Spartan_Desktop.zip criado com sucesso."

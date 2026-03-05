@@ -382,13 +382,29 @@ class FinancialService {
 
   // Deletar transação
   static Future<void> deleteTransaction(String id) async {
-    // A transação será deletada e o PC com o Admin Dashboard
-    // atualizará a catraca via Realtime (WebSockets)
-
     await _client.from('financial_transactions').delete().eq('id', id);
 
     // A sincronização realtime da catraca será feita automaticamente pelo PC
     // que está escutando o webhook (admin_dashboard)
+  }
+
+  // Novo: Deletar conta fixa (todas as ocorrências para parar projeção)
+  static Future<void> deleteRecurringAccount(String description) async {
+    final idAcademia = await _getAcademyId();
+    await _client
+        .from('financial_transactions')
+        .delete()
+        .eq('id_academia', idAcademia)
+        .eq('description', description)
+        .eq('category', 'fixed');
+  }
+
+  // Novo: Atualizar valor de uma transação específica
+  static Future<void> updateTransactionAmount(
+      String id, double newAmount) async {
+    await _client
+        .from('financial_transactions')
+        .update({'amount': newAmount}).eq('id', id);
   }
 
   static Future<List<Map<String, dynamic>>> getMonthlyPaymentsStatus({

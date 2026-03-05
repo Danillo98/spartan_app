@@ -111,6 +111,7 @@ class DietService {
                 'day_name': day['day_name'],
                 'day_number': day['day_number'],
                 'total_calories': day['total_calories'],
+                'id_academia': context['id_academia'], // Insert id_academia
               })
               .select()
               .single();
@@ -127,6 +128,7 @@ class DietService {
                 'carbs': meal['carbs'],
                 'fats': meal['fats'],
                 'instructions': meal['instructions'],
+                'id_academia': context['id_academia'], // Insert id_academia
               });
             }
           }
@@ -469,6 +471,7 @@ class DietService {
     int? totalCalories,
   }) async {
     try {
+      final context = await _getContext();
       final dayData = await _client
           .from('diet_days')
           .insert({
@@ -476,6 +479,7 @@ class DietService {
             'day_name': dayName,
             'day_number': dayNumber,
             'total_calories': totalCalories ?? 0,
+            'id_academia': context['id_academia'],
           })
           .select()
           .single();
@@ -502,6 +506,7 @@ class DietService {
     String? instructions,
   }) async {
     try {
+      final context = await _getContext();
       final mealData = await _client
           .from('meals')
           .insert({
@@ -514,6 +519,7 @@ class DietService {
             'carbs': carbs,
             'fats': fats,
             'instructions': instructions,
+            'id_academia': context['id_academia'],
           })
           .select()
           .single();

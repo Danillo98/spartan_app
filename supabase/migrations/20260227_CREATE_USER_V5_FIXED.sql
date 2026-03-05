@@ -48,9 +48,6 @@ BEGIN
 
     -- ============================================================
     -- PASSO 1: Criar usuário em auth.users
-    -- CRÍTICO: Campos de token DEVEM ser '' (não NULL)!
-    -- GoTrue em Go usa string (não *string), então NULL causa:
-    -- "Scan error: converting NULL to string is unsupported"
     -- ============================================================
     INSERT INTO auth.users (
         instance_id,
@@ -64,16 +61,15 @@ BEGIN
         raw_user_meta_data,
         created_at,
         updated_at,
-        confirmation_sent_at,
-        is_sso_user,
-        is_anonymous,
         confirmation_token,
         recovery_token,
         email_change_token_new,
         email_change_token_current,
         email_change,
         phone_change,
-        phone_change_token
+        phone_change_token,
+        is_sso_user,
+        is_anonymous
     ) VALUES (
         '00000000-0000-0000-0000-000000000000',
         new_user_id,
@@ -86,21 +82,13 @@ BEGIN
         p_metadata,
         NOW(),
         NOW(),
-        NOW(),
-        FALSE, -- is_sso_user
-        FALSE, -- is_anonymous
-        '',    -- confirmation_token: '' NÃO NULL
-        '',    -- recovery_token: '' NÃO NULL
-        '',    -- email_change_token_new
-        '',    -- email_change_token_current
-        '',    -- email_change
-        '',    -- phone_change
-        ''     -- phone_change_token
+        '', '', '', '', '', '', '', -- Tokens vazios (NÃO NULL)
+        FALSE,
+        FALSE
     );
 
     -- ============================================================
-    -- PASSO 2: Criar identity em auth.identities (CRÍTICO!)
-    -- Sem isso, GoTrue retorna "Database error querying schema"
+    -- PASSO 2: Criar identity em auth.identities
     -- ============================================================
     INSERT INTO auth.identities (
         id,
@@ -121,7 +109,7 @@ BEGIN
             'phone_verified', false
         ),
         'email',
-        new_user_id::text,  -- provider_id = UUID (padrão GoTrue)
+        new_user_id::text,
         NOW(),
         NOW(),
         NOW()
@@ -156,24 +144,22 @@ BEGIN
     ELSIF user_role = 'nutritionist' THEN
         INSERT INTO public.users_nutricionista (
             id, nome, email, telefone, academia, id_academia,
-            created_by_admin_id, email_verified, created_at, updated_at
+            created_by_admin_id, email_verified, data_nascimento, created_at, updated_at
         ) VALUES (
             new_user_id, user_name, LOWER(p_email), user_phone, user_academia, user_id_academia,
-            v_created_by_admin_id, TRUE, NOW(), NOW()
+            v_created_by_admin_id, TRUE, v_birth_date, NOW(), NOW()
         );
 
     ELSIF user_role = 'trainer' THEN
         INSERT INTO public.users_personal (
             id, nome, email, telefone, academia, id_academia,
-            created_by_admin_id, email_verified, created_at, updated_at
+            created_by_admin_id, email_verified, data_nascimento, created_at, updated_at
         ) VALUES (
             new_user_id, user_name, LOWER(p_email), user_phone, user_academia, user_id_academia,
-            v_created_by_admin_id, TRUE, NOW(), NOW()
+            v_created_by_admin_id, TRUE, v_birth_date, NOW(), NOW()
         );
     END IF;
 
-    -- Notifica PostgREST e retorna sucesso
-    NOTIFY pgrst, 'reload schema';
     RETURN jsonb_build_object(
         'success', TRUE,
         'message', 'Usuário criado com sucesso',
@@ -181,14 +167,14 @@ BEGIN
     );
 
 EXCEPTION WHEN OTHERS THEN
-    -- Rollback completo: remove auth user e identity se algo falhar
     DELETE FROM auth.identities WHERE user_id = new_user_id;
     DELETE FROM auth.users WHERE id = new_user_id;
     RETURN jsonb_build_object(
         'success', FALSE,
-        'message', 'Erro Fatal ao Cadastrar: ' || SQLERRM || ' | Code: ' || SQLSTATE
+        'message', 'Erro Fatal ao Cadastrar: ' || SQLERRM
     );
 END;
+$$;
 $$;
 
 -- ============================================================

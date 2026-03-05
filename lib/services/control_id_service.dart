@@ -6,18 +6,28 @@ import 'financial_service.dart';
 class ControlIdService {
   // Histórico persistente que sobrevive à mudança de telas (Memória de Sessão)
   static final List<Map<String, dynamic>> accessLogHistory = [];
-  static int lastProcessedLogId = 0;
+  static final Map<String, int> _lastProcessedLogIds = {};
+  static String? _session;
 
-  static void addLogToHistory(Map<String, dynamic> log) {
+  static int getLastProcessedLogId(String ip) => _lastProcessedLogIds[ip] ?? 0;
+
+  static void addLogToHistory(Map<String, dynamic> log, String ip) {
     if (log['log_id'] != null && log['log_id'] > 0) {
-      bool exists = accessLogHistory.any((l) => l['log_id'] == log['log_id']);
+      bool exists = accessLogHistory
+          .any((l) => l['log_id'] == log['log_id'] && l['terminal_ip'] == ip);
       if (exists) return;
-      if (log['log_id'] > lastProcessedLogId) {
-        lastProcessedLogId = log['log_id'];
+
+      final currentLastId = _lastProcessedLogIds[ip] ?? 0;
+      if (log['log_id'] > currentLastId) {
+        _lastProcessedLogIds[ip] = log['log_id'];
       }
     }
 
-    accessLogHistory.insert(0, log);
+    // Adiciona o IP ao log para facilitar identificação e evitar duplicatas cruzadas
+    final enrichedLog = Map<String, dynamic>.from(log);
+    enrichedLog['terminal_ip'] = ip;
+
+    accessLogHistory.insert(0, enrichedLog);
 
     // Limita log para não pesar memória (200 registros)
     if (accessLogHistory.length > 200) {
@@ -102,6 +112,8 @@ class ControlIdService {
 
   /// Tenta logar e retornar o session ID
   static Future<String> _login(String ip) async {
+    if (_session != null && _session!.isNotEmpty) return _session!;
+
     try {
       final url = Uri.parse('http://$ip/login.fcgi');
       final response = await http.post(
@@ -113,7 +125,8 @@ class ControlIdService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return data['session'] ?? '';
+        _session = data['session'] ?? '';
+        return _session!;
       }
     } catch (e) {
       print('Erro login: $e');
@@ -164,6 +177,7 @@ class ControlIdService {
         "save": true,
         "sync": false,
         "auto": true, // A foto bate sozinha quando o aluno olha
+        "flash": true, // NOVO: Liga o flash/LED para melhorar a iluminação
         "msg": "Olhe para a camera"
       });
 
@@ -290,7 +304,7 @@ class ControlIdService {
   /// userUuid: ID do aluno
   /// forcedStatus: Se já tivermos o status calculado (ex: via Realtime payload), passamos aqui para evitar query.
   static Future<void> syncStudentRealtime(String userUuid,
-      {String? forcedStatus, bool? forcedIsBlocked}) async {
+      {String? forcedStatus, bool? forcedIsBlocked, String? forcedName}) async {
     try {
       if (userUuid.isEmpty) return;
 
@@ -302,21 +316,23 @@ class ControlIdService {
       }
 
       String status = (forcedStatus ?? 'unknown').toLowerCase().trim();
-      String name = 'Aluno';
+      String name = forcedName ?? 'Aluno';
       bool isBlocked = forcedIsBlocked ?? false;
 
-      // Se não temos o status ou o bloqueio forçados, buscamos no banco
-      if (status == 'unknown' ||
+      // Se não temos o nome, o status ou o bloqueio forçados, buscamos no banco para evitar "renomear" para Aluno
+      if (forcedName == null ||
+          status == 'unknown' ||
           status == 'pending' ||
           status == 'desconhecido' ||
           forcedIsBlocked == null) {
         print(
-            '🔍 [Control iD] Status/Bloqueio incerto. Realizando checagem manual de ledger para $userUuid...');
+            '🔍 [Control iD] Dados incompletos. Realizando checagem manual para $userUuid...');
         final check = await FinancialService.checkStudentStatus(userUuid);
         status = (check['status'] ?? 'unknown').toString().toLowerCase();
         isBlocked = check['is_blocked'] == true;
         if (check['name'] != null) name = check['name'];
-        print('📊 [Control iD] Status: $status | Bloqueado Manual: $isBlocked');
+        print(
+            '📊 [Control iD] Nome: $name | Status: $status | Bloqueado: $isBlocked');
       }
 
       final int catracaId = generateCatracaId(userUuid);
@@ -449,7 +465,7 @@ class ControlIdService {
     }
   }
 
-  /// Busca os logs de acesso da catraca
+  /// Busca os logs de acesso da catraca (Modo Estável - 30 registros)
   static Future<List<Map<String, dynamic>>> getAccessLogs(String ip) async {
     try {
       final sanitizedIp = sanitizeIp(ip);
@@ -461,8 +477,8 @@ class ControlIdService {
 
       final body = jsonEncode({
         "object": "access_logs",
-        "order": ["id DESC"], // Mais recentes primeiro
-        "limit": 20 // Pegar apenas os últimos 20
+        "order": ["id DESC"],
+        "limit": 30
       });
 
       final response = await http.post(
@@ -473,10 +489,15 @@ class ControlIdService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return List<Map<String, dynamic>>.from(data['access_logs'] ?? []);
+        final List? logsJson = data['access_logs'] ?? data['values'];
+        if (logsJson != null) {
+          return List<Map<String, dynamic>>.from(logsJson);
+        }
+      } else if (response.statusCode == 401) {
+        _session = null; // Forza novo login na próxima tentativa
       }
     } catch (e) {
-      print('Erro ao buscar logs da catraca: $e');
+      print('🚨 [ControlIdService] Erro na busca de logs: $e');
     }
     return [];
   }
