@@ -142,7 +142,7 @@ class _PixCheckoutScreenState extends State<PixCheckoutScreen> {
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.primaryGold,
-                  foregroundColor: Colors.black,
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12)),

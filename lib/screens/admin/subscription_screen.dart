@@ -467,7 +467,12 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
           ),
         );
         if (result == true && mounted) {
-          _showPaymentSuccessDialog();
+          // PixCheckoutScreen já mostra seu próprio diálogo de sucesso.
+          // Aqui a gente só atualiza a tela de assinaturas e volta para o admin_dashboard.
+          await _loadSubscriptionData();
+          if (mounted) {
+            Navigator.of(context).pushReplacementNamed('/admin/home');
+          }
         }
         return;
       }
