@@ -71,6 +71,7 @@ Deno.serve(async (req: Request) => {
                 assinatura_iniciada: now.toISOString(),
                 assinatura_expirada: expiresAt.toISOString(),
                 assinatura_deletada: deletedAt.toISOString(),
+                is_blocked: false,
             })
             .eq("id", userId);
 
