@@ -53,7 +53,10 @@ Deno.serve(async (req: Request) => {
         // (Adapte conforme sua tabela de usuários no Supabase)
         const now = new Date();
         const expiresAt = new Date(now);
-        expiresAt.setMonth(expiresAt.getMonth() + 1);
+        expiresAt.setDate(expiresAt.getDate() + 30); // 30 dias após hoje
+
+        const deletedAt = new Date(now);
+        deletedAt.setDate(deletedAt.getDate() + 90); // 90 dias após hoje
 
         const planStr = payment.description
             ?.replace("Spartan App - Plano ", "")
@@ -65,7 +68,9 @@ Deno.serve(async (req: Request) => {
             .update({
                 assinatura_status: "active",
                 plano_mensal: planName,
+                assinatura_iniciada: now.toISOString(),
                 assinatura_expirada: expiresAt.toISOString(),
+                assinatura_deletada: deletedAt.toISOString(),
             })
             .eq("id", userId);
 

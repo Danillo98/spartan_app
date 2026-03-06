@@ -471,7 +471,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
           // Aqui a gente só atualiza a tela de assinaturas e volta para o admin_dashboard.
           await _loadSubscriptionData();
           if (mounted) {
-            Navigator.of(context).pushReplacementNamed('/admin/home');
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => const AdminDashboard()),
+              (route) => false,
+            );
           }
         }
         return;
