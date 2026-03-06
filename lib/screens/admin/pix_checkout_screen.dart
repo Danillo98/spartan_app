@@ -33,7 +33,7 @@ class _PixCheckoutScreenState extends State<PixCheckoutScreen> {
   bool _copied = false;
   bool _paymentConfirmed = false;
 
-  StreamSubscription? _realtimeSubscription;
+  RealtimeChannel? _channel;
 
   @override
   void initState() {
@@ -43,7 +43,7 @@ class _PixCheckoutScreenState extends State<PixCheckoutScreen> {
 
   @override
   void dispose() {
-    _realtimeSubscription?.cancel();
+    _channel?.unsubscribe();
     super.dispose();
   }
 
@@ -83,20 +83,29 @@ class _PixCheckoutScreenState extends State<PixCheckoutScreen> {
   }
 
   void _listenForPayment() {
-    // Escuta alterações na tabela users_adm em tempo real
-    _realtimeSubscription = Supabase.instance.client
-        .from('users_adm')
-        .stream(primaryKey: ['id'])
-        .eq('id', widget.userId)
-        .listen((data) {
-          if (data.isNotEmpty) {
-            final status = data.first['assinatura_status'];
-            if (status == 'active' && mounted && !_paymentConfirmed) {
+    // Escuta apenas eventos de UPDATE na tabela users_adm (não pega o initial state)
+    _channel = Supabase.instance.client
+        .channel('public:users_adm:payment')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'users_adm',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: widget.userId,
+          ),
+          callback: (payload) {
+            final newRecord = payload.newRecord;
+            if (newRecord['assinatura_status'] == 'active' &&
+                mounted &&
+                !_paymentConfirmed) {
               setState(() => _paymentConfirmed = true);
               _showSuccessAndClose();
             }
-          }
-        });
+          },
+        )
+        .subscribe();
   }
 
   void _showSuccessAndClose() {
