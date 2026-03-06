@@ -34,10 +34,29 @@ class _PixCheckoutScreenState extends State<PixCheckoutScreen> {
   bool _paymentConfirmed = false;
 
   Timer? _pollingTimer;
+  String? _initialExpiration;
 
   @override
   void initState() {
     super.initState();
+    _fetchInitialStateAndGeneratePix();
+  }
+
+  Future<void> _fetchInitialStateAndGeneratePix() async {
+    try {
+      final response = await Supabase.instance.client
+          .from('users_adm')
+          .select('assinatura_expirada')
+          .eq('id', widget.userId)
+          .maybeSingle();
+
+      if (response != null) {
+        _initialExpiration = response['assinatura_expirada'];
+      }
+    } catch (e) {
+      // Falha silenciosa: O PIX deve ser gerado independentemente disso
+    }
+
     _generatePix();
   }
 
@@ -94,15 +113,23 @@ class _PixCheckoutScreenState extends State<PixCheckoutScreen> {
       try {
         final response = await Supabase.instance.client
             .from('users_adm')
-            .select('assinatura_status')
+            .select('assinatura_status, assinatura_expirada')
             .eq('id', widget.userId)
             .maybeSingle();
 
-        if (response != null && response['assinatura_status'] == 'active') {
-          timer.cancel();
-          if (mounted && !_paymentConfirmed) {
-            setState(() => _paymentConfirmed = true);
-            _showSuccessAndClose();
+        if (response != null) {
+          final status = response['assinatura_status'];
+          final currentExpiration = response['assinatura_expirada'];
+
+          // A confirmação é certa apenas se a expiração for DIFERENTE da expiração
+          // de antes de gerar o código QR E o status for 'active'.
+          // Isso previne que renovações (que já têm status active) passem direto.
+          if (status == 'active' && currentExpiration != _initialExpiration) {
+            timer.cancel();
+            if (mounted && !_paymentConfirmed) {
+              setState(() => _paymentConfirmed = true);
+              _showSuccessAndClose();
+            }
           }
         }
       } catch (e) {
