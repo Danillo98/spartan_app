@@ -33,7 +33,7 @@ class _PixCheckoutScreenState extends State<PixCheckoutScreen> {
   bool _copied = false;
   bool _paymentConfirmed = false;
 
-  RealtimeChannel? _channel;
+  Timer? _pollingTimer;
 
   @override
   void initState() {
@@ -43,7 +43,7 @@ class _PixCheckoutScreenState extends State<PixCheckoutScreen> {
 
   @override
   void dispose() {
-    _channel?.unsubscribe();
+    _pollingTimer?.cancel();
     super.dispose();
   }
 
@@ -83,29 +83,32 @@ class _PixCheckoutScreenState extends State<PixCheckoutScreen> {
   }
 
   void _listenForPayment() {
-    // Escuta apenas eventos de UPDATE na tabela users_adm (não pega o initial state)
-    _channel = Supabase.instance.client
-        .channel('public:users_adm:payment')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.update,
-          schema: 'public',
-          table: 'users_adm',
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'id',
-            value: widget.userId,
-          ),
-          callback: (payload) {
-            final newRecord = payload.newRecord;
-            if (newRecord['assinatura_status'] == 'active' &&
-                mounted &&
-                !_paymentConfirmed) {
-              setState(() => _paymentConfirmed = true);
-              _showSuccessAndClose();
-            }
-          },
-        )
-        .subscribe();
+    // Usando Polling periódico direto no banco para 100% de garantia de entrega.
+    // Evita quaisquer limitações com WebSockets (quedas de rede ou bloqueios PGBouncer)
+    _pollingTimer = Timer.periodic(const Duration(seconds: 4), (timer) async {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
+      try {
+        final response = await Supabase.instance.client
+            .from('users_adm')
+            .select('assinatura_status')
+            .eq('id', widget.userId)
+            .maybeSingle();
+
+        if (response != null && response['assinatura_status'] == 'active') {
+          timer.cancel();
+          if (mounted && !_paymentConfirmed) {
+            setState(() => _paymentConfirmed = true);
+            _showSuccessAndClose();
+          }
+        }
+      } catch (e) {
+        // Ignora qualquer erro temporário de rede e tenta novamente no próximo ciclo
+      }
+    });
   }
 
   void _showSuccessAndClose() {

@@ -55,9 +55,10 @@ Deno.serve(async (req: Request) => {
         const expiresAt = new Date(now);
         expiresAt.setMonth(expiresAt.getMonth() + 1);
 
-        const planName = payment.description
+        const planStr = payment.description
             ?.replace("Spartan App - Plano ", "")
             ?.toLowerCase() ?? "prata";
+        const planName = planStr.charAt(0).toUpperCase() + planStr.slice(1);
 
         const { error } = await supabase
             .from("users_adm")
@@ -65,7 +66,6 @@ Deno.serve(async (req: Request) => {
                 assinatura_status: "active",
                 plano_mensal: planName,
                 assinatura_expirada: expiresAt.toISOString(),
-                updated_at: now.toISOString(),
             })
             .eq("id", userId);
 
