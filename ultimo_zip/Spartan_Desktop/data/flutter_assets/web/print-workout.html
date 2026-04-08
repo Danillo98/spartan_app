@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Treino - Impressão</title>
+
+    <!-- Prevent Caching -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Lato:wght@300;400;700&display=swap"
+        rel="stylesheet">
+
+    <style>
+        /* Configuração da Página de Impressão */
+        @page {
+            size: auto;
+            margin: 0mm;
+        }
+
+        @media print {
+            body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+                padding: 1.5cm;
+                margin: 0;
+            }
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Lato', sans-serif;
+            padding: 20px;
+            background: white;
+            color: #000;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        /* Cabeçalho */
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #000;
+        }
+
+        .logo-container {
+            width: 140px;
+            height: 140px;
+            margin: 0 auto 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .logo-img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        h1 {
+            font-family: 'Cinzel', serif;
+            color: #000;
+            font-size: 24px;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .subtitle {
+            color: #444;
+            font-size: 12px;
+        }
+
+        /* Informações do Treino */
+        .workout-info {
+            background: #fff;
+            padding: 10px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #ccc;
+        }
+
+        .workout-info h2 {
+            font-family: 'Cinzel', serif;
+            color: #000;
+            font-size: 18px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 5px;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        .info-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .info-label {
+            font-weight: bold;
+            color: #000;
+            font-size: 10px;
+            text-transform: uppercase;
+        }
+
+        .info-value {
+            color: #000;
+            font-size: 13px;
+        }
+
+        /* Dias da Semana */
+        .day-section {
+            margin-bottom: 20px;
+            page-break-inside: avoid;
+        }
+
+        .day-header {
+            background: #000;
+            color: #fff;
+            padding: 8px 15px;
+            margin-bottom: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-radius: 6px 6px 0 0;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        .day-header h3 {
+            font-family: 'Cinzel', serif;
+            font-size: 16px;
+            font-weight: bold;
+            margin: 0;
+            text-transform: uppercase;
+        }
+
+        .day-description {
+            font-size: 12px;
+            font-style: italic;
+            opacity: 0.9;
+        }
+
+        /* Tabela de Exercícios */
+        .exercises-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            border: 1px solid #000;
+        }
+
+        .exercises-table th {
+            background: #f0f0f0;
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #000;
+            border-right: 1px solid #ccc;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 10px;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        .exercises-table td {
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+            border-right: 1px solid #eee;
+            vertical-align: top;
+        }
+
+        .exercises-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .col-exercise {
+            width: 40%;
+        }
+
+        .col-sets,
+        .col-reps {
+            width: 10%;
+            text-align: center;
+        }
+
+        .col-load {
+            width: 15%;
+            text-align: center;
+        }
+
+        .col-notes {
+            width: 25%;
+        }
+
+        .exercise-name {
+            font-weight: bold;
+            font-size: 13px;
+            display: block;
+        }
+
+        .super-set {
+            color: #D32F2F;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 2px;
+            display: block;
+        }
+
+        /* Rodapé */
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 2px solid #e0e0e0;
+            text-align: center;
+            color: #999;
+            font-size: 12px;
+        }
+
+        /* Botão de Impressão */
+        .print-button {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #1a1a1a 0%, #000 100%);
+            color: #D4AF37;
+            border: 2px solid #D4AF37;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-family: 'Cinzel', serif;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s;
+        }
+
+        @media screen and (max-width: 600px) {
+            .print-button {
+                top: 85px;
+                right: 10px;
+                padding: 10px 16px;
+                font-size: 12px;
+            }
+        }
+
+        .print-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        @media print {
+            .print-button {
+                display: none;
+            }
+
+            .day-section {
+                page-break-inside: avoid;
+            }
+        }
+
+        /* Loading/Error */
+        .loading,
+        .error {
+            text-align: center;
+            padding: 50px;
+            font-size: 18px;
+            color: #666;
+        }
+
+        .error {
+            color: #d32f2f;
+        }
+    </style>
+</head>
+
+<body>
+    <button class="print-button" onclick="window.print()">🖨️ Imprimir</button>
+
+    <div id="loading" class="loading">Carregando treino...</div>
+    <div id="error" class="error" style="display: none;">Erro ao carregar o treino.</div>
+    <div id="content" class="container" style="display: none;"></div>
+
+    <script>
+        const WEEK_ORDER = {
+            'segunda': 1, 'segunda-feira': 1,
+            'terça': 2, 'terça-feira': 2, 'terca': 2, 'terca-feira': 2,
+            'quarta': 3, 'quarta-feira': 3,
+            'quinta': 4, 'quinta-feira': 4,
+            'sexta': 5, 'sexta-feira': 5,
+            'sábado': 6, 'sabado': 6,
+            'domingo': 7
+        };
+
+        function sortDays(days) {
+            return days.sort((a, b) => {
+                const nameA = (a.day_name || '').toLowerCase().trim();
+                const nameB = (b.day_name || '').toLowerCase().trim();
+                const orderA = WEEK_ORDER[nameA] || a.day_number || 999;
+                const orderB = WEEK_ORDER[nameB] || b.day_number || 999;
+                return orderA - orderB;
+            });
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return 'Não definido';
+            try {
+                // To avoid timezone shifts, if it's an ISO string we just extract the date part
+                const cleanDateStr = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
+                const parts = cleanDateStr.split('-');
+                if (parts.length === 3) {
+                    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+                }
+                const date = new Date(dateStr);
+                return date.toLocaleDateString('pt-BR');
+            } catch (e) { return dateStr; }
+        }
+
+        function formatDescription(desc) {
+            if (!desc) return '';
+
+            // Replaces base64 image tags with actual image tags
+            let formatted = desc.replace(/\[IMG_BASE64:([^\]]+)\]/g, (match, base64) => {
+                return `<div style="margin: 15px 0; text-align: center;"><img src="data:image/jpeg;base64,${base64}" style="max-width: 100%; max-height: 400px; border-radius: 8px; border: 1px solid #ddd;" /></div>`;
+            });
+
+            // Replaces newlines with <br>
+            formatted = formatted.replace(/\n/g, '<br>');
+
+            return `<div style="margin-top: 20px; padding-top: 20px; border-top: 1px dashed #ccc; color: #333; font-size: 13px; line-height: 1.6;">${formatted}</div>`;
+        }
+
+        function renderWorkout(workout) {
+            const content = document.getElementById('content');
+
+            let html = `
+                <div class="header">
+                    <div class="logo-container">
+                        <img src="https://spartanapp.com.br/icons/Icon-512.png" 
+                             alt="Spartan Logo" 
+                             class="logo-img">
+                    </div>
+                    <h1>Ficha de Treino</h1>
+                    <p class="subtitle">Spartan Gym - Treinamento Personalizado</p>
+                </div>
+
+                <div class="workout-info">
+                    <h2>${workout.name || 'Treino'}</h2>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <span class="info-label">Aluno</span>
+                            <span class="info-value">${workout.student_name || 'N/A'}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Personal Trainer</span>
+                            <span class="info-value">${workout.trainer_name || workout.personal_name || 'N/A'}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Objetivo</span>
+                            <span class="info-value">${workout.goal || 'N/A'}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Dificuldade</span>
+                            <span class="info-value">${workout.difficulty_level || 'N/A'}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Início</span>
+                            <span class="info-value">${formatDate(workout.start_date)}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Validade</span>
+                            <span class="info-value">${formatDate(workout.end_date)}</span>
+                        </div>
+                    </div>
+                    ${formatDescription(workout.description)}
+                </div>
+            `;
+
+            if (workout.days && workout.days.length > 0) {
+                const sortedDays = sortDays(workout.days);
+
+                sortedDays.forEach(day => {
+                    html += `
+                        <div class="day-section">
+                            <div class="day-header">
+                                <h3>${day.day_name || `Dia ${day.day_number || ''}`}</h3>
+                                <span class="day-description">${day.description || ''}</span>
+                            </div>
+                    `;
+
+                    if (day.exercises && day.exercises.length > 0) {
+                        html += `
+                            <table class="exercises-table">
+                                <thead>
+                                    <tr>
+                                        <th class="col-exercise">Exercício</th>
+                                        <th class="col-sets">Séries</th>
+                                        <th class="col-reps">Reps</th>
+                                        <th class="col-load">Carga (kg)</th>
+                                        <th class="col-notes">Observações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                        `;
+
+                        day.exercises.forEach(ex => {
+                            html += `
+                                <tr>
+                                    <td>
+                                        ${ex.is_superset ? '<span class="super-set">Super-Set</span>' : ''}
+                                        <span class="exercise-name">${ex.exercise_name || 'Exercício'}</span>
+                                    </td>
+                                    <td class="col-sets">${ex.sets || '-'}</td>
+                                    <td class="col-reps">${ex.reps || '-'}</td>
+                                    <td class="col-load">${ex.weight_kg ? ex.weight_kg + 'kg' : '-'}</td>
+                                    <td>${ex.notes || ''}</td>
+                                </tr>
+                            `;
+                        });
+
+                        html += `
+                                </tbody>
+                            </table>
+                        `;
+                    } else {
+                        html += '<p style="padding: 15px; color: #999; font-size: 12px; border: 1px solid #000; border-top: none;">Nenhum exercício cadastrado.</p>';
+                    }
+
+                    html += '</div>';
+                });
+            } else {
+                html += '';
+            }
+
+            html += `
+                <div class="footer">
+                    <p>Ficha gerada em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}</p>
+                    <p>Spartan Gym - Todos os direitos reservados</p>
+                </div>
+            `;
+
+            content.innerHTML = html;
+            content.style.display = 'block';
+        }
+
+        window.addEventListener('load', async () => {
+            // Priority: dataUrl (Blob) -> localStorage -> data param
+            const params = new URLSearchParams(window.location.search);
+            const dataUrl = params.get('dataUrl');
+
+            if (dataUrl) {
+                try {
+                    const response = await fetch(dataUrl);
+                    if (response.ok) {
+                        const workout = await response.json();
+                        document.getElementById('loading').style.display = 'none';
+                        renderWorkout(workout);
+                        return;
+                    }
+                } catch (e) {
+                    console.error("Error fetching blob:", e);
+                }
+            }
+
+            let data = localStorage.getItem('spartan_workout_print');
+
+            // Fallback URL (legacy)
+            if (!data) {
+                data = params.get('data');
+                if (data) data = decodeURIComponent(data);
+            }
+
+            if (!data) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').textContent = 'Nenhum dado de treino fornecido.';
+                return;
+            }
+
+            try {
+                const workout = JSON.parse(data);
+                localStorage.removeItem('spartan_workout_print'); // Clean up
+                document.getElementById('loading').style.display = 'none';
+                renderWorkout(workout);
+            } catch (e) {
+                console.error(e);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').textContent = 'Erro ao processar dados.';
+            }
+        });
+    </script>
+</body>
+
+</html>

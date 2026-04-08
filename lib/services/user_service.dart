@@ -509,7 +509,8 @@ class UserService {
           .from('users_adm')
           .select()
           .eq('id', idAcademia)
-          .single();
+          .maybeSingle();
+      if (adminDetails == null) return {'count': 0, 'limit': 300, 'isAtLimit': false, 'plan': 'Prata'};
       final plan = adminDetails['plano_mensal']?.toString() ?? 'Prata';
 
       // Definir limites
@@ -547,7 +548,11 @@ class UserService {
           .from('users_adm')
           .select()
           .eq('id', idAcademia)
-          .single();
+          .maybeSingle();
+
+      if (adminDetails == null) {
+        return {'success': false, 'error': 'Administrador não encontrado'};
+      }
 
       return {
         'success': true,
@@ -558,6 +563,8 @@ class UserService {
         'tolerancia': adminDetails['assinatura_tolerancia'],
         'deletada': adminDetails['assinatura_deletada'],
         'stripeCustomerId': adminDetails['stripe_customer_id'],
+        'mpSubscriptionId': adminDetails['mp_subscription_id'],
+        'paymentMethod': adminDetails['payment_method'] ?? 'pix',
       };
     } catch (e) {
       print('Erro ao buscar status de assinatura: $e');

@@ -41,12 +41,31 @@ class PaymentService {
     );
   }
 
+  /// Gera uma assinatura via Cartão no Mercado Pago. Retorna um Map com init_point e preapproval_id.
+  static Future<Map<String, dynamic>> createCardSubscription({
+    required String planName,
+    required String userId,
+    required String userEmail,
+    required double amount,
+  }) async {
+    return MercadoPagoService.createCardSubscription(
+      planName: planName,
+      userId: userId,
+      userEmail: userEmail,
+      amount: amount,
+    );
+  }
+
   /// Cancela a assinatura no provedor ativo
   static Future<Map<String, dynamic>> cancelSubscription({
     required String userId,
+    String? subscriptionId,
   }) async {
     if (PaymentConfig.activeProvider == PaymentProvider.mercadoPago) {
-      return MercadoPagoService.cancelRecurrence(userId: userId);
+      return MercadoPagoService.cancelRecurrence(
+        userId: userId, 
+        subscriptionId: subscriptionId
+      );
     } else {
       return StripeService.cancelSubscription(userId: userId);
     }

@@ -161,23 +161,28 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
       final user = response.user;
       if (user == null) throw Exception('Falha ao criar conta.');
 
-      // 3. Salvar na Tabela de Pendentes (Segunda via de segurança)
-      await Supabase.instance.client.from('pending_registrations').upsert({
-        'id': user.id,
-        'email': email,
-        'full_name':
-            _nameController.text.trim(), // COLUNA 'full_name' = NOME DO ADMIN
-        'gym_name': _academiaController.text
-            .trim(), // COLUNA 'gym_name' = NOME DA ACADEMIA
-        'phone': _phoneMask.getUnmaskedText(),
-        'cnpj': _cnpjMask.getUnmaskedText(),
-        'cpf': _cpfMask.getUnmaskedText(),
-        'address_street': _addressController.text.trim(),
-        'status': 'verified',
-        'current_step': 2,
-      });
+      // 3. Salvar na Tabela de Pendentes (Segunda via de segurança - não bloqueia o fluxo)
+      try {
+        await Supabase.instance.client.from('pending_registrations').upsert({
+          'id': user.id,
+          'email': email,
+          'full_name': _nameController.text.trim(),
+          'gym_name': _academiaController.text.trim(),
+          'phone': _phoneMask.getUnmaskedText(),
+          'cnpj': _cnpjMask.getUnmaskedText(),
+          'cpf': _cpfMask.getUnmaskedText(),
+          'address_street': _addressController.text.trim(),
+          'status': 'verified',
+          'current_step': 2,
+        });
+        print('✅ Registro pendente salvo.');
+      } catch (pendingError) {
+        // Não crítico: usuário já foi criado no Auth com sucesso.
+        // RLS ou outra falha aqui não deve impedir o sucesso.
+        print('⚠️ Falha ao salvar pending_registrations (não crítico): $pendingError');
+      }
 
-      print('✅ Registro pendente salvo. Redirecionando para Login.');
+      print('✅ Cadastro concluído. Redirecionando para Login.');
 
       if (mounted) {
         // 4. Mostrar Diálogo de Sucesso e ir para Login
@@ -240,78 +245,80 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
   }
 
   void _showRegistrationSuccessDialog(String emailForConfirmation) {
-    // Se houver algum diálogo aberto (ex: por um polling anterior), closes before
+    // Se houver algum diálogo aberto, fecha antes
     if (Navigator.canPop(context)) {
       Navigator.pop(context);
     }
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 400),
-          child: Container(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFE8F5E9), // Verde claro sucesso
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.check_rounded,
-                      color: Color(0xFF2E7D32), size: 48),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  'Cadastro Realizado!',
-                  style: GoogleFonts.cinzel(
-                      fontSize: 22, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Sua conta foi criada com sucesso e o login está autorizado.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                      fontSize: 15, height: 1.5, color: AppTheme.secondaryText),
-                ),
-                const SizedBox(height: 32),
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      // Navegação direta e absoluta para o Login
-                      if (context.mounted) {
-                        Navigator.of(context).pushNamedAndRemoveUntil(
-                          '/login',
-                          (route) => false,
-                        );
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.black,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
+    // Navegar para Login primeiro (antes de mostrar a popup)
+    Navigator.of(context).pushNamedAndRemoveUntil(
+      '/login',
+      (route) => false,
+    );
+
+    // Aguarda o frame renderizar e então mostra a popup
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: Container(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFE8F5E9),
+                      shape: BoxShape.circle,
                     ),
-                    child: const Text('IR PARA LOGIN',
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold, color: Colors.white)),
+                    child: const Icon(Icons.check_rounded,
+                        color: Color(0xFF2E7D32), size: 48),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 24),
+                  Text(
+                    'Cadastro Realizado!',
+                    style: GoogleFonts.cinzel(
+                        fontSize: 22, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Sua conta foi criada com sucesso!\n\nAgora é só fazer login com o seu e-mail e senha.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        fontSize: 15, height: 1.5, color: AppTheme.secondaryText),
+                  ),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('FAZER LOGIN',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, color: Colors.white)),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-      ),
-    );
+      );
+    });
   }
 
   Future<void> _nextStep() async {

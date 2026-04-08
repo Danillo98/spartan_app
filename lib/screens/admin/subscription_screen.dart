@@ -37,6 +37,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
   bool _wentToStripe = false; // Flag para saber se foi para o Stripe
   StreamSubscription? _focusSubscription;
   UserRole? _userRole; // Armazenar role do usuário
+  String? _mpSubscriptionId;
+  String _paymentMethod = 'pix';
 
   @override
   void initState() {
@@ -289,6 +291,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
             _expiresAt = DateTime.tryParse(subStatus['expirada']);
           }
 
+          _mpSubscriptionId = subStatus['mpSubscriptionId'];
+          _paymentMethod = subStatus['paymentMethod'] ?? 'pix';
+
           _isLoading = false;
         });
       }
@@ -311,9 +316,12 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
 
   // Popup de confirmação para upgrade/downgrade/renovação
   Future<void> _showPlanChangeConfirmation(String newPlan) async {
-    // Se for visitante, não precisa de confirmação (está assinando pela primeira vez)
+    // Se for visitante, não precisa de aviso de substituição de plano, apenas seleciona o método
     if (_userRole == UserRole.visitor) {
-      await _initiateCheckout(newPlan);
+      final String? paymentMethod = await _showPaymentMethodDialog();
+      if (paymentMethod != null) {
+        await _initiateCheckout(newPlan, paymentMethod);
+      }
       return;
     }
 
@@ -416,7 +424,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8)),
               ),
-              child: const Text('Confirmar'),
+              child: const Text('Continuar'),
             ),
           ],
         );
@@ -424,12 +432,48 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
     );
 
     if (confirmed == true) {
-      await _initiateCheckout(newPlan);
+      final String? paymentMethod = await _showPaymentMethodDialog();
+      if (paymentMethod != null) {
+        await _initiateCheckout(newPlan, paymentMethod);
+      }
     }
   }
 
-  // Iniciar checkout do provedor ativo (Stripe ou Mercado Pago PIX)
-  Future<void> _initiateCheckout(String planName) async {
+  Future<String?> _showPaymentMethodDialog() async {
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Escolha a Forma de Pagamento', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.credit_card, color: AppTheme.primaryRed),
+                title: const Text('Cartão de Crédito', style: TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: const Text('Cobrança automática mensal'),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: BorderSide(color: Colors.grey.shade300)),
+                onTap: () => Navigator.of(dialogContext).pop('cartao'),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                leading: const Icon(Icons.pix, color: Colors.teal),
+                title: const Text('PIX', style: TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: const Text('Pagamento manual mensal'),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: BorderSide(color: Colors.grey.shade300)),
+                onTap: () => Navigator.of(dialogContext).pop('pix'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // Iniciar checkout do provedor ativo (Stripe ou Mercado Pago)
+  Future<void> _initiateCheckout(String planName, String paymentMethod) async {
     try {
       setState(() {
         _isLoading = true;
@@ -451,33 +495,55 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
         _oldExpiresAt = _expiresAt;
       });
 
-      // === MERCADO PAGO PIX ===
+      // === MERCADO PAGO ===
       if (PaymentService.isPixProvider) {
-        setState(() => _isLoading = false);
         final amount = PaymentService.getAmountByPlanName(planName);
-        final result = await Navigator.push<bool>(
-          context,
-          MaterialPageRoute(
-            builder: (_) => PixCheckoutScreen(
-              userId: user.id,
-              userEmail: user.email ?? '',
-              planName: planName,
-              amount: amount,
+
+        if (paymentMethod == 'pix') {
+          setState(() => _isLoading = false);
+          final result = await Navigator.push<bool>(
+            context,
+            MaterialPageRoute(
+              builder: (_) => PixCheckoutScreen(
+                userId: user.id,
+                userEmail: user.email ?? '',
+                planName: planName,
+                amount: amount,
+              ),
             ),
-          ),
-        );
-        if (result == true && mounted) {
-          // PixCheckoutScreen já mostra seu próprio diálogo de sucesso.
-          // Aqui a gente só atualiza a tela de assinaturas e volta para o admin_dashboard.
-          await _loadSubscriptionData();
-          if (mounted) {
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (_) => const AdminDashboard()),
-              (route) => false,
-            );
+          );
+          if (result == true && mounted) {
+            await _loadSubscriptionData();
+            if (mounted) {
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const AdminDashboard()),
+                (route) => false,
+              );
+            }
           }
+          return;
+        } else if (paymentMethod == 'cartao') {
+           // Fluxo Cartão via MP Assinaturas
+           final response = await PaymentService.createCardSubscription(
+             planName: planName, 
+             userId: user.id, 
+             userEmail: user.email ?? '', 
+             amount: amount
+           );
+           
+           if (response['success'] == true && response['init_point'] != null) {
+              final checkoutUrl = response['init_point'];
+              final uri = Uri.parse(checkoutUrl);
+              if (await canLaunchUrl(uri)) {
+                _wentToStripe = true; // flag usado para reload no lifecycle
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              } else {
+                throw Exception('Não foi possível abrir o link de pagamento do cartão');
+              }
+           }
+           setState(() => _isLoading = false);
+           return;
         }
-        return;
       }
 
       // === STRIPE (fluxo original) ===
@@ -745,6 +811,55 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
                     ),
                     const SizedBox(height: 40),
 
+                    // ÁREA DO CARTÃO (Mercado Pago)
+                    if (_paymentMethod == 'card' && _mpSubscriptionId != null) ...[
+                      Center(
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          margin: const EdgeInsets.symmetric(horizontal: 24),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withOpacity(0.05),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.green.withOpacity(0.2)),
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.check_circle_outline, color: Colors.green, size: 20),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'PAGAMENTO VIA CARTÃO ATIVO',
+                                    style: GoogleFonts.lato(
+                                      color: Colors.green[800],
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              ElevatedButton.icon(
+                                onPressed: _showCancelCardDialog,
+                                icon: const Icon(Icons.credit_card_off_outlined, size: 18),
+                                label: const Text('EXCLUIR MEU CARTÃO (ASSINATURA)'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.white,
+                                  foregroundColor: Colors.red[700],
+                                  elevation: 0,
+                                  side: BorderSide(color: Colors.red[200]!),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+
                     // === BOTÕES LEGAIS E CANCELAMENTO ===
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -804,6 +919,72 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
               ),
       ),
     );
+  }
+
+  // Popup de cancelamento de CARTÃO (Mercado Pago)
+  void _showCancelCardDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Remover Cartão de Crédito?'),
+        content: const Text(
+          'Ao confirmar, a renovação automática será cancelada. '
+          'Seu acesso continuará ativo até o vencimento atual, mas a próxima renovação deverá ser feita via PIX.'
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('VOLTAR', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _cancelCardSubscription();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('CONFIRMAR REMOÇÃO'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _cancelCardSubscription() async {
+    setState(() => _isLoading = true);
+    try {
+      final user = AuthService.getCurrentUser();
+      if (user == null) return;
+
+      final result = await PaymentService.cancelSubscription(
+        userId: user.id,
+        subscriptionId: _mpSubscriptionId,
+      );
+
+      if (result['success'] == true && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Assinatura no cartão cancelada com sucesso!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        _loadSubscriptionData();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao cancelar cartão: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   // Popup de confirmação de cancelamento
