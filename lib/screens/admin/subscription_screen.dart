@@ -564,21 +564,49 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
       };
 
       if (_userRole == UserRole.visitor) {
-        final pendingRes = await Supabase.instance.client
+        var pendingRes = await Supabase.instance.client
             .from('pending_registrations')
             .select()
             .eq('id', user.id)
             .maybeSingle();
 
-        if (pendingRes != null) {
-          checkoutMetadata.addAll({
-            'nome': pendingRes['full_name'] ?? '',
-            'academia': pendingRes['gym_name'] ?? '',
-            'telefone': pendingRes['phone'] ?? '',
-            'cpf_responsavel': pendingRes['cpf'] ?? '',
-            'endereco': pendingRes['address_street'] ?? '',
-          });
+        final meta = user.userMetadata ?? {};
+
+        // Se por causa do RLS no cadastro o pending_registrations falhou, recriamos agora que o usuário está logado!
+        if (pendingRes == null) {
+          try {
+            await Supabase.instance.client.from('pending_registrations').upsert({
+              'id': user.id,
+              'email': user.email,
+              'full_name': meta['name'] ?? '',
+              'gym_name': meta['academia'] ?? '',
+              'phone': meta['phone'] ?? '',
+              'cnpj': meta['cnpj_academia'] ?? '',
+              'cpf': meta['cpf_responsavel'] ?? '',
+              'address_street': meta['endereco'] ?? '',
+              'status': 'verified',
+              'current_step': 2,
+            });
+            // Tenta buscar novamente
+            pendingRes = await Supabase.instance.client
+                .from('pending_registrations')
+                .select()
+                .eq('id', user.id)
+                .maybeSingle();
+          } catch (e) {
+            print('Aviso: Falha ao recriar pending_registrations (resgate): $e');
+          }
         }
+
+        // Preenche o Stripe metadado: Prioridade pendingRes -> meta
+        checkoutMetadata.addAll({
+          'nome': pendingRes?['full_name'] ?? meta['name'] ?? '',
+          'academia': pendingRes?['gym_name'] ?? meta['academia'] ?? '',
+          'telefone': pendingRes?['phone'] ?? meta['phone'] ?? '',
+          'cpf_responsavel': pendingRes?['cpf'] ?? meta['cpf_responsavel'] ?? '',
+          'endereco': pendingRes?['address_street'] ?? meta['endereco'] ?? '',
+          'cnpj_academia': pendingRes?['cnpj'] ?? meta['cnpj_academia'] ?? '', // Extra backup
+        });
       }
 
       final checkoutUrl = await PaymentService.createCheckoutSession(

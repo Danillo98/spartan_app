@@ -155,6 +155,8 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen>
           'academia': _academiaController.text.trim(),
           'phone': _phoneMask.getUnmaskedText(),
           'cnpj_academia': _cnpjMask.getUnmaskedText(),
+          'cpf_responsavel': _cpfMask.getUnmaskedText(),
+          'endereco': _addressController.text.trim(),
         },
       );
 
