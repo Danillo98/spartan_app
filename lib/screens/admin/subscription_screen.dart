@@ -318,9 +318,13 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
   Future<void> _showPlanChangeConfirmation(String newPlan) async {
     // Se for visitante, não precisa de aviso de substituição de plano, apenas seleciona o método
     if (_userRole == UserRole.visitor) {
-      final String? paymentMethod = await _showPaymentMethodDialog();
-      if (paymentMethod != null) {
-        await _initiateCheckout(newPlan, paymentMethod);
+      if (PaymentService.isPixProvider) {
+        final String? paymentMethod = await _showPaymentMethodDialog();
+        if (paymentMethod != null) {
+          await _initiateCheckout(newPlan, paymentMethod);
+        }
+      } else {
+        await _initiateCheckout(newPlan, 'stripe');
       }
       return;
     }
@@ -432,9 +436,13 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
     );
 
     if (confirmed == true) {
-      final String? paymentMethod = await _showPaymentMethodDialog();
-      if (paymentMethod != null) {
-        await _initiateCheckout(newPlan, paymentMethod);
+      if (PaymentService.isPixProvider) {
+        final String? paymentMethod = await _showPaymentMethodDialog();
+        if (paymentMethod != null) {
+          await _initiateCheckout(newPlan, paymentMethod);
+        }
+      } else {
+        await _initiateCheckout(newPlan, 'stripe');
       }
     }
   }
