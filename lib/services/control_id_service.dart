@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'financial_service.dart';
 
 class ControlIdService {
@@ -8,6 +9,11 @@ class ControlIdService {
   static final List<Map<String, dynamic>> accessLogHistory = [];
   static final Map<String, int> _lastProcessedLogIds = {};
   static String? _session;
+
+  // Realtime persistente (singleton) — sobrevive à troca de telas no Spartan Desktop
+  static RealtimeChannel? _persistentAlunosChannel;
+  static RealtimeChannel? _persistentFinancialChannel;
+  static bool _realtimeActive = false;
 
   static int getLastProcessedLogId(String ip) => _lastProcessedLogIds[ip] ?? 0;
 
@@ -463,6 +469,75 @@ class ControlIdService {
     } catch (e) {
       print('⚠️ [Control iD] Sincronização silenciosa falhou: $e');
     }
+  }
+
+  /// Inicia listeners Realtime PERSISTENTES para sincronização da catraca.
+  /// Funciona como singleton: uma vez iniciado, sobrevive à troca de telas.
+  /// Deve ser chamado apenas no Windows Desktop (o caller verifica isso).
+  static void startPersistentRealtimeSync() {
+    if (_realtimeActive) return; // Já está rodando — evita duplicatas
+    _realtimeActive = true;
+
+    print('🔄 [Control iD] Iniciando Realtime PERSISTENTE para catraca...');
+
+    // Listener 1: Mudanças na tabela de alunos (status, bloqueio, nome)
+    _persistentAlunosChannel = Supabase.instance.client
+        .channel('control_id:users_alunos:persistent')
+        .onPostgresChanges(
+            event: PostgresChangeEvent.update,
+            schema: 'public',
+            table: 'users_alunos',
+            callback: (payload) async {
+              await Future.delayed(const Duration(milliseconds: 1000));
+
+              final newRecord = payload.newRecord;
+              if (newRecord.containsKey('id')) {
+                final status = newRecord['status_financeiro'] as String?;
+                final isBlocked = newRecord['is_blocked'] == true;
+                final name = newRecord['nome'] as String?;
+                syncStudentRealtime(
+                  newRecord['id'],
+                  forcedStatus: status,
+                  forcedIsBlocked: isBlocked,
+                  forcedName: name,
+                );
+              }
+            })
+        .subscribe();
+
+    // Listener 2: Mudanças na tabela financeira (pagamentos, estornos)
+    _persistentFinancialChannel = Supabase.instance.client
+        .channel('control_id:financial_transactions:persistent')
+        .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'financial_transactions',
+            callback: (payload) async {
+              await Future.delayed(const Duration(milliseconds: 1000));
+
+              final record = payload.newRecord.isNotEmpty
+                  ? payload.newRecord
+                  : payload.oldRecord;
+
+              if (record.containsKey('related_user_id')) {
+                syncStudentRealtime(record['related_user_id']);
+              } else if (payload.eventType == PostgresChangeEvent.delete) {
+                syncAllStudentsSilently();
+              }
+            })
+        .subscribe();
+
+    print('✅ [Control iD] Realtime PERSISTENTE ativo — sobrevive à troca de telas.');
+  }
+
+  /// Para os listeners Realtime persistentes (chamado no logout)
+  static void stopPersistentRealtimeSync() {
+    _persistentAlunosChannel?.unsubscribe();
+    _persistentFinancialChannel?.unsubscribe();
+    _persistentAlunosChannel = null;
+    _persistentFinancialChannel = null;
+    _realtimeActive = false;
+    print('🛑 [Control iD] Realtime persistente encerrado.');
   }
 
   /// Busca os logs de acesso da catraca (Modo Estável - 30 registros)

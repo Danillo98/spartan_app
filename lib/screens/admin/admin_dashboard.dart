@@ -42,9 +42,6 @@ class _AdminDashboardState extends State<AdminDashboard>
 
   Timer? _subscriptionTimer; // Timer para monitoramento silencioso
 
-  RealtimeChannel? _alunosChannel;
-  RealtimeChannel? _financialChannel;
-
   // Controle de Versão (Desktop)
   bool _needsUpdate = false;
   Timer? _versionCheckTimer;
@@ -100,8 +97,7 @@ class _AdminDashboardState extends State<AdminDashboard>
   void dispose() {
     _subscriptionTimer?.cancel(); // Cancelar Timer ao sair
     _versionCheckTimer?.cancel();
-    _alunosChannel?.unsubscribe();
-    _financialChannel?.unsubscribe();
+    // NÃO desconectar listeners da catraca aqui — eles são PERSISTENTES no ControlIdService
     _animationController.dispose();
     super.dispose();
   }
@@ -110,50 +106,9 @@ class _AdminDashboardState extends State<AdminDashboard>
     // Só inicia se for Windows Nativo
     if (kIsWeb || defaultTargetPlatform != TargetPlatform.windows) return;
 
-    _alunosChannel = Supabase.instance.client
-        .channel('public:users_alunos:dashboard')
-        .onPostgresChanges(
-            event: PostgresChangeEvent.update,
-            schema: 'public',
-            table: 'users_alunos',
-            callback: (payload) async {
-              await Future.delayed(const Duration(milliseconds: 1000));
-
-              final newRecord = payload.newRecord;
-              if (newRecord.containsKey('id')) {
-                final status = newRecord['status_financeiro'] as String?;
-                final isBlocked = newRecord['is_blocked'] == true;
-                final name = newRecord['nome'] as String?;
-                ControlIdService.syncStudentRealtime(
-                  newRecord['id'],
-                  forcedStatus: status,
-                  forcedIsBlocked: isBlocked,
-                  forcedName: name,
-                );
-              }
-            })
-        .subscribe();
-
-    _financialChannel = Supabase.instance.client
-        .channel('public:financial_transactions:dashboard')
-        .onPostgresChanges(
-            event: PostgresChangeEvent.all,
-            schema: 'public',
-            table: 'financial_transactions',
-            callback: (payload) async {
-              await Future.delayed(const Duration(milliseconds: 1000));
-
-              final record = payload.newRecord.isNotEmpty
-                  ? payload.newRecord
-                  : payload.oldRecord;
-
-              if (record.containsKey('related_user_id')) {
-                ControlIdService.syncStudentRealtime(record['related_user_id']);
-              } else if (payload.eventType == PostgresChangeEvent.delete) {
-                ControlIdService.syncAllStudentsSilently();
-              }
-            })
-        .subscribe();
+    // Delega para o singleton persistente do ControlIdService.
+    // Ele NÃO morre quando o admin sai do Dashboard — sobrevive à troca de telas.
+    ControlIdService.startPersistentRealtimeSync();
   }
 
   void _startVersionMonitor() {

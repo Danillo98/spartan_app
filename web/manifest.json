@@ -1,6 +1,7 @@
 {
   "name": "Spartan App - Gestão de Academia",
   "short_name": "Spartan",
+  "id": "/",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#FFFFFF",
