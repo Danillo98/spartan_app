@@ -1,4 +1,4 @@
-// Spartan App v2.6.5 - Trigger Commit
+// Spartan App v2.6.6 - Trigger Commit
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';

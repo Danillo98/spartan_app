@@ -368,6 +368,90 @@ class _AdminDashboardState extends State<AdminDashboard>
     );
   }
 
+  Future<void> _syncTurnstile() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedIp = prefs.getString('control_id_ip');
+
+    if (savedIp == null || savedIp.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Catraca não configurada. Configure em Minhas Catracas.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(color: Colors.orange),
+            const SizedBox(height: 16),
+            Text(
+              'Sincronizando...',
+              style: GoogleFonts.lato(
+                color: Colors.orange,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      await ControlIdService.syncAllStudents(savedIp);
+      
+      if (!mounted) return;
+      Navigator.pop(context); // close loading
+
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.check_circle, color: Colors.green, size: 48),
+              const SizedBox(height: 16),
+              Text(
+                'Sincronização bem-sucedida!',
+                style: GoogleFonts.lato(
+                  color: Colors.green,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Fechar'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // close loading
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao sincronizar: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   Future<void> _logout() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -739,6 +823,13 @@ class _AdminDashboardState extends State<AdminDashboard>
                                   _refreshDashboard();
                                 },
                               ),
+                              if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows)
+                                _buildModernFeatureCard(
+                                  title: 'Sincronizar Catraca',
+                                  icon: Icons.sync_rounded,
+                                  color: const Color(0xFFFF9800), // Laranja Sincronização
+                                  onTap: _syncTurnstile,
+                                ),
                               _buildModernFeatureCard(
                                 title: 'Suporte',
                                 icon: Icons.support_agent_rounded,
