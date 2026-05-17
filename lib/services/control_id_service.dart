@@ -275,21 +275,32 @@ class ControlIdService {
       int addedCount = 0;
       int removedCount = 0;
 
-      for (var student in studentsStatus) {
-        final String uuid = student['id'];
-        final int catracaId = generateCatracaId(uuid);
-        final String name = student['name'] ?? 'Aluno';
-        final String status = student['status'];
+      // Dividir os estudantes em chunks (lotes) de execução paralela para não travar a catraca
+      const int chunkSize = 10;
+      
+      for (int i = 0; i < studentsStatus.length; i += chunkSize) {
+        final end = (i + chunkSize < studentsStatus.length) 
+            ? i + chunkSize 
+            : studentsStatus.length;
+        final chunk = studentsStatus.sublist(i, end);
 
-        if (status == 'paid' || status == 'pending') {
-          // O aluno está em dia, então mandamos ou atualizamos na Catraca
-          final res = await addUser(ip: ip, id: catracaId, name: name);
-          if (res['success'] == true) addedCount++;
-        } else if (status == 'overdue') {
-          // O aluno está devendo, removemos ele da Catraca (bloqueia o acesso fisicamente)
-          final res = await removeUser(ip: ip, id: catracaId);
-          if (res['success'] == true) removedCount++;
-        }
+        // Executa o chunk atual em paralelo
+        await Future.wait(chunk.map((student) async {
+          final String uuid = student['id'];
+          final int catracaId = generateCatracaId(uuid);
+          final String name = student['name'] ?? 'Aluno';
+          final String status = student['status'];
+
+          if (status == 'paid' || status == 'pending') {
+            // O aluno está em dia, então mandamos ou atualizamos na Catraca
+            final res = await addUser(ip: ip, id: catracaId, name: name);
+            if (res['success'] == true) addedCount++;
+          } else if (status == 'overdue') {
+            // O aluno está devendo, removemos ele da Catraca (bloqueia o acesso fisicamente)
+            final res = await removeUser(ip: ip, id: catracaId);
+            if (res['success'] == true) removedCount++;
+          }
+        }));
       }
 
       return {
