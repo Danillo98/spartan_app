@@ -264,6 +264,37 @@ class ControlIdService {
     }
   }
 
+  /// Carrega objetos cadastrados na catraca
+  /// Retorna null se houver falha de rede/conexão para permitir fallback seguro
+  static Future<List<Map<String, dynamic>>?> loadObjects({
+    required String ip,
+    required String object,
+  }) async {
+    try {
+      final sanitizedIp = sanitizeIp(ip);
+      String session = await _login(sanitizedIp);
+      if (session.isEmpty) return null;
+
+      final url = Uri.parse('http://$sanitizedIp/load_objects.fcgi?session=$session');
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({"object": object}),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final list = data[object];
+        if (list is List) {
+          return List<Map<String, dynamic>>.from(list);
+        }
+      }
+    } catch (e) {
+      print('⚠️ [Control iD] Erro ao carregar $object: $e');
+    }
+    return null;
+  }
+
   /// Sincroniza TODOS os alunos da academia atual para a Catraca
   static Future<Map<String, dynamic>> syncAllStudents(String ip) async {
     try {
@@ -274,6 +305,30 @@ class ControlIdService {
 
       int addedCount = 0;
       int removedCount = 0;
+
+      // 1. Tenta carregar o estado atual da catraca para sincronização inteligente (Smart Diff)
+      final List<Map<String, dynamic>>? catracaUsers = await loadObjects(ip: ip, object: 'users');
+      final List<Map<String, dynamic>>? catracaRules = await loadObjects(ip: ip, object: 'user_access_rules');
+
+      Set<int>? existingUserIds;
+      Set<int>? activeRuleUserIds;
+
+      if (catracaUsers != null && catracaRules != null) {
+        existingUserIds = catracaUsers
+            .map((u) => int.tryParse(u['id'].toString()) ?? 0)
+            .where((id) => id > 0)
+            .toSet();
+
+        activeRuleUserIds = catracaRules
+            .where((r) => int.tryParse(r['access_rule_id'].toString()) == 1)
+            .map((r) => int.tryParse(r['user_id'].toString()) ?? 0)
+            .where((id) => id > 0)
+            .toSet();
+            
+        print('⚡ [Control iD] Modo Smart Diff Ativado! Usuários na catraca: ${existingUserIds.length}, Regras ativas: ${activeRuleUserIds.length}');
+      } else {
+        print('⚠️ [Control iD] Falha ao ler dados da catraca. Executando sincronização completa (Fallback).');
+      }
 
       // Dividir os estudantes em chunks (lotes) de execução paralela para não travar a catraca
       const int chunkSize = 10;
@@ -292,10 +347,29 @@ class ControlIdService {
           final String status = student['status'];
 
           if (status == 'paid' || status == 'pending') {
+            // Se o Smart Diff estiver ativo, checa se já está correto na catraca
+            if (existingUserIds != null && activeRuleUserIds != null) {
+              final bool isAlreadyActive = existingUserIds.contains(catracaId) && 
+                                           activeRuleUserIds.contains(catracaId);
+              if (isAlreadyActive) {
+                addedCount++;
+                return; // Pula requisição desnecessária!
+              }
+            }
+
             // O aluno está em dia, então mandamos ou atualizamos na Catraca
             final res = await addUser(ip: ip, id: catracaId, name: name);
             if (res['success'] == true) addedCount++;
           } else if (status == 'overdue') {
+            // Se o Smart Diff estiver ativo, checa se já está bloqueado na catraca
+            if (activeRuleUserIds != null) {
+              final bool isAlreadyBlocked = !activeRuleUserIds.contains(catracaId);
+              if (isAlreadyBlocked) {
+                removedCount++;
+                return; // Pula requisição desnecessária!
+              }
+            }
+
             // O aluno está devendo, removemos ele da Catraca (bloqueia o acesso fisicamente)
             final res = await removeUser(ip: ip, id: catracaId);
             if (res['success'] == true) removedCount++;
