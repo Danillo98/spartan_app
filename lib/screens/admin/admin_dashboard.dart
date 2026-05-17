@@ -830,6 +830,21 @@ class _AdminDashboardState extends State<AdminDashboard>
                                   color: const Color(0xFFFF9800), // Laranja Sincronização
                                   onTap: _syncTurnstile,
                                 ),
+                               _buildModernFeatureCard(
+                                title: 'Assinatura Spartan',
+                                icon: Icons.verified_rounded,
+                                color: const Color(0xFF212121), // Preto Premium
+                                onTap: () async {
+                                  await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const SubscriptionScreen(),
+                                    ),
+                                  );
+                                  _refreshDashboard();
+                                },
+                              ),
                               _buildModernFeatureCard(
                                 title: 'Suporte',
                                 icon: Icons.support_agent_rounded,
@@ -840,21 +855,6 @@ class _AdminDashboardState extends State<AdminDashboard>
                                     MaterialPageRoute(
                                       builder: (context) =>
                                           const SupportScreen(),
-                                    ),
-                                  );
-                                  _refreshDashboard();
-                                },
-                              ),
-                              _buildModernFeatureCard(
-                                title: 'Assinatura Spartan',
-                                icon: Icons.verified_rounded,
-                                color: const Color(0xFF212121), // Preto Premium
-                                onTap: () async {
-                                  await Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          const SubscriptionScreen(),
                                     ),
                                   );
                                   _refreshDashboard();
