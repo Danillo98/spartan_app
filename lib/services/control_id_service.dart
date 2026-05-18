@@ -48,72 +48,55 @@ class ControlIdService {
   }) async {
     try {
       final sanitizedIp = sanitizeIp(ip);
-      String session = await _login(sanitizedIp);
-      if (session.isEmpty) throw 'Falha de login';
 
-      final urlCreate =
-          Uri.parse('http://$sanitizedIp/create_objects.fcgi?session=$session');
-      final urlModify =
-          Uri.parse('http://$sanitizedIp/modify_objects.fcgi?session=$session');
-
-      // 1. Tenta criar o usuário. Se já existir, tudo bem.
+      // 1. Criar ou atualizar usuário (com retry automático em caso de sessão expirada)
       final createUserBody = jsonEncode({
         "object": "users",
         "values": [
-          {
-            "id": id,
-            "name": name,
-            "registration": id.toString(),
-            "password": ""
-          }
+          {"id": id, "name": name, "registration": id.toString(), "password": ""}
         ]
       });
 
-      final resCreate = await http.post(
-        urlCreate,
-        headers: {'Content-Type': 'application/json'},
-        body: createUserBody,
-      ).timeout(const Duration(seconds: 8));
-
-      // Se sessão expirou, invalida e retorna erro para forçar nova tentativa
-      if (resCreate.statusCode == 401 || resCreate.statusCode == 403) {
-        _invalidateSession();
-        return {'success': false, 'message': 'Sessão expirada, tente novamente'};
-      }
+      final resCreate = await _withSession(sanitizedIp, (session) =>
+        http.post(
+          Uri.parse('http://$sanitizedIp/create_objects.fcgi?session=$session'),
+          headers: {'Content-Type': 'application/json'},
+          body: createUserBody,
+        ).timeout(const Duration(seconds: 8))
+      );
 
       // Se falhar por outro motivo (usuário já existe), usa modify_objects
       if (resCreate.statusCode != 200) {
         final modifyUserBody = jsonEncode({
           "object": "users",
           "values": {"name": name},
-          "where": {
-            "users": {"id": id}
-          }
+          "where": {"users": {"id": id}}
         });
-        await http.post(
-          urlModify,
-          headers: {'Content-Type': 'application/json'},
-          body: modifyUserBody,
-        ).timeout(const Duration(seconds: 8));
+        // Pega a sessão atual (já renovada se necessário pelo _withSession acima)
+        final session = _session ?? '';
+        if (session.isNotEmpty) {
+          await http.post(
+            Uri.parse('http://$sanitizedIp/modify_objects.fcgi?session=$session'),
+            headers: {'Content-Type': 'application/json'},
+            body: modifyUserBody,
+          ).timeout(const Duration(seconds: 8));
+        }
       }
 
       // 2. Criar ou restaurar o vínculo com a Regra de Acesso padrão (ID 1 = 24h)
       final ruleBody = jsonEncode({
         "object": "user_access_rules",
-        "values": [
-          {
-            "user_id": id,
-            "access_rule_id": 1
-          }
-        ]
+        "values": [{"user_id": id, "access_rule_id": 1}]
       });
 
-      // Se a regra já existir, a catraca retorna erro de duplicata — isso é OK (sucesso para nós)
-      await http.post(
-        urlCreate,
-        headers: {'Content-Type': 'application/json'},
-        body: ruleBody,
-      ).timeout(const Duration(seconds: 8));
+      // Retry automático também aqui (se a sessão expirou entre os dois passos)
+      await _withSession(sanitizedIp, (session) =>
+        http.post(
+          Uri.parse('http://$sanitizedIp/create_objects.fcgi?session=$session'),
+          headers: {'Content-Type': 'application/json'},
+          body: ruleBody,
+        ).timeout(const Duration(seconds: 8))
+      );
 
       return {'success': true, 'message': 'Usuário sincronizado e liberado!'};
     } catch (e) {
@@ -124,6 +107,32 @@ class ControlIdService {
   /// Invalida a sessão atual, forçando novo login na próxima chamada
   static void _invalidateSession() {
     _session = null;
+  }
+
+  /// Executa uma chamada à API da catraca com retry automático em caso de sessão expirada.
+  /// Se receber 401/403, invalida a sessão, faz novo login (invisivel, em background ~100ms)
+  /// e repete a requisição UMA vez. Tudo acontece silenciosamente sem tocar na tela.
+  static Future<http.Response> _withSession(
+    String ip,
+    Future<http.Response> Function(String session) request,
+  ) async {
+    final sanitizedIp = sanitizeIp(ip);
+    String session = await _login(sanitizedIp);
+    if (session.isEmpty) throw Exception('Não foi possível conectar à catraca');
+
+    final response = await request(session);
+
+    // Se a sessão expirou, renova e tenta mais uma vez (invisible retry)
+    if (response.statusCode == 401 || response.statusCode == 403) {
+      print('⚠️ [Control iD] Sessão expirada. Renovando automaticamente...');
+      _invalidateSession();
+      session = await _login(sanitizedIp);
+      if (session.isEmpty) throw Exception('Falha ao renovar sessão da catraca');
+      print('✅ [Control iD] Sessão renovada! Repetindo requisição...');
+      return request(session);
+    }
+
+    return response;
   }
 
   /// Tenta logar e retornar o session ID
@@ -240,40 +249,25 @@ class ControlIdService {
   }) async {
     try {
       final sanitizedIp = sanitizeIp(ip);
-      String session = await _login(sanitizedIp);
-      if (session.isEmpty) throw 'Falha ao autenticar na catraca';
 
-      final urlWithSession = Uri.parse(
-          'http://$sanitizedIp/destroy_objects.fcgi?session=$session');
-
-      // Deleta unicamente a REGRA DE ACESSO do ID do usuário.
-      // O usuário físico continua na memória da catraca, mas a porta não abre mais.
       final body = jsonEncode({
         "object": "user_access_rules",
-        "where": {
-          "user_access_rules": {"user_id": id}
-        }
+        "where": {"user_access_rules": {"user_id": id}}
       });
 
-      final response = await http.post(
-        urlWithSession,
-        headers: {'Content-Type': 'application/json'},
-        body: body,
-      ).timeout(const Duration(seconds: 8));
+      // Retry automático: se a sessão expirar, renova e tenta de novo invisvelmente
+      final response = await _withSession(sanitizedIp, (session) =>
+        http.post(
+          Uri.parse('http://$sanitizedIp/destroy_objects.fcgi?session=$session'),
+          headers: {'Content-Type': 'application/json'},
+          body: body,
+        ).timeout(const Duration(seconds: 8))
+      );
 
       if (response.statusCode == 200) {
-        return {
-          'success': true,
-          'message': 'Usuário bloqueado com sucesso (Biometria mantida).'
-        };
-      } else if (response.statusCode == 401 || response.statusCode == 403) {
-        _invalidateSession();
-        return {'success': false, 'message': 'Sessão expirada ao bloquear usuário'};
+        return {'success': true, 'message': 'Usuário bloqueado com sucesso (Biometria mantida).'};
       } else {
-        return {
-          'success': false,
-          'message': 'Erro da catraca: ${response.statusCode}'
-        };
+        return {'success': false, 'message': 'Erro da catraca: ${response.statusCode}'};
       }
     } catch (e) {
       return {'success': false, 'message': 'Erro de conexão: $e'};
@@ -288,15 +282,17 @@ class ControlIdService {
   }) async {
     try {
       final sanitizedIp = sanitizeIp(ip);
-      String session = await _login(sanitizedIp);
-      if (session.isEmpty) return null;
 
-      final url = Uri.parse('http://$sanitizedIp/load_objects.fcgi?session=$session');
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({"object": object}),
-      ).timeout(const Duration(seconds: 10));
+      final bodyEncoded = jsonEncode({"object": object});
+
+      // Retry automático: se a sessão expirar, renova e tenta de novo invisivelmente
+      final response = await _withSession(sanitizedIp, (session) =>
+        http.post(
+          Uri.parse('http://$sanitizedIp/load_objects.fcgi?session=$session'),
+          headers: {'Content-Type': 'application/json'},
+          body: bodyEncoded,
+        ).timeout(const Duration(seconds: 10))
+      );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -304,10 +300,6 @@ class ControlIdService {
         if (list is List) {
           return List<Map<String, dynamic>>.from(list);
         }
-      } else if (response.statusCode == 401 || response.statusCode == 403) {
-        // Sessão expirada: invalida e será renovada na próxima chamada
-        _invalidateSession();
-        print('⚠️ [Control iD] Sessão expirada ao carregar $object. Será renovada.');
       }
     } catch (e) {
       print('⚠️ [Control iD] Erro ao carregar $object: $e');
