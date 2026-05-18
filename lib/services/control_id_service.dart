@@ -64,7 +64,7 @@ class ControlIdService {
             "id": id,
             "name": name,
             "registration": id.toString(),
-            "password": "" // opcional, mas seguro enviar vazio
+            "password": ""
           }
         ]
       });
@@ -73,9 +73,15 @@ class ControlIdService {
         urlCreate,
         headers: {'Content-Type': 'application/json'},
         body: createUserBody,
-      );
+      ).timeout(const Duration(seconds: 8));
 
-      // Se falhar, presumimos que já existe. Usamos modify_objects para manter o nome atualizado.
+      // Se sessão expirou, invalida e retorna erro para forçar nova tentativa
+      if (resCreate.statusCode == 401 || resCreate.statusCode == 403) {
+        _invalidateSession();
+        return {'success': false, 'message': 'Sessão expirada, tente novamente'};
+      }
+
+      // Se falhar por outro motivo (usuário já existe), usa modify_objects
       if (resCreate.statusCode != 200) {
         final modifyUserBody = jsonEncode({
           "object": "users",
@@ -88,27 +94,26 @@ class ControlIdService {
           urlModify,
           headers: {'Content-Type': 'application/json'},
           body: modifyUserBody,
-        );
+        ).timeout(const Duration(seconds: 8));
       }
 
-      // 2. Criar ou restaurar o vínculo do Usuário com a "Regra de Acesso Sempre Liberado" (Normalmente ID 1)
-      // Se ele estava bloqueado, isso reativa ele na catraca física
+      // 2. Criar ou restaurar o vínculo com a Regra de Acesso padrão (ID 1 = 24h)
       final ruleBody = jsonEncode({
         "object": "user_access_rules",
         "values": [
           {
             "user_id": id,
-            "access_rule_id": 1 // 1 é a Regra Padrão que vem de fábrica (24h)
+            "access_rule_id": 1
           }
         ]
       });
 
-      // Ignoramos o retorno porque se a regra já estiver lá (aluno já liberado), vai retornar erro de duplicata, o que é sucesso para nós.
+      // Se a regra já existir, a catraca retorna erro de duplicata — isso é OK (sucesso para nós)
       await http.post(
         urlCreate,
         headers: {'Content-Type': 'application/json'},
         body: ruleBody,
-      );
+      ).timeout(const Duration(seconds: 8));
 
       return {'success': true, 'message': 'Usuário sincronizado e liberado!'};
     } catch (e) {
@@ -116,7 +121,13 @@ class ControlIdService {
     }
   }
 
+  /// Invalida a sessão atual, forçando novo login na próxima chamada
+  static void _invalidateSession() {
+    _session = null;
+  }
+
   /// Tenta logar e retornar o session ID
+  /// Sempre força novo login se a sessão atual for inválida
   static Future<String> _login(String ip) async {
     if (_session != null && _session!.isNotEmpty) return _session!;
 
@@ -125,19 +136,21 @@ class ControlIdService {
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
-        body:
-            jsonEncode({"login": "admin", "password": "admin"}), // Senha padrão
-      );
+        body: jsonEncode({"login": "admin", "password": "admin"}),
+      ).timeout(const Duration(seconds: 8));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         _session = data['session'] ?? '';
         return _session!;
+      } else {
+        print('⚠️ [Control iD] Login falhou com status: ${response.statusCode}');
       }
     } catch (e) {
-      print('Erro login: $e');
+      print('⚠️ [Control iD] Erro no login: $e');
     }
-    return ''; // Retorna vazio se falhar, tenta sem sessão
+    _session = null;
+    return '';
   }
 
   /// Verifica conexão com a catraca (Ping)
@@ -246,13 +259,16 @@ class ControlIdService {
         urlWithSession,
         headers: {'Content-Type': 'application/json'},
         body: body,
-      );
+      ).timeout(const Duration(seconds: 8));
 
       if (response.statusCode == 200) {
         return {
           'success': true,
           'message': 'Usuário bloqueado com sucesso (Biometria mantida).'
         };
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        _invalidateSession();
+        return {'success': false, 'message': 'Sessão expirada ao bloquear usuário'};
       } else {
         return {
           'success': false,
@@ -280,7 +296,7 @@ class ControlIdService {
         url,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({"object": object}),
-      );
+      ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -288,6 +304,10 @@ class ControlIdService {
         if (list is List) {
           return List<Map<String, dynamic>>.from(list);
         }
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        // Sessão expirada: invalida e será renovada na próxima chamada
+        _invalidateSession();
+        print('⚠️ [Control iD] Sessão expirada ao carregar $object. Será renovada.');
       }
     } catch (e) {
       print('⚠️ [Control iD] Erro ao carregar $object: $e');

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../config/app_theme.dart';
 import '../../../services/financial_service.dart';
+import '../../../services/control_id_service.dart';
 import '../../../widgets/subscription_check.dart';
 
 class MonthlyPaymentScreen extends StatefulWidget {
@@ -166,12 +168,25 @@ class _MonthlyPaymentScreenState extends State<MonthlyPaymentScreen> {
           description: 'Mensalidade - ${student['name']}',
           amount: amount,
           type: 'income',
-          date: DateTime.now(), // Data do pagamento é HOJE
+          date: DateTime.now(),
           category: 'Mensalidade',
           relatedUserId: student['id'],
           relatedUserRole: 'student',
           dueDate: dueDate,
         );
+
+        // Sincroniza a catraca imediatamente após registrar pagamento (Desktop Windows)
+        // Não depende apenas do Realtime que pode estar inativo
+        if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+          final studentId = student['id'] as String?;
+          if (studentId != null && studentId.isNotEmpty) {
+            ControlIdService.syncStudentRealtime(
+              studentId,
+              forcedStatus: 'paid',
+              forcedName: student['name'] as String?,
+            );
+          }
+        }
 
         _loadData();
         if (mounted) {
@@ -218,6 +233,20 @@ class _MonthlyPaymentScreenState extends State<MonthlyPaymentScreen> {
     if (confirmed == true) {
       try {
         await FinancialService.deleteTransaction(student['payment_id']);
+
+        // Sincroniza a catraca imediatamente após estornar pagamento (Desktop Windows)
+        // Não depende apenas do Realtime que pode estar inativo
+        if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+          final studentId = student['id'] as String?;
+          if (studentId != null && studentId.isNotEmpty) {
+            // Sem forçar status: o service vai recalcular (pode ser overdue ou pending)
+            ControlIdService.syncStudentRealtime(
+              studentId,
+              forcedName: student['name'] as String?,
+            );
+          }
+        }
+
         _loadData();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
