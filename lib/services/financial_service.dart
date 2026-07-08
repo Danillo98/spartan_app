@@ -35,7 +35,7 @@ class FinancialService {
     // Contas de teste (assinatura_expirada = NULL) não podem receber mensalidades.
     if (category == 'Mensalidade' && relatedUserRole == 'student') {
       final academiaResponse = await _client
-          .from('academias')
+          .from('users_adm')
           .select('assinatura_expirada')
           .eq('id', idAcademia)
           .maybeSingle();
