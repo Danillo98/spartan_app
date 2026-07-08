@@ -166,7 +166,7 @@ class WorkoutCard extends StatelessWidget {
                 builder: (context) {
                   final cleanDesc = workout['description']
                       .toString()
-                      .replaceAll(RegExp(r'\[IMG_BASE64:[^\]]+\]'), '')
+                      .replaceAll(RegExp(r'\[IMG_(BASE64|URL):[^\]]+\]'), '')
                       .trim();
 
                   if (cleanDesc.isEmpty) return const SizedBox.shrink();
