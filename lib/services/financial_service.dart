@@ -254,14 +254,24 @@ class FinancialService {
     final startOfYear = DateTime(year, 1, 1);
     final endOfYear = DateTime(year, 12, 31);
 
-    final responseYear = await _client
-        .from('financial_transactions')
-        .select()
-        .eq('id_academia', idAcademia)
-        .gte('transaction_date', startOfYear.toIso8601String())
-        .lte('transaction_date', endOfYear.toIso8601String());
+    final yearTransactions = <Map<String, dynamic>>[];
+    int fetchCount = 1000;
+    int fromIndex = 0;
 
-    final yearTransactions = List<Map<String, dynamic>>.from(responseYear);
+    while (fetchCount == 1000) {
+      final responseYear = await _client
+          .from('financial_transactions')
+          .select()
+          .eq('id_academia', idAcademia)
+          .gte('transaction_date', startOfYear.toIso8601String())
+          .lte('transaction_date', endOfYear.toIso8601String())
+          .range(fromIndex, fromIndex + 999);
+
+      final chunk = List<Map<String, dynamic>>.from(responseYear);
+      yearTransactions.addAll(chunk);
+      fetchCount = chunk.length;
+      fromIndex += 1000;
+    }
 
     // 2. Buscar FIXAS anteriores ao ano (para projetar em Jan-Dez)
     final responseFixedPast = await _client
@@ -417,15 +427,26 @@ class FinancialService {
     // 2. Buscar TODAS as transações de entrada de alunos desta academia (Histórico Completo)
     final idAcademia = await _getAcademyId();
 
-    final response = await _client
-        .from('financial_transactions')
-        .select()
-        .eq('id_academia', idAcademia)
-        .eq('type', 'income')
-        .eq('related_user_role', 'student')
-        .order('transaction_date', ascending: true);
+    final allTransactions = <Map<String, dynamic>>[];
+    int fetchCount = 1000;
+    int fromIndex = 0;
 
-    final allTransactions = List<Map<String, dynamic>>.from(response);
+    // Loop de paginação para contornar o limite de 1000 linhas do Supabase REST API
+    while (fetchCount == 1000) {
+      final response = await _client
+          .from('financial_transactions')
+          .select()
+          .eq('id_academia', idAcademia)
+          .eq('type', 'income')
+          .eq('related_user_role', 'student')
+          .order('transaction_date', ascending: true)
+          .range(fromIndex, fromIndex + 999);
+
+      final chunk = List<Map<String, dynamic>>.from(response);
+      allTransactions.addAll(chunk);
+      fetchCount = chunk.length;
+      fromIndex += 1000;
+    }
 
     // Agrupar por aluno
     final Map<String, List<Map<String, dynamic>>> studentPayments = {};
