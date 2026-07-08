@@ -473,79 +473,56 @@ class FinancialService {
 
       final createdAt = DateTime.parse(createdAtStr);
 
-      // Calcular a qual "número de mensalidade" o mês visualizado corresponde
-      // Ex: Entrou em Jan/2026.
-      // Visualizando Jan/2026 -> Mês 1.
-      // Visualizando Fev/2026 -> Mês 2.
+      // Se estamos vendo um mês ANTERIOR à entrada do aluno, ignora
+      if (year < createdAt.year || (year == createdAt.year && month < createdAt.month)) {
+        continue;
+      }
 
-      // Diferença em meses
-      int monthsSinceStart =
-          (year - createdAt.year) * 12 + (month - createdAt.month) + 1;
-
-      // Se estamos vendo um mês ANTERIOR à entrada do aluno, ignora ou mostra traço
-      // Decisão: Não mostrar na lista deste mês.
-      if (monthsSinceStart < 1) continue;
-
-      // Buscar pagamentos deste aluno
       final myPayments = studentPayments[studentId] ?? [];
 
-      // Verificar status "Ledger"
-      // Se monthsSinceStart = 1, precisamos ter pelo menos 1 pagamento.
-      // Se monthsSinceStart = 5, precisamos ter pelo menos 5 pagamentos.
-
-      // O pagamento que "cobre" este mês é o de índice (monthsSinceStart - 1)
-      // Ex: Mês 1 precisa do pagamento index 0.
-
-      Map<String, dynamic>? coveringPayment;
       String status = 'pending';
+      Map<String, dynamic>? coveringPayment;
 
-      // Quantos pagamentos este aluno já fez no total?
-      int currentPaidCount = myPayments.length;
+      // Procura se tem algum pagamento que cobre este mês selecionado (month/year)
+      for (var p in myPayments) {
+        DateTime tDate = DateTime.parse(p['transaction_date']);
+        DateTime? dDate = p['due_date'] != null ? DateTime.parse(p['due_date']) : null;
 
-      // Calcular a data de vencimento da PRÓXIMA parcela a ser paga (Ledger)
-      // Ex: Entrou em Jan. Pagou 0. Próxima: Jan.
-      // Ex: Entrou em Jan. Pagou 1. Próxima: Fev.
-      int targetYear =
-          createdAt.year + ((createdAt.month + currentPaidCount - 1) ~/ 12);
-      int targetMonth = (createdAt.month + currentPaidCount - 1) % 12 + 1;
-      int targetDay = dueDay ?? 10;
+        // Se tem due_date, usamos ele como referência. Senão, usamos a data da transação.
+        if (dDate != null) {
+          if (dDate.month == month && dDate.year == year) {
+            coveringPayment = p;
+            break;
+          }
+        } else {
+          if (tDate.month == month && tDate.year == year) {
+            coveringPayment = p;
+            break;
+          }
+        }
+      }
 
-      int lastDayOfTargetMonth = DateTime(targetYear, targetMonth + 1, 0).day;
-      if (targetDay > lastDayOfTargetMonth) targetDay = lastDayOfTargetMonth;
-
-      DateTime finalNextDueDate = DateTime(targetYear, targetMonth, targetDay);
-
-      if (currentPaidCount >= monthsSinceStart) {
-        // Está pago para este mês visualizado!
-        coveringPayment = myPayments[monthsSinceStart - 1];
+      if (coveringPayment != null) {
         status = 'paid';
       } else {
-        // Não está pago para este mês.
-
-        // Se devemos meses anteriores (dívida acumulada), status é VENCIDO imediatamente.
-        if (currentPaidCount < monthsSinceStart - 1) {
-          status = 'overdue';
-        } else {
-          // Deve apenas este mês.
-          // Aplica regras de data.
-          if (dueDay != null) {
-            // Mês passado (ou anterior ao atual) -> Vencido
-            if (year < now.year || (year == now.year && month < now.month)) {
-              status = 'overdue';
-            }
-            // Mês atual e dia já passou -> Vencido (Vencimento Estrito)
-            else if (year == now.year &&
-                month == now.month &&
-                now.day > dueDay) {
-              status = 'overdue';
-            } else {
-              status = 'pending';
-            }
+        // Se devemos aplicar regras de atraso
+        if (dueDay != null) {
+          // Mês passado -> Vencido
+          if (year < now.year || (year == now.year && month < now.month)) {
+            status = 'overdue';
+          }
+          // Mês atual e dia já passou -> Vencido
+          else if (year == now.year && month == now.month && now.day > dueDay) {
+            status = 'overdue';
           } else {
-            // Sem dia, virada de mês -> Vencido
-            if (year < now.year || (year == now.year && month < now.month)) {
-              status = 'overdue';
-            }
+            status = 'pending';
+          }
+        } else {
+          // Sem dia fixo, se for mês passado é vencido
+          if (year < now.year || (year == now.year && month < now.month)) {
+            status = 'overdue';
+          } else {
+            status = 'pending';
           }
         }
       }
@@ -553,14 +530,9 @@ class FinancialService {
       result.add({
         ...student,
         'status': status, // paid, pending, overdue
-        'payment_date': coveringPayment != null
-            ? coveringPayment['transaction_date']
-            : null,
-        'payment_amount':
-            coveringPayment != null ? coveringPayment['amount'] : 0.0,
+        'payment_date': coveringPayment != null ? coveringPayment['transaction_date'] : null,
+        'payment_amount': coveringPayment != null ? coveringPayment['amount'] : 0.0,
         'payment_id': coveringPayment != null ? coveringPayment['id'] : null,
-        'next_due_date_iso': finalNextDueDate
-            .toIso8601String(), // Para usar no registro do pagamento
       });
     }
 
@@ -585,41 +557,48 @@ class FinancialService {
     int? paymentDueDay,
     String? createdAtStr,
   }) async {
-    if (paymentDueDay == null) return false;
-    if (createdAtStr == null) return false;
+    if (paymentDueDay == null || createdAtStr == null) return false;
 
     try {
       final now = DateTime.now();
-      final createdAt = DateTime.parse(createdAtStr);
 
-      // 1. Quantos meses entre o cadastro e hoje?
-      int monthsRequired =
-          (now.year - createdAt.year) * 12 + (now.month - createdAt.month) + 1;
-
-      // 2. Quantos pagamentos de 'Mensalidade' este aluno já fez?
       final paymentsResponse = await _client
           .from('financial_transactions')
-          .select()
+          .select('transaction_date, due_date')
           .eq('related_user_id', studentId)
           .eq('type', 'income')
           .eq('category', 'Mensalidade');
 
-      final paidCount = (paymentsResponse as List).length;
+      final payments = List<Map<String, dynamic>>.from(paymentsResponse);
 
-      // Se já pagou tudo que deve até este mês (ou adiantou meses futuros)
-      if (paidCount >= monthsRequired) return false;
+      bool hasPaymentForMonth(int m, int y) {
+        for (var p in payments) {
+          DateTime tDate = DateTime.parse(p['transaction_date']);
+          DateTime? dDate = p['due_date'] != null ? DateTime.parse(p['due_date']) : null;
+          if (dDate != null && dDate.month == m && dDate.year == y) return true;
+          if (dDate == null && tDate.month == m && tDate.year == y) return true;
+        }
+        return false;
+      }
 
-      // Se deve meses anteriores ao atual -> BLOQUEIA IMEDIATAMENTE
-      // Ex: monthsRequired = 2, paidCount = 0. (Deve o mês 1 e o mês 2)
-      if (paidCount < monthsRequired - 1) return true;
-
-      // Se deve APENAS o mês atual (paidCount == monthsRequired - 1),
-      // verifica se já passou do dia de vencimento estrito
-      if (now.day > paymentDueDay) return true;
+      // Verificamos o mês atual
+      if (!hasPaymentForMonth(now.month, now.year)) {
+        // Não pagou este mês. Já passou do vencimento?
+        if (now.day > paymentDueDay) {
+          return true; // Vencido neste mês!
+        } else {
+          // Ainda não venceu este mês. Mas e o mês passado?
+          DateTime lastMonth = DateTime(now.year, now.month - 1, 1);
+          if (!hasPaymentForMonth(lastMonth.month, lastMonth.year)) {
+            // Não pagou o mês passado! Então está vencido.
+            return true;
+          }
+        }
+      }
 
       return false; // Dentro do prazo
     } catch (e) {
-      print('Erro ao verificar status overdue (Ledger): $e');
+      print('Erro ao verificar status overdue: $e');
       return false; // Fail Open
     }
   }
@@ -650,13 +629,8 @@ class FinancialService {
       }
 
       // 2. Notificar Admin (Resumo)
-      // Precisamos saber QUEM é o admin atual que chamou a função
       final currentUser = _client.auth.currentUser;
       if (currentUser != null) {
-        // Verifica se quem chamou é Admin (segurança visual apenas)
-        // Como o serviço é generico, vamos notificar o usuário LOGADO se ele for admin
-        // Ou buscar TODOS os admins daquela academia?
-        // Simplicidade: Notificar o usuário atual que disparou a ação
         final studentNames =
             overdueStudents.map((s) => s['name'].toString()).toList();
         await NotificationService.notifyAdminOverdueStudents(
@@ -682,48 +656,56 @@ class FinancialService {
     final student = await UserService.getUserById(studentId);
     if (student == null) return {'status': 'unknown'};
 
-    // Obtendo o contexto para garantir a query correta (embora student_id seja único)
     final idAcademia = student['id_academia'] ?? '';
     final createdAtStr = student['created_at'] as String?;
     if (createdAtStr == null) return {'status': 'unknown'};
 
-    final createdAt = DateTime.parse(createdAtStr);
     final now = DateTime.now();
 
     // 1. Buscar pagamentos deste aluno
     final response = await _client
         .from('financial_transactions')
-        .select()
+        .select('transaction_date, due_date')
         .eq('id_academia', idAcademia)
         .eq('related_user_id', studentId)
         .eq('type', 'income')
-        .eq('related_user_role', 'student')
-        .order('transaction_date', ascending: true);
+        .eq('category', 'Mensalidade');
 
     final myPayments = List<Map<String, dynamic>>.from(response);
 
-    // 2. Calcular meses desde a entrada
-    int monthsSinceStart =
-        (now.year - createdAt.year) * 12 + (now.month - createdAt.month) + 1;
+    bool hasPaymentForMonth(int m, int y) {
+      for (var p in myPayments) {
+        DateTime tDate = DateTime.parse(p['transaction_date']);
+        DateTime? dDate = p['due_date'] != null ? DateTime.parse(p['due_date']) : null;
+        if (dDate != null && dDate.month == m && dDate.year == y) return true;
+        if (dDate == null && tDate.month == m && tDate.year == y) return true;
+      }
+      return false;
+    }
 
-    if (monthsSinceStart < 1) monthsSinceStart = 1;
-
-    int currentPaidCount = myPayments.length;
     String status = 'pending';
 
-    if (currentPaidCount >= monthsSinceStart) {
+    if (hasPaymentForMonth(now.month, now.year)) {
       status = 'paid';
     } else {
-      if (currentPaidCount < monthsSinceStart - 1) {
-        status = 'overdue';
-      } else {
-        final dueDay = student['payment_due_day'] as int?;
-        if (dueDay != null) {
-          if (now.day > dueDay) {
-            status = 'overdue';
+      final dueDay = student['payment_due_day'] as int?;
+      if (dueDay != null) {
+        if (now.day > dueDay) {
+          status = 'overdue';
+        } else {
+          // Pendente neste mês, mas vamos verificar se o mês passado ficou devendo
+          DateTime lastMonth = DateTime(now.year, now.month - 1, 1);
+          if (!hasPaymentForMonth(lastMonth.month, lastMonth.year)) {
+             status = 'overdue';
           } else {
-            status = 'pending';
+             status = 'pending';
           }
+        }
+      } else {
+        // Sem dueDay, e não pagou o mês atual, verificamos o mês passado
+        DateTime lastMonth = DateTime(now.year, now.month - 1, 1);
+        if (!hasPaymentForMonth(lastMonth.month, lastMonth.year)) {
+           status = 'overdue';
         }
       }
     }
