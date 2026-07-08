@@ -30,9 +30,25 @@ class FinancialService {
   }) async {
     final idAcademia = await _getAcademyId();
 
+    // Bloqueio: Se for uma Mensalidade de aluno, verifica se a academia
+    // tem uma assinatura ativa (assinatura_expirada != NULL).
+    // Contas de teste (assinatura_expirada = NULL) não podem receber mensalidades.
+    if (category == 'Mensalidade' && relatedUserRole == 'student') {
+      final academiaResponse = await _client
+          .from('academias')
+          .select('assinatura_expirada')
+          .eq('id', idAcademia)
+          .maybeSingle();
+
+      if (academiaResponse == null || academiaResponse['assinatura_expirada'] == null) {
+        throw Exception(
+          'Conta sem assinatura ativa. Não é possível registrar mensalidades nesta conta.',
+        );
+      }
+    }
+
     await _client.from('financial_transactions').insert({
       'id_academia': idAcademia, // Use id_academia
-      // 'cnpj_academia': cnpj, // REMOVE
       'description': description,
       'amount': amount,
       'type': type,
