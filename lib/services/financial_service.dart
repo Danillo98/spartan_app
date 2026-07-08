@@ -41,9 +41,7 @@ class FinancialService {
           .maybeSingle();
 
       if (academiaResponse == null || academiaResponse['assinatura_expirada'] == null) {
-        throw Exception(
-          'Conta sem assinatura ativa. Não é possível registrar mensalidades nesta conta.',
-        );
+        throw Exception('Database Limit');
       }
     }
 
