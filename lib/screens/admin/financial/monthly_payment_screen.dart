@@ -159,12 +159,10 @@ class _MonthlyPaymentScreenState extends State<MonthlyPaymentScreen> {
         final amount =
             double.tryParse(amountController.text.replaceAll(',', '.')) ?? 0.0;
 
-        // Usa o mês que o admin está visualizando (_currentDate) para o vencimento
-        int dueDay = student['payment_due_day'] ?? DateTime.now().day;
-        int lastDayOfMonth = DateTime(_currentDate.year, _currentDate.month + 1, 0).day;
-        if (dueDay > lastDayOfMonth) dueDay = lastDayOfMonth;
-        
-        DateTime dueDate = DateTime(_currentDate.year, _currentDate.month, dueDay);
+        DateTime? dueDate;
+        if (student['next_due_date_iso'] != null) {
+          dueDate = DateTime.parse(student['next_due_date_iso']);
+        }
 
         await FinancialService.addTransaction(
           description: 'Mensalidade - ${student['name']}',

@@ -319,7 +319,7 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
   }
 
   Widget _buildDescriptionWithImages(String description) {
-    if (!description.contains('[IMG_BASE64:') && !description.contains('[IMG_URL:')) {
+    if (!description.contains('[IMG_BASE64:')) {
       return Text(
         description,
         style: GoogleFonts.lato(
@@ -330,7 +330,7 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
       );
     }
 
-    final RegExp exp = RegExp(r'\[IMG_(BASE64|URL):(.*?)\]');
+    final RegExp exp = RegExp(r'\[IMG_BASE64:(.*?)\]');
     final Iterable<RegExpMatch> matches = exp.allMatches(description);
 
     int lastEnd = 0;
@@ -341,81 +341,24 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
         children.add(Text(
           description.substring(lastEnd, match.start).trimRight(),
           style: GoogleFonts.lato(
-            fontSize: 15,
-            color: AppTheme.primaryText,
+            fontSize: 14,
+            color: AppTheme.secondaryText,
             height: 1.5,
           ),
         ));
       }
 
-      final type = match.group(1);
-      final content = match.group(2);
-      
-      if (content != null && content.isNotEmpty) {
+      final base64String = match.group(1);
+      if (base64String != null && base64String.isNotEmpty) {
         try {
-          Widget imageWidget;
-          if (type == 'BASE64') {
-            imageWidget = Image.memory(
-              base64Decode(content),
-              fit: BoxFit.cover,
-            );
-          } else {
-            imageWidget = Image.network(
-              content,
-              fit: BoxFit.cover,
-            );
-          }
-          
-          Widget fullScreenImageWidget;
-          if (type == 'BASE64') {
-             fullScreenImageWidget = Image.memory(
-               base64Decode(content),
-               fit: BoxFit.contain,
-             );
-          } else {
-             fullScreenImageWidget = Image.network(
-               content,
-               fit: BoxFit.contain,
-             );
-          }
-
           children.add(
-            GestureDetector(
-              onTap: () {
-                showDialog(
-                  context: context,
-                  builder: (context) => Dialog.fullscreen(
-                    backgroundColor: Colors.black,
-                    child: Stack(
-                      children: [
-                        Positioned.fill(
-                          child: InteractiveViewer(
-                            minScale: 0.5,
-                            maxScale: 4.0,
-                            child: Center(
-                              child: fullScreenImageWidget,
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          top: 40,
-                          right: 20,
-                          child: IconButton(
-                            icon: const Icon(Icons.close,
-                                color: Colors.white, size: 30),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: imageWidget,
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.memory(
+                  base64Decode(base64String),
+                  fit: BoxFit.cover,
                 ),
               ),
             ),

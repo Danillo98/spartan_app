@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/workout_service.dart';
 import '../../config/app_theme.dart';
 
@@ -114,20 +113,8 @@ class _EditWorkoutScreenState extends State<EditWorkoutScreen> {
       // Anexar base64 das imagens comprimidas na descrição
       if (_attachedImages.isNotEmpty) {
         for (var bytes in _attachedImages) {
-          final fileName = '${DateTime.now().millisecondsSinceEpoch}_${bytes.hashCode}.jpg';
-          await Supabase.instance.client.storage
-              .from('workout_images')
-              .uploadBinary(
-                fileName,
-                bytes,
-                fileOptions: const FileOptions(contentType: 'image/jpeg'),
-              );
-          
-          final publicUrl = Supabase.instance.client.storage
-              .from('workout_images')
-              .getPublicUrl(fileName);
-              
-          finalDescription += '\n[IMG_URL:$publicUrl]';
+          final base64String = base64Encode(bytes);
+          finalDescription += '\n[IMG_BASE64:$base64String]';
         }
       }
 

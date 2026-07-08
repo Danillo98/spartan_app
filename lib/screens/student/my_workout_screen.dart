@@ -598,7 +598,7 @@ class _WorkoutDetailsStudentScreenState
   }
 
   Widget _buildDescriptionWithImages(String description) {
-    if (!description.contains('[IMG_BASE64:') && !description.contains('[IMG_URL:')) {
+    if (!description.contains('[IMG_BASE64:')) {
       return Text(
         description,
         style: GoogleFonts.lato(
@@ -609,7 +609,7 @@ class _WorkoutDetailsStudentScreenState
       );
     }
 
-    final RegExp exp = RegExp(r'\[IMG_(BASE64|URL):(.*?)\]');
+    final RegExp exp = RegExp(r'\[IMG_BASE64:(.*?)\]');
     final Iterable<RegExpMatch> matches = exp.allMatches(description);
 
     int lastEnd = 0;
@@ -627,37 +627,9 @@ class _WorkoutDetailsStudentScreenState
         ));
       }
 
-      final type = match.group(1);
-      final content = match.group(2);
-      
-      if (content != null && content.isNotEmpty) {
+      final base64String = match.group(1);
+      if (base64String != null && base64String.isNotEmpty) {
         try {
-          Widget imageWidget;
-          if (type == 'BASE64') {
-            imageWidget = Image.memory(
-              base64Decode(content),
-              fit: BoxFit.cover,
-            );
-          } else {
-            imageWidget = Image.network(
-              content,
-              fit: BoxFit.cover,
-            );
-          }
-          
-          Widget fullScreenImageWidget;
-          if (type == 'BASE64') {
-             fullScreenImageWidget = Image.memory(
-               base64Decode(content),
-               fit: BoxFit.contain,
-             );
-          } else {
-             fullScreenImageWidget = Image.network(
-               content,
-               fit: BoxFit.contain,
-             );
-          }
-
           children.add(
             GestureDetector(
               onTap: () {
@@ -672,7 +644,10 @@ class _WorkoutDetailsStudentScreenState
                             minScale: 0.5,
                             maxScale: 4.0,
                             child: Center(
-                              child: fullScreenImageWidget,
+                              child: Image.memory(
+                                base64Decode(base64String),
+                                fit: BoxFit.contain,
+                              ),
                             ),
                           ),
                         ),
@@ -694,7 +669,10 @@ class _WorkoutDetailsStudentScreenState
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: imageWidget,
+                  child: Image.memory(
+                    base64Decode(base64String),
+                    fit: BoxFit.cover,
+                  ),
                 ),
               ),
             ),
